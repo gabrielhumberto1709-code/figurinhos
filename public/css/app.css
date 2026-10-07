@@ -338,23 +338,8 @@ tr.z-sul td.pos { border-left-color: var(--gramado); } tr.z-sobe td.pos { border
 .gooool span { font-weight: 700; font-size: 1.2rem; }
 @keyframes gol-entra { from { transform: scale(.6); opacity: 0; } to { transform: none; opacity: 1; } }
 
-.campo-h { --dur: 560ms; position: relative; aspect-ratio: 105 / 68; width: 100%; border: 2px solid var(--linha); border-radius: var(--raio); box-shadow: var(--sombra); overflow: hidden;
-  background: repeating-linear-gradient(90deg, var(--gramado) 0 9.09%, var(--gramado-2) 9.09% 18.18%); }
-.campo-h::before { content: ''; position: absolute; inset: 3%; border: 2px solid rgb(232 240 222 / .8); }
-.campo-h .meio-h { position: absolute; top: 3%; bottom: 3%; left: 50%; border-left: 2px solid rgb(232 240 222 / .8); }
-.campo-h .roda-h { position: absolute; left: 50%; top: 50%; height: 26%; aspect-ratio: 1; transform: translate(-50%, -50%); border: 2px solid rgb(232 240 222 / .8); border-radius: 50%; }
-.campo-h .area-h { position: absolute; top: 22%; bottom: 22%; width: 15%; border: 2px solid rgb(232 240 222 / .8); }
-.campo-h .area-h.e { left: 3%; border-left: 0; } .campo-h .area-h.d { right: 3%; border-right: 0; }
-.campo-h .peq-h { position: absolute; top: 37%; bottom: 37%; width: 5.5%; border: 2px solid rgb(232 240 222 / .8); }
-.campo-h .peq-h.e { left: 3%; border-left: 0; } .campo-h .peq-h.d { right: 3%; border-right: 0; }
-.bt { position: absolute; z-index: 2; width: clamp(18px, 5.2vw, 26px); aspect-ratio: 1; transform: translate(-50%, -50%); border-radius: 50%; display: grid; place-items: center;
-  font: 700 clamp(.55rem, 2.2vw, .75rem)/1 var(--f-corpo); transition: left var(--dur) ease-in-out, top var(--dur) ease-in-out; box-shadow: 0 2px 0 rgb(0 0 0 / .45); }
-.bt.t0 { background: var(--c0); color: var(--t0); border: 2px solid var(--a0); }
-.bt.t1 { background: var(--c1); color: var(--t1); border: 2px solid var(--a1); }
-.bt.gk.t0 { background: #F2B33D; color: #1B1F2A; border-color: #1B1F2A; } .bt.gk.t1 { background: #5ED6CF; color: #1B1F2A; border-color: #1B1F2A; }
-.bola { position: absolute; z-index: 3; width: clamp(7px, 1.8vw, 10px); aspect-ratio: 1; transform: translate(-50%, -50%); border-radius: 50%; background: #fff; box-shadow: 0 0 0 1.5px #1B1F2A, 0 2px 0 rgb(0 0 0 / .4); transition: left var(--dur) ease-out, top var(--dur) ease-out; }
-.etiqueta { position: absolute; z-index: 4; transform: translate(-50%, 14px); background: #1B1F2A; color: #fff; font-size: .7rem; font-weight: 700; padding: 1px 5px; border-radius: 3px; white-space: nowrap; pointer-events: none; transition: left var(--dur) ease-in-out, top var(--dur) ease-in-out; }
-.etiqueta[hidden] { display: none; }
+.campo-h { position: relative; aspect-ratio: 105 / 68; width: 100%; border: 2px solid var(--linha); border-radius: var(--raio); box-shadow: var(--sombra); overflow: hidden; background: var(--gramado); }
+.campo-h canvas { display: block; width: 100%; height: 100%; }
 .ticker { margin-top: -14px; padding: 10px 12px; border: 2px solid var(--linha); border-top: 0; border-radius: 0 0 var(--raio) var(--raio); background: var(--barra); color: var(--barra-texto); font-weight: 700; text-align: center; min-height: 44px; }
 .ticker.t0 { background: var(--c0); color: var(--t0); } .ticker.t1 { background: var(--c1); color: var(--t1); }
 .ticker.gol { background: var(--placar); color: #1B1F2A; } .ticker.vermelho { background: var(--cartao); color: #fff; }
@@ -379,7 +364,6 @@ tr.z-sul td.pos { border-left-color: var(--gramado); } tr.z-sobe td.pos { border
 .linha-jog { width: 100%; display: grid; grid-template-columns: 30px 1fr auto; gap: 6px; align-items: center; min-height: 40px; padding: 4px 8px; margin-bottom: 4px; border: 2px solid var(--linha); border-radius: var(--raio); background: var(--campo-bg); cursor: pointer; text-align: left; }
 .linha-jog.sel { background: var(--placar); color: #1B1F2A; }
 .linha-jog[disabled] { opacity: .45; cursor: not-allowed; }
-@media (prefers-reduced-motion: reduce) { .bt, .bola, .etiqueta { transition: none; } .gooool { animation: none; } }
 
 .vivo-placar .lado span { font-size: clamp(.78rem, 3.4vw, 1rem); overflow-wrap: anywhere; }
 @media (max-width: 560px) { .esc-vivo, .painel-listas { grid-template-columns: 1fr; } }
