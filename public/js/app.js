@@ -13,7 +13,7 @@ import * as Elenco from './elenco.js';
 import * as Jornal from './jornal.js';
 import * as Coletiva from './coletiva.js';
 import { perfil } from './motor/imprensa.js';
-import { POS_NOME, ATT, ATT_NOME, cartaDe, estrelas, fmtDinheiro } from './motor/util.js';
+import { POS_NOME, ATT, ATT_NOME, cartaDe, estrelas, fmtDinheiro, PAISES } from './motor/util.js';
 import { urlRosto, urlEscudo, urlBandeira, urlBotao } from './pixel.js';
 
 const $ = sel => document.querySelector(sel);
@@ -83,12 +83,12 @@ function aviso(msg) {
 // ---------- pedaços de interface ----------
 const clube = ci => app.base.clubes[ci];
 const imgEscudo = (ci, w, h) => `<img class="px" src="${urlEscudo(clube(ci))}" width="${w}" height="${h}" alt="">`;
-const bandeira = nat => { const u = urlBandeira(nat); return u ? `<img class="px" src="${u}" width="20" height="14" alt="">` : ''; };
+const bandeira = (nat, w = 16) => { const u = urlBandeira(nat); return u ? `<img class="px" src="${u}" width="${w}" height="${Math.round(w * 11 / 16)}" alt="">` : ''; };
 
 function figurinha(j, extra = '', estatica = false, rendeNaVaga = null) {
   const carta = cartaDe(j.ovr), tag = estatica ? 'div' : 'button', escolha = rendeNaVaga != null;
   return `<${tag} class="fig ${carta.k} ${extra}" ${estatica ? '' : `data-acao="${escolha ? 'escolher' : 'ficha'}" data-id="${j.id}" type="button"`} aria-label="${esc(j.nome)}, ${POS_NOME[j.pos]}, overall ${j.ovr}${escolha ? `, rende ${rendeNaVaga} na vaga` : ''}">${escolha ? `<span class="rende">${rendeNaVaga}</span>` : ''}
-    <span class="foto"><img class="px" src="${urlRosto(j.rosto, clube(j.clube))}" width="32" height="32" alt="" loading="lazy"><span class="ovr">${j.ovr}</span><span class="pos">${j.pos}</span></span>
+    <span class="foto"><img class="px" src="${urlRosto(j.rosto, clube(j.clube))}" width="32" height="32" alt="" loading="lazy"><span class="ovr">${j.ovr}</span><span class="pos">${j.pos}</span><span class="band-fig">${bandeira(j.nat, 16)}</span></span>
     <span class="nome">${esc(j.curto)}</span><span class="tier">${carta.nome}</span></${tag}>`;
 }
 
@@ -382,7 +382,7 @@ function abrirFicha(id) {
   d.innerHTML = `<div class="ficha">
     <div class="ficha-topo">${figurinha(j, '', true)}
       <div><h2 style="font-size:1.4rem">${esc(j.nome)}</h2><p class="mudo">${POS_NOME[j.pos]} · ${esc(clube(j.clube).n)}</p>
-      <dl style="margin-top:8px">${app.s && meu ? `<dt>Condição</dt><dd>${Math.round(app.s.cond?.[j.id] ?? 100)}%</dd><dt>Moral</dt><dd>${Elenco.carinha(app.s.mor?.[j.id])} ${Math.round(app.s.mor?.[j.id] ?? 62)}</dd>` : ''}<dt>Idade</dt><dd>${j.idade} anos</dd><dt>País</dt><dd>${bandeira(j.nat)}${esc(j.nat)}</dd><dt>Carta</dt><dd>${carta.nome}</dd>
+      <dl style="margin-top:8px">${app.s && meu ? `<dt>Condição</dt><dd>${Math.round(app.s.cond?.[j.id] ?? 100)}%</dd><dt>Moral</dt><dd>${Elenco.carinha(app.s.mor?.[j.id])} ${Math.round(app.s.mor?.[j.id] ?? 62)}</dd>` : ''}<dt>Idade</dt><dd>${j.idade} anos</dd><dt>País</dt><dd class="pais">${bandeira(j.nat, 32)}${esc(PAISES[j.nat] || j.nat)}</dd><dt>Carta</dt><dd>${carta.nome}</dd>
       <dt>Potencial</dt><dd>${app.s ? Mercado.potencialTxt(j) : '? ? ?'}</dd></dl></div></div>
     <div class="atts">${ATT.map(k => `<div class="att" style="--c:${corAtt(j.att[k])}"><span>${ATT_NOME[k]}</span><span class="num">${j.att[k]}</span><div><b style="width:${j.att[k]}%"></b></div></div>`).join('')}</div>
     ${app.s ? dmFicha(j) : ''}${app.s?.evo?.[j.id] >= 1 ? `<p class="aviso-ficha evo">▲ +${Math.floor(app.s.evo[j.id])} de overall com o treino no clube.</p>` : ''}

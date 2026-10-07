@@ -318,39 +318,92 @@ function shirt(k) {
   return g.toData();
 }
 
-// ---------- bandeiras 16x11 ----------
-const BANDAS = { // h = faixas horizontais, v = verticais
-  COL: ['h', '#FCD116', '#FCD116', '#003893', '#CE1126'], EQU: ['h', '#FFD100', '#FFD100', '#0072CE', '#EF3340'], VEN: ['h', '#FFCC00', '#00247D', '#CF142B'],
-  BOL: ['h', '#D52B1E', '#F9E300', '#007934'], PAR: ['h', '#D52B1E', '#FFFFFF', '#0038A8'], PER: ['v', '#D91023', '#FFFFFF', '#D91023'],
-  MEX: ['v', '#006847', '#FFFFFF', '#CE1126'], HOL: ['h', '#AE1C28', '#FFFFFF', '#21468B'], BEL: ['v', '#1A1A1A', '#FDDA24', '#EF3340'],
-  IRL: ['v', '#169B62', '#FFFFFF', '#FF883E'], NGA: ['v', '#008751', '#FFFFFF', '#008751'], CRO: ['h', '#FF0000', '#FFFFFF', '#171796'],
-  RUS: ['h', '#FFFFFF', '#0039A6', '#D52B1E'], AUT: ['h', '#ED2939', '#FFFFFF', '#ED2939'], GAN: ['h', '#CE1126', '#FCD116', '#006B3F'],
-  CAM: ['v', '#007A5E', '#CE1126', '#FCD116'], SEN: ['v', '#00853F', '#FDEF42', '#E31B23'], GUI: ['v', '#CE1126', '#FCD116', '#009460'],
-  CHI: ['h', '#FFFFFF', '#D52B1E'], POL: ['h', '#FFFFFF', '#DC143C'], UCR: ['h', '#0057B7', '#FFD700'],
+// ---------- bandeiras 16x11 (todas as seleções da base) ----------
+const H = (...cs) => (x, y) => cs[Math.min(cs.length - 1, Math.floor(y * cs.length / 11))];
+const V = (...cs) => x => cs[Math.min(cs.length - 1, Math.floor(x * cs.length / 16))];
+const cor = c => typeof c === 'function' ? c : () => c;
+// cruz nórdica (com borda opcional), disco, triângulo no mastro e cantão por cima de outro desenho
+const nord = (bg, cr, borda) => (x, y) => { const cx = x >= 4 && x <= 6, cy = y >= 4 && y <= 6; if (borda) return x === 5 || y === 5 ? cr : cx || cy ? borda : bg; return cx || cy ? cr : bg; };
+const disco = (bg, c, r = 2.8, cx = 7.5, cy = 5) => (x, y) => Math.hypot(x - cx, y - cy) < r ? c : cor(bg)(x, y);
+const tri = (bg, c, w = 6) => (x, y) => x < w * (1 - Math.abs(y - 5) / 5.6) ? c : cor(bg)(x, y);
+const lua = (bg, c, cx = 7, cy = 5) => (x, y) => Math.hypot(x - cx, y - cy) < 2.6 && Math.hypot(x - cx - 1, y - cy) >= 2.1 ? c : cor(bg)(x, y);
+const estrela = (bg, c, cx = 7.5, cy = 5, r = 1.6) => (x, y) => Math.abs(x - cx) + Math.abs(y - cy) < r ? c : cor(bg)(x, y);
+const jack = (bg, est) => (x, y) => {
+  if (x <= 7 && y <= 5) { if (x === 3 || x === 4 || y === 2 || y === 3) return x === 3 || y === 2 || (x === 4 && y === 3) ? '#C8102E' : '#FFFFFF'; return Math.abs(x * 0.7 - y) < 0.7 || Math.abs((7 - x) * 0.7 - y) < 0.7 ? '#FFFFFF' : '#012169'; }
+  return est.some(([a, b]) => a === x && b === y) ? (bg === '#012169' ? '#C8102E' : '#FFFFFF') : bg;
 };
-const ALIAS = { ING: 'ENG', ALE: 'GER' };
-function FAIXAS(code) {
-  if (ALIAS[code]) return null;
-  const b = BANDAS[code]; if (!b) return null;
-  const [dir, ...cs] = b;
-  return dir === 'h' ? (x, y) => cs[Math.min(cs.length - 1, Math.floor(y * cs.length / 11))] : x => cs[Math.min(cs.length - 1, Math.floor(x * cs.length / 16))];
-}
+const BANDEIRAS = {
+  BRA: (x, y) => { const d = Math.abs(x - 7.5) / 6.5 + Math.abs(y - 5) / 4.2; if (Math.hypot(x - 7.5, (y - 5) * 1.1) < 2.3) return '#24408E'; return d <= 1 ? '#F7D116' : '#1F9E4A'; },
+  ARG: (x, y) => y < 3 || y > 7 ? '#74ACDF' : (x >= 7 && x <= 8 && y >= 4 && y <= 6 ? '#F6B40E' : '#FFFFFF'),
+  URU: (x, y) => x < 6 && y < 5 ? (Math.hypot(x - 2.5, y - 2) < 1.6 ? '#F6B40E' : '#FFFFFF') : (y % 2 ? '#0038A8' : '#FFFFFF'),
+  ITA: V('#109A4A', '#FFFFFF', '#CE2B37'), FRA: V('#1F3F95', '#FFFFFF', '#E1252E'), ALE: H('#1A1A1A', '#DD1F26', '#F7CE00'),
+  ESP: (x, y) => y < 3 || y > 7 ? '#C8102E' : '#F6C21A',
+  ING: (x, y) => (x >= 7 && x <= 8) || (y >= 4 && y <= 6) ? '#CE1124' : '#FFFFFF',
+  POR: (x, y) => x < 6 ? '#0A6B35' : (Math.hypot(x - 6, y - 5) < 2.4 ? '#F6D33C' : '#DA291C'),
+  NOR: nord('#BA0C2F', '#00205B', '#FFFFFF'), DIN: nord('#C8102E', '#FFFFFF'), SUE: nord('#006AA7', '#FECC00'), FIN: nord('#FFFFFF', '#003580'), ICE: nord('#02529C', '#DC1E35', '#FFFFFF'), FAR: nord('#FFFFFF', '#ED2939', '#005EB8'),
+  COL: H('#FCD116', '#FCD116', '#003893', '#CE1126'), EQU: H('#FFD100', '#FFD100', '#0072CE', '#EF3340'), VEN: H('#FFCC00', '#00247D', '#CF142B'), BOL: H('#D52B1E', '#F9E300', '#007934'),
+  PAR: H('#D52B1E', '#FFFFFF', '#0038A8'), PER: V('#D91023', '#FFFFFF', '#D91023'), CHI: (x, y) => y >= 5 ? '#D52B1E' : x < 6 ? (x === 3 && y === 2 ? '#FFFFFF' : '#0039A6') : '#FFFFFF',
+  MEX: V('#006847', '#FFFFFF', '#CE1126'), HOL: H('#AE1C28', '#FFFFFF', '#21468B'), BEL: V('#1A1A1A', '#FDDA24', '#EF3340'), IRL: V('#169B62', '#FFFFFF', '#FF883E'),
+  NGA: V('#008751', '#FFFFFF', '#008751'), CRO: (x, y) => Math.abs(x - 7.5) < 1.6 && y >= 3 && y <= 6 ? ((x + y) % 2 ? '#FF0000' : '#FFFFFF') : H('#FF0000', '#FFFFFF', '#171796')(x, y), RUS: H('#FFFFFF', '#0039A6', '#D52B1E'),
+  AUT: H('#ED2939', '#FFFFFF', '#ED2939'), GAN: estrela(H('#CE1126', '#FCD116', '#006B3F'), '#000000', 7.5, 5, 1.3), CAM: estrela(V('#007A5E', '#CE1126', '#FCD116'), '#FCD116', 7.5, 5, 1.3),
+  SEN: estrela(V('#00853F', '#FDEF42', '#E31B23'), '#00853F', 7.5, 5, 1.3), GUI: V('#CE1126', '#FCD116', '#009460'), POL: H('#FFFFFF', '#DC143C'), UCR: H('#0057B7', '#FFD700'),
+  EUA: (x, y) => x < 7 && y < 6 ? ((x + y) % 2 ? '#FFFFFF' : '#3C3B6E') : (y % 2 ? '#FFFFFF' : '#B22234'),
+  TUR: estrela(lua('#E30A17', '#FFFFFF', 6), '#FFFFFF', 10.5, 5, 1.1), TUN: lua(disco('#E70013', '#FFFFFF', 3.3), '#E70013', 7, 5),
+  MAR: (x, y) => { const d = Math.abs(x - 7.5) + Math.abs(y - 5); return d < 2.6 && d > 1.4 ? '#006233' : '#C1272D'; },
+  ARL: lua(V('#006233', '#FFFFFF'), '#D21034', 7.5, 5), LIB: lua(H('#E70013', '#000000', '#000000', '#239E46'), '#FFFFFF', 7, 5),
+  SUI: (x, y) => (x >= 6 && x <= 9 && y >= 2 && y <= 8) || (y >= 4 && y <= 6 && x >= 4 && x <= 11) ? '#FFFFFF' : '#DA291C',
+  CIV: V('#F77F00', '#FFFFFF', '#009E60'), MLI: V('#14B53A', '#FCD116', '#CE1126'), ROM: V('#002B7F', '#FCD116', '#CE1126'), MOL: V('#0046AE', '#FFD200', '#CC092F'), CHA: V('#002664', '#FECB00', '#C60C30'),
+  GUA: V('#4997D0', '#FFFFFF', '#4997D0'), MAL: V('#FFFFFF', '#CF142B'), SER: H('#C6363C', '#0C4076', '#FFFFFF'),
+  ESQ: (x, y) => x >= 3 && x <= 6 && y >= 3 && y <= 7 ? (x === 4 && y >= 4 && y <= 6 ? '#FFFFFF' : '#EE1C25') : H('#FFFFFF', '#0B4EA2', '#EE1C25')(x, y),
+  ESL: (x, y) => x >= 3 && x <= 5 && y >= 1 && y <= 4 ? '#0B4EA2' : H('#FFFFFF', '#0000FF', '#FF0000')(x, y),
+  BUL: H('#FFFFFF', '#00966E', '#D62612'), HUN: H('#CD2A3E', '#FFFFFF', '#436F4D'), EGI: estrela(H('#CE1126', '#FFFFFF', '#000000'), '#C09300', 7.5, 5, 1.2),
+  SYR: (x, y) => y >= 4 && y <= 6 && (x === 5 || x === 10) ? '#007A3D' : H('#CE1126', '#FFFFFF', '#000000')(x, y), IRA: H('#239F40', '#FFFFFF', '#DA0000'), ARM: H('#D90012', '#0033A0', '#F2A800'),
+  LIT: H('#FDB913', '#006A44', '#C1272D'), EST: H('#0072CE', '#000000', '#FFFFFF'), GAB: H('#009E60', '#FCD116', '#3A75C4'), SIE: H('#1EB53A', '#FFFFFF', '#0072C6'), UZB: H('#0099B5', '#FFFFFF', '#1EB53A'),
+  TAJ: H('#CC0000', '#FFFFFF', '#006600'), LUX: H('#EF3340', '#FFFFFF', '#00A3E0'), LAT: (x, y) => y >= 4 && y <= 6 ? '#FFFFFF' : '#9E3039', ELS: H('#0047AB', '#FFFFFF', '#0047AB'), HON: H('#0073CF', '#FFFFFF', '#0073CF'),
+  CRC: (x, y) => y <= 1 || y >= 9 ? '#002B7F' : y <= 3 || y >= 7 ? '#FFFFFF' : '#CE1126', HAI: H('#00209F', '#D21034'), IND: H('#CE1126', '#FFFFFF'),
+  THE: (x, y) => y <= 3 ? '#CE1126' : y === 4 || y === 6 ? '#FFFFFF' : y === 5 ? '#0C1C8C' : '#3A7728',
+  GRE: (x, y) => x < 6 && y < 6 ? (x === 2 || y === 2 ? '#FFFFFF' : '#0D5EAF') : (y % 2 ? '#FFFFFF' : '#0D5EAF'),
+  ISR: (x, y) => { const d = Math.abs(x - 7.5) + Math.abs(y - 5); return y === 1 || y === 9 || (d < 2.7 && d > 1.5) ? '#0038B8' : '#FFFFFF'; },
+  ARA: (x, y) => (y === 7 && x >= 4 && x <= 11) || (y >= 3 && y <= 5 && x >= 3 && x <= 12 && (x + y) % 3 === 0) ? '#FFFFFF' : '#006C35',
+  QAT: (x, y) => x < 5 + (y % 2) ? '#FFFFFF' : '#8A1538', UNI: (x, y) => x < 4 ? '#FF0000' : H('#00732F', '#FFFFFF', '#000000')(x, y),
+  JOR: tri(H('#000000', '#FFFFFF', '#007A3D'), '#CE1126', 7), PAL: tri(H('#000000', '#FFFFFF', '#009736'), '#EE2A35', 7),
+  KOS: (x, y) => Math.abs(x - 7.5) < 2.5 && Math.abs(y - 5.5) < 1.5 ? '#D0A650' : (y === 2 && x >= 5 && x <= 10 && x % 2 ? '#FFFFFF' : '#244AA5'),
+  ALB: (x, y) => (Math.abs(x - 7.5) < 1.5 && y >= 2 && y <= 8) || (Math.abs(y - 4) < 1 && Math.abs(x - 7.5) < 4) ? '#000000' : '#E41E20',
+  BOS: (x, y) => x >= 4 + y * 0.7 && x <= 11 ? '#FECB00' : (Math.abs(x - (2.6 + y * 0.7)) < 0.5 && y % 2 === 0 ? '#FFFFFF' : '#002395'),
+  DRC: (x, y) => { const d = Math.abs((x - 7.5) * 0.69 + (y - 5)); return d < 0.6 ? '#CE1021' : d < 1.3 ? '#F7D618' : (Math.hypot(x - 2.5, y - 2.5) < 1.4 ? '#F7D618' : '#007FFF'); },
+  CON: (x, y) => { const d = x * 0.69 + y; return d < 6 ? '#009543' : d < 10.5 ? '#FBDE4A' : '#DC241F'; },
+  TAN: (x, y) => { const d = x * 0.69 - (10 - y); return d < -2.2 ? '#1EB53A' : d < -1.4 ? '#FCD116' : d < 1.4 ? '#000000' : d < 2.2 ? '#FCD116' : '#00A3DD'; },
+  TRI: (x, y) => { const d = Math.abs(x * 0.69 - y + 0.2); return d < 1.1 ? '#000000' : d < 1.7 ? '#FFFFFF' : '#CE1126'; },
+  ZAM: (x, y) => x >= 10 && y >= 4 ? (x < 12 ? '#DE2010' : x < 14 ? '#000000' : '#EF7D00') : '#198A00',
+  ZIM: tri(H('#006400', '#FFD200', '#D40000', '#000000', '#D40000', '#FFD200', '#006400'), '#FFFFFF', 6), MOZ: tri(H('#007168', '#FFFFFF', '#000000', '#FFFFFF', '#FCE100'), '#D21034', 6),
+  ANG: estrela(H('#CC092F', '#000000'), '#FFCB00', 7.5, 5, 1.8), BUR: estrela(H('#EF2B2D', '#009E49'), '#FCD116', 7.5, 5, 1.4),
+  TOG: (x, y) => x < 6 && y < 5 ? (Math.abs(x - 2.5) + Math.abs(y - 2) < 1.2 ? '#FFFFFF' : '#D21034') : (y % 4 < 2 ? '#006A4E' : '#FFCE00'),
+  CPV: (x, y) => y === 6 || y === 8 ? '#FFFFFF' : y === 7 ? '#CF2027' : '#003893', CUR: (x, y) => y === 7 ? '#F9E814' : (x === 2 && y === 2) || (x === 4 && y === 3) ? '#FFFFFF' : '#002B7F',
+  SUR: (x, y) => y <= 1 || y >= 9 ? '#377E3F' : y === 2 || y === 8 ? '#FFFFFF' : (Math.abs(x - 7.5) + Math.abs(y - 5) < 1.6 ? '#ECC81D' : '#B40A2D'),
+  DOM: (x, y) => x === 7 || x === 8 || y === 5 ? '#FFFFFF' : ((x < 7) === (y < 5) ? '#002D62' : '#CE1126'),
+  PAN: (x, y) => x < 8 ? (y < 5.5 ? (x === 3 && y === 2 ? '#005293' : '#FFFFFF') : '#005293') : (y < 5.5 ? '#D21034' : (x === 12 && y === 8 ? '#D21034' : '#FFFFFF')),
+  NEW: jack('#012169', [[11, 3], [13, 5], [10, 6], [12, 8]]), AUS: jack('#012169', [[3, 8], [11, 2], [13, 5], [11, 8], [9, 5]]),
+  RSA: (x, y) => { const yy = Math.abs(y - 5); if (x <= 3.5 - yy * 0.8) return '#000000'; if (x <= 4.6 - yy * 0.8) return '#FFB612'; if (yy <= 1 && x >= 4) return '#007749'; if (x <= 6.4 - yy * 0.8 && yy <= 4) return '#007749'; if (yy <= 2 || x <= 7.4 - yy * 0.8) return '#FFFFFF'; return y < 5 ? '#DE3831' : '#002395'; },
+  GBS: (x, y) => x < 5 ? (Math.abs(x - 2.5) + Math.abs(y - 5) < 1.3 ? '#000000' : '#CE1126') : (y < 5.5 ? '#FCD116' : '#009E49'),
+  CEN: (x, y) => x === 7 || x === 8 ? '#D21034' : H('#003082', '#FFFFFF', '#289728', '#FFCE00')(x, y), COM: tri(H('#FFC61E', '#FFFFFF', '#CE1126', '#3A75C4'), '#3D8E33', 6),
+  MAU: (x, y) => y <= 1 || y >= 9 ? '#D01C1F' : lua('#00A95C', '#FFD700', 7.5, 4.5)(x, y), BEN: (x, y) => x < 6 ? '#008751' : y < 5.5 ? '#FCD116' : '#E8112D',
+  JAP: disco('#FFFFFF', '#BC002D', 3), BAN: disco('#006A4E', '#F42A41', 3, 6.5), NIG: disco(H('#E05206', '#FFFFFF', '#0DB02B'), '#E05206', 1.3),
+  COR: (x, y) => Math.hypot(x - 7.5, y - 5) < 2.8 ? (y < 5 ? '#CD2E3A' : '#0047A0') : (((x <= 2 || x >= 13) && (y <= 2 || y >= 8)) ? '#000000' : '#FFFFFF'),
+  KAZ: disco('#00AFCA', '#FEC50C', 2.2), CYP: (x, y) => Math.abs(x - 7.5) < 3 && Math.abs(y - 4.5) < 1.2 ? '#D57800' : (y === 7 && Math.abs(x - 7.5) < 2 ? '#4E5B31' : '#FFFFFF'),
+  MON: (x, y) => x === 0 || x === 15 || y === 0 || y === 10 || Math.hypot(x - 7.5, y - 5) < 2 ? '#C6A63F' : '#C40308',
+  GAL: (x, y) => Math.abs(x - 7.5) < 3 && Math.abs(y - 5) < 2.2 ? '#C8102E' : (y < 5.5 ? '#FFFFFF' : '#00B140'),
+  ESC: (x, y) => Math.abs((x - 7.5) * 0.69 - (y - 5)) < 0.9 || Math.abs((x - 7.5) * 0.69 + (y - 5)) < 0.9 ? '#FFFFFF' : '#005EB8',
+  CAN: (x, y) => x < 4 || x > 11 ? '#FF0000' : (Math.abs(x - 7.5) + Math.abs(y - 5) * 1.1 < 2.6 ? '#FF0000' : '#FFFFFF'),
+  NIR: (x, y) => x === 7 || x === 8 || y === 5 ? '#C8102E' : '#FFFFFF',
+  JAM: (x, y) => Math.abs((x - 7.5) * 0.69 - (y - 5)) < 0.9 || Math.abs((x - 7.5) * 0.69 + (y - 5)) < 0.9 ? '#FED100' : Math.abs(y - 5) > Math.abs(x - 7.5) * 0.69 ? '#009B3A' : '#000000',
+  GEO: (x, y) => x === 7 || x === 8 || y === 5 || [[3, 2], [12, 2], [3, 8], [12, 8]].some(([a, b]) => a === x && b === y) ? '#E8112D' : '#FFFFFF',
+  TCH: (x, y) => x < 7 - Math.abs(y - 5) * 1.3 ? '#11457E' : y < 5.5 ? '#FFFFFF' : '#D7141A',
+};
+const ALIAS = { SOU: 'RSA', MNE: 'MON', FRE: 'FRA', GLP: 'FRA', ENG: 'ING', GER: 'ALE' };
 function flag(code) {
-  code = ALIAS[code] || code;
-  const g = new Grid(16, 11);
-  const F = {
-    BRA: (x, y) => { const d = Math.abs(x - 7.5) / 6.5 + Math.abs(y - 5) / 4.2; if (Math.hypot(x - 7.5, (y - 5) * 1.1) < 2.3) return '#24408E'; return d <= 1 ? '#F7D116' : '#1F9E4A'; },
-    ARG: (x, y) => y < 3 || y > 7 ? '#74ACDF' : (x >= 7 && x <= 8 && y >= 4 && y <= 6 ? '#F6B40E' : '#FFFFFF'),
-    ITA: x => x < 5 ? '#109A4A' : x < 11 ? '#FFFFFF' : '#CE2B37',
-    FRA: x => x < 5 ? '#1F3F95' : x < 11 ? '#FFFFFF' : '#E1252E',
-    GER: (x, y) => y < 4 ? '#1A1A1A' : y < 7 ? '#DD1F26' : '#F7CE00',
-    ESP: (x, y) => y < 3 || y > 7 ? '#C8102E' : '#F6C21A',
-    ENG: (x, y) => (x >= 6 && x <= 8) || (y >= 4 && y <= 6) ? '#CE1124' : '#FFFFFF',
-    POR: (x, y) => x < 6 ? '#0A6B35' : (Math.hypot(x - 6, y - 5) < 2.4 ? '#F6D33C' : '#DA291C'),
-    NOR: (x, y) => (x >= 5 && x <= 6) || (y >= 4 && y <= 6 && y !== 7) ? ((x === 5 || x === 6) && (y >= 4 && y <= 6) || (x >= 5 && x <= 6) || (y === 5) ? ((x === 5 || x === 6 || y === 5) && !(x === 4 || x === 7 || y === 4 || y === 6) ? '#00205B' : '#FFFFFF') : '#FFFFFF') : '#BA0C2F',
-    URU: (x, y) => x < 6 && y < 5 ? (Math.hypot(x - 2.5, y - 2) < 1.6 ? '#F6B40E' : '#FFFFFF') : (y % 2 ? '#0038A8' : '#FFFFFF'),
-  }[code] || FAIXAS(code);
+  const F = BANDEIRAS[ALIAS[code] || code];
   if (!F) return null;
+  const g = new Grid(16, 11);
   for (let y = 0; y < 11; y++) for (let x = 0; x < 16; x++) { let c = F(x, y); if (x % 5 === 4 && y > 0) c = shade(c, 0.9); g.set(x, y, c); }
   g.outline(() => '#141821');
   return g.toData();
