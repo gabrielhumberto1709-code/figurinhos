@@ -202,7 +202,7 @@ export function aceitarRecebida(base, s, id) {
   if (p.tipo === 'emprestimo') emprestar(base, s, j, p.de);
   else transferir(base, s, j, p.de, p.valor, { anos: 3 });
   s.recebidas = s.recebidas.filter(x => x.jogador !== p.jogador);
-  s.noticias.unshift({ rodada: s.rodada, tipo: 'clube', div: base.clubes[s.tecnico.clube].div, texto: p.tipo === 'emprestimo' ? `Emprestado: ${j.curto} vai jogar no ${base.clubes[p.de].n} até o fim da temporada.` : `Vendido: ${j.curto} acerta com o ${base.clubes[p.de].n} por ${fmt(p.valor)}.` });
+  s.noticias.unshift({ rodada: s.rodada, tipo: 'clube', mercado: true, div: base.clubes[s.tecnico.clube].div, texto: p.tipo === 'emprestimo' ? `Emprestado: ${j.curto} vai jogar no ${base.clubes[p.de].n} até o fim da temporada.` : `Vendido: ${j.curto} acerta com o ${base.clubes[p.de].n} por ${fmt(p.valor)}.` });
   return null;
 }
 export function recusarRecebida(s, id) { s.recebidas = s.recebidas.filter(x => x.id !== id); }
@@ -286,7 +286,7 @@ function negociosIA(base, s, rd, r, add) {
       && vendedorAguenta(base, s, j) && precoPedido(base, s, j) <= caixa && vontade(base, s, j, ci) >= 50);
     if (!cands.length) continue;
     const j = pickW(r, cands, x => x.ovr - min + 1), valor = precoPedido(base, s, j), de = mover(j, ci, valor);
-    add(ehLivre(base, de) ? `Mercado: ${nome(ci)} contrata ${j.curto}, que estava sem clube.` : `Mercado: ${j.curto} deixa o ${nome(de)} e acerta com o ${nome(ci)} por ${fmt(valor)}.`, 'mercado', base.clubes[ci].div);
+    add(ehLivre(base, de) ? `Mercado: ${nome(ci)} contrata ${j.curto}, que estava sem clube.` : `Mercado: ${j.curto} deixa o ${nome(de)} e acerta com o ${nome(ci)} por ${fmt(valor)}.`, 'mercado', base.clubes[ci].div, { jogador: j.id });
   }
   if (r() < 0.25) {
     const destaques = [...base.jog.values()].filter(j => base.clubes[j.clube].div === 'A' && j.clube !== meu && j.idade <= 27 && (j.ovr >= 78 || (j.ovr >= 75 && media(s.est[j.id]) >= 6.9)) && vendedorAguenta(base, s, j) && !preContratoDe(s, j.id) && !s.emprestimos[j.id]);
@@ -294,7 +294,7 @@ function negociosIA(base, s, rd, r, add) {
     const fora = j && interessados(base, j).filter(ci => base.clubes[ci].div === 'X');
     if (fora?.length) {
       const para = pickW(r, fora, ci => base.clubes[ci].fan), valor = arred(precoPedido(base, s, j) * (1 + r() * 0.3)), de = mover(j, para, valor);
-      add(`Venda para o exterior: ${j.curto} troca o ${nome(de)} pelo ${nome(para)} (${base.clubes[para].liga}) por ${fmt(valor)}.`, 'mercado', base.clubes[de].div);
+      add(`Venda para o exterior: ${j.curto} troca o ${nome(de)} pelo ${nome(para)} (${base.clubes[para].liga}) por ${fmt(valor)}.`, 'mercado', base.clubes[de].div, { jogador: j.id });
     }
   }
 }
@@ -305,7 +305,7 @@ export function resolverMercado(base, s, rd) {
   garantirMercado(s);
   const r = rng(`mercado${s.seed}-${rd}`), meu = s.tecnico.clube, N = [];
   const nome = ci => base.clubes[ci].n;
-  const add = (texto, tipo = 'clube', div = base.clubes[meu].div) => N.push({ rodada: rd + 1, tipo, div, texto });
+  const add = (texto, tipo = 'clube', div = base.clubes[meu].div, extra) => N.push({ rodada: rd + 1, tipo, div, texto, mercado: true, ...extra });
 
   for (const p of s.propostas.filter(x => x.estado === 'aguardando' && x.rodada <= rd)) {
     const j = base.jog.get(p.jogador), tipo = p.tipo || 'compra';
@@ -337,7 +337,7 @@ export function resolverMercado(base, s, rd) {
       p.estado = 'perdida'; p.motivo = `ele escolheu o ${nome(melhorRival.ci)}`;
       if (tipo === 'pre') s.preContratos.push({ jogador: j.id, de: j.clube, para: melhorRival.ci, rodada: rd });
       else if (tipo === 'livre' || tipo === 'compra') { transferir(base, s, j, melhorRival.ci, 0); s.historicoTransf[0].valor = melhorRival.valor; s.historicoTransf[0].ia = true; }
-      add(`${j.curto} escolhe o ${nome(melhorRival.ci)}${tipo === 'pre' ? ' e assina pré-contrato' : ' e vai jogar lá'}.`, 'mercado', base.clubes[melhorRival.ci].div);
+      add(`${j.curto} escolhe o ${nome(melhorRival.ci)}${tipo === 'pre' ? ' e assina pré-contrato' : ' e vai jogar lá'}.`, 'mercado', base.clubes[melhorRival.ci].div, { jogador: j.id });
       continue;
     }
     // salário: abaixo de 90% do que pede, ele faz contraproposta; entre 90% e 100%, pode topar

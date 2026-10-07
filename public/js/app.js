@@ -8,8 +8,8 @@ import { garantirMercado } from './motor/mercado.js';
 import * as Mercado from './mercado.js';
 import * as AoVivo from './aovivo.js';
 import * as Elenco from './elenco.js';
-import { media } from './motor/noticias.js';
-import { POS_NOME, SETOR, ATT, ATT_NOME, cartaDe, estrelas, fmtDinheiro, POS_ORDEM } from './motor/util.js';
+import * as Jornal from './jornal.js';
+import { POS_NOME, ATT, ATT_NOME, cartaDe, estrelas, fmtDinheiro } from './motor/util.js';
 import { urlRosto, urlEscudo, urlBandeira, urlBotao } from './pixel.js';
 
 const $ = sel => document.querySelector(sel);
@@ -375,27 +375,7 @@ telas.partida = () => {
 };
 
 // ----- jornal da bola -----
-const TAGS = { clube: ['Seu clube', 'clube'], resultado: ['Rodada', 'resultado'], rumor: ['Rumor', 'rumor'], mercado: ['Mercado', 'rumor'], crise: ['Crise', 'crise'], destaque: ['Destaque', 'destaque'] };
-telas.noticias = () => {
-  const s = app.s, ci = s.tecnico.clube, d = clube(ci).div, f = app.filtroNoticias || 'tudo';
-  const FILTROS = [['tudo', 'Tudo'], ['clube', 'Meu clube'], ['rumor', 'Rumores'], ['A', 'Série A'], ['B', 'Série B'], ['C', 'Série C']];
-  const tipo = n => n.tipo || 'clube';
-  const lista = s.noticias.filter(n => f === 'tudo' || (f === 'clube' ? tipo(n) === 'clube' : f === 'rumor' ? ['rumor', 'mercado'].includes(tipo(n)) || n.para != null : n.div === f));
-  const porRodada = new Map(); for (const n of lista) { if (!porRodada.has(n.rodada)) porRodada.set(n.rodada, []); porRodada.get(n.rodada).push(n); }
-  const art = [...app.base.jog.values()].filter(j => clube(j.clube).div === d && s.est?.[j.id]?.[1]).sort((a, b) => s.est[b.id][1] - s.est[a.id][1] || s.est[a.id][0] - s.est[b.id][0]).slice(0, 10);
-  const sel = s.destaques?.[d];
-  const nomeJ = id => { const j = app.base.jog.get(id); return `${imgEscudo(j.clube, 18, 20)}<span>${esc(j.curto)}</span>`; };
-  return `<div class="titulo-linha"><h2 class="jornal">Jornal da Bola</h2><span class="mudo">${s.rodada ? `Após a ${s.rodada}ª rodada` : 'Pré-temporada'}</span></div>
-    <div class="chips" role="group" aria-label="Filtrar notícias">${FILTROS.map(([k, t]) => `<button type="button" class="chip" data-acao="filtro-noticias" data-f="${k}" aria-pressed="${f === k}">${t}</button>`).join('')}</div>
-    <div class="grade-clube"><div style="display:flex;flex-direction:column;gap:16px">
-      ${porRodada.size ? [...porRodada].slice(0, app.rodadasNoticias || 3).map(([rd, ns]) => `<section class="cartao"><h3>${rd ? `${rd}ª rodada` : 'Pré-temporada'}</h3><ul class="manchetes">${ns.map(n => { const [rot, cls] = TAGS[tipo(n)] || TAGS.resultado; return `<li><span class="tag ${cls}">${rot}</span><span>${esc(n.texto)}</span></li>`; }).join('')}</ul></section>`).join('')
-        : '<section class="cartao"><p class="mudo">Nada por aqui ainda. As notícias saem a cada rodada.</p></section>'}
-      ${porRodada.size > (app.rodadasNoticias || 3) ? '<button class="botao sec" data-acao="mais-noticias" type="button">Rodadas anteriores</button>' : ''}
-    </div><div style="display:flex;flex-direction:column;gap:16px">
-      <section class="cartao"><h3>Artilharia · Série ${d}</h3>${art.length ? `<table><thead><tr><th>#</th><th style="text-align:left">Jogador</th><th>G</th><th>J</th></tr></thead><tbody>${art.map((j, i) => `<tr class="${j.clube === ci ? 'meu' : ''}"><td class="pos">${i + 1}</td><td class="clube-cel"><span>${nomeJ(j.id)}</span></td><td class="p">${s.est[j.id][1]}</td><td>${s.est[j.id][0]}</td></tr>`).join('')}</tbody></table>` : '<p class="mudo">Ninguém marcou ainda.</p>'}</section>
-      ${sel ? `<section class="cartao"><h3>Seleção da ${sel.rodada}ª rodada</h3><ol class="selecao">${sel.time.slice().sort((x, y) => POS_ORDEM.indexOf(app.base.jog.get(x[0]).pos) - POS_ORDEM.indexOf(app.base.jog.get(y[0]).pos)).map(([id, n]) => `<li><span class="pos-mini">${app.base.jog.get(id).pos}</span><span class="clube-cel"><span>${nomeJ(id)}</span></span><span class="nota ${n >= 7.5 ? 'alta' : ''}">${n.toFixed(1).replace('.', ',')}</span></li>`).join('')}</ol></section>` : ''}
-    </div></div>`;
-};
+telas.noticias = () => Jornal.tela();
 
 // saves antigos ganham os campos novos; a base recebe as transferências deste save
 function migrar(s) {
@@ -513,8 +493,7 @@ const acoes = {
   ...AoVivo.acoes,
   ...Mercado.acoes,
   ...Elenco.acoes,
-  'filtro-noticias': el => { app.filtroNoticias = el.dataset.f; app.rodadasNoticias = 3; render(); },
-  'mais-noticias': () => { app.rodadasNoticias = (app.rodadasNoticias || 3) + 5; render(); },
+  ...Jornal.acoes,
   tema: () => {
     const novo = escuro() ? 'claro' : 'escuro';
     document.documentElement.dataset.tema = novo;
@@ -577,6 +556,7 @@ document.addEventListener('submit', async e => {
 
 AoVivo.configurar({ app, clube, esc, imgEscudo, $ });
 Torneios.configurar({ app, clube, esc, imgEscudo, render: () => render() });
+Jornal.configurar({ app, clube, esc, imgEscudo, render: () => render() });
 Mercado.configurar({ app, clube, esc, imgEscudo, $, aviso, render: () => render(), salvar: () => salvar() });
 Elenco.configurar({ app, clube, esc, imgEscudo, figurinha, render: () => render(), salvar: () => salvar(), aviso });
 document.addEventListener('change', e => { if (app.s && Elenco.aoMudar(e.target)) e.stopPropagation(); });

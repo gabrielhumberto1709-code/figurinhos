@@ -32,6 +32,26 @@ const MODELOS_RUMOR = [
 ];
 const SETOR_TXT = { GOL: 'meta', DEF: 'defesa', MEI: 'meia-cancha', ATA: 'frente' };
 const ORD = n => `${n}ª`;
+const qtd = (q, um, varios) => `${q} ${q === 1 ? um : varios}`;
+
+// manchete da capa: o que o craque da rodada fez no jogo dele (t = lado dele no jogo x)
+export function manchete(base, j, n, x, t, r = Math.random) {
+  const ev = x.sim.eventos.filter(e => e.tipo === 'gol');
+  const gols = ev.filter(e => e.jogador === j.id).length, ass = ev.filter(e => e.assist === j.id).length;
+  const meus = x.sim.gols[t], deles = x.sim.gols[1 - t], defesas = x.sim.stats?.[t]?.defesas || 0;
+  const N = j.curto, A = base.clubes[t ? x.h : x.a].n, C = base.clubes[t ? x.a : x.h].n, venceu = meus > deles;
+  let titulo, fato = [gols && qtd(gols, 'gol', 'gols'), ass && qtd(ass, 'assistência', 'assistências')].filter(Boolean).join(' e ');
+  if (j.pos === 'GOL' && defesas >= 4) { titulo = venceu || meus === deles ? pick(r, [`Paredão: ${N} faz ${defesas} defesas e segura o ${A}!`, `São ${N}! ${defesas} defesas contra o ${A}`]) : `${N} faz ${defesas} defesas, mas não segura o ${A}`; fato = `${defesas} defesas`; }
+  else if (gols >= 3) titulo = pick(r, gols === 3 ? [`Show de ${N}: hat-trick contra o ${A}!`, `Tripleta de ${N} contra o ${A}!`, `${N} faz três e leva a bola para casa!`] : [`${N} marca ${gols} vezes e atropela o ${A}!`, `Noite de gala: ${N} faz ${gols} no ${A}!`]);
+  else if (gols === 2) titulo = venceu ? pick(r, [`${N} faz dois e derruba o ${A}!`, `Dobradinha de ${N} contra o ${A}!`, `${N} marca duas vezes e o ${C} bate o ${A}!`]) : `${N} marca duas vezes contra o ${A}`;
+  else if (ass >= 2) titulo = `Garçom: ${N} serve ${ass} vezes contra o ${A}!`;
+  else if (gols === 1 && venceu && meus - deles === 1) titulo = pick(r, [`${N} decide e o ${C} vence o ${A}!`, `Gol de ${N} vale a vitória sobre o ${A}!`]);
+  else if (gols + ass) titulo = `${N} brilha contra o ${A}`;
+  else if (!deles && (j.pos === 'GOL' || SETOR[j.pos] === 'DEF')) { titulo = `Muralha: ${N} fecha a porta para o ${A}!`; fato = 'Sem sofrer gols'; }
+  else titulo = `${N} é o dono da rodada`;
+  const placar = `${base.clubes[x.h].n} ${x.sim.gols[0]} × ${x.sim.gols[1]} ${base.clubes[x.a].n}`;
+  return { titulo, sub: `${fato ? `${fato} em ` : ''}${placar}. Nota ${n.toFixed(1).replace('.', ',')}.` };
+}
 
 export function gerarNoticias(base, s, rd, jogos, tabs) {
   const r = rng(`jornal${s.seed}-${rd}`), meu = s.tecnico.clube, N = [];
@@ -52,7 +72,7 @@ export function gerarNoticias(base, s, rd, jogos, tabs) {
     const daDiv = jogos.filter(x => x.d === d), tab = tabs[d];
     // goleada da rodada
     const gol = daDiv.map(x => ({ ...x, m: Math.abs(x.sim.gols[0] - x.sim.gols[1]) })).sort((x, y) => y.m - x.m)[0];
-    if (gol && gol.m >= 3) add('resultado', d, `Goleada na Série ${d}: ${nome(gol.h)} ${gol.sim.gols[0]} × ${gol.sim.gols[1]} ${nome(gol.a)}.`);
+    if (gol && gol.m >= 3) add('resultado', d, `Goleada na Série ${d}: ${nome(gol.h)} ${gol.sim.gols[0]} × ${gol.sim.gols[1]} ${nome(gol.a)}.`, { clube: gol.sim.gols[0] > gol.sim.gols[1] ? gol.h : gol.a });
     // liderança
     s.lider = s.lider || {};
     if (rd >= 2 && tab[0].clube !== s.lider[d]) add('resultado', d, `${nome(tab[0].clube)} assume a liderança da Série ${d} com ${tab[0].p} pontos.`, { clube: tab[0].clube });
@@ -64,7 +84,7 @@ export function gerarNoticias(base, s, rd, jogos, tabs) {
       if (n !== 4 || ult === 'E') continue;
       const ehMeu = l.clube === meu;
       if (ult === 'V') add(ehMeu ? 'clube' : 'resultado', d, `${nome(l.clube)} engata a quarta vitória seguida na Série ${d}.`, { clube: l.clube });
-      else add(ehMeu ? 'clube' : 'crise', d, ehMeu ? `Quarta derrota seguida. A torcida protesta e a diretoria cobra reação.` : `Crise no ${nome(l.clube)}: quarta derrota seguida e técnico pressionado.`, { clube: l.clube });
+      else add(ehMeu ? 'clube' : 'crise', d, ehMeu ? `Quarta derrota seguida. A torcida protesta e a diretoria cobra reação.` : `Crise no ${nome(l.clube)}: quarta derrota seguida e técnico pressionado.`, { clube: l.clube, imprensa: true });
     }
     // hat-tricks e artilharia
     const top3 = Object.entries(s.est).filter(([id]) => base.clubes[base.jog.get(+id)?.clube]?.div === d).sort((x, y) => y[1][1] - x[1][1]).slice(0, 3).map(([id]) => +id);
@@ -100,12 +120,16 @@ export function gerarNoticias(base, s, rd, jogos, tabs) {
   s.destaques = {};
   for (const d of DIVS) {
     const notas = [];
-    for (const x of jogos.filter(y => y.d === d)) for (const t of [0, 1]) for (const [id, n] of Object.entries(x.sim.notas[t])) notas.push([+id, n]);
+    for (const x of jogos.filter(y => y.d === d)) for (const t of [0, 1]) for (const [id, n] of Object.entries(x.sim.notas[t])) notas.push([+id, n, x, t]);
     notas.sort((x, y) => y[1] - x[1]);
     const vagas = { GOL: 1, DEF: 4, MEI: 3, ATA: 3 }, time = [];
     for (const [id, n] of notas) { const st = SETOR[base.jog.get(id).pos]; if (vagas[st]) { vagas[st]--; time.push([id, n]); } }
     s.destaques[d] = { rodada: rd + 1, time };
-    if (d === base.clubes[meu].div && notas[0]) { const j = base.jog.get(notas[0][0]); add('destaque', d, `Craque da ${ORD(rd + 1)} rodada: ${j.curto} (${nome(j.clube)}), nota ${notas[0][1].toFixed(1).replace('.', ',')}.`, { jogador: j.id }); }
+    if (d === base.clubes[meu].div && notas[0]) {
+      const [id, n, x, t] = notas[0], j = base.jog.get(id);
+      add('destaque', d, `Craque da ${ORD(rd + 1)} rodada: ${j.curto} (${nome(j.clube)}), nota ${n.toFixed(1).replace('.', ',')}.`, { jogador: j.id });
+      s.manchete = { rodada: rd + 1, div: d, jogador: j.id, nota: n, ...manchete(base, j, n, x, t, r) };
+    }
   }
 
   s.noticias = [...N, ...s.noticias].slice(0, 220);

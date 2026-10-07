@@ -360,7 +360,7 @@ export function concluirRodada(base, s, R, simMeu) {
   const tabs = Object.fromEntries(DIVS.map(d => [d, tabela(base, s, d)]));
   gerarNoticias(base, s, R.rd, jogos, tabs);
   const casa = R.meu && R.meu.h === s.tecnico.clube ? { adv: R.meu.a } : null;
-  for (const txt of contasDaRodada(base, s, R.rd, casa, tabs[base.clubes[s.tecnico.clube].div])) s.noticias.unshift({ rodada: R.rd + 1, tipo: 'clube', div: base.clubes[s.tecnico.clube].div, texto: txt });
+  for (const txt of contasDaRodada(base, s, R.rd, casa, tabs[base.clubes[s.tecnico.clube].div])) s.noticias.unshift({ rodada: R.rd + 1, tipo: 'clube', evento: true, div: base.clubes[s.tecnico.clube].div, texto: txt });
   resolverMercado(base, s, R.rd);
   if (!naCopa(s, s.tecnico.clube)) copaSemVoce(base, s);
   return s.ultima;

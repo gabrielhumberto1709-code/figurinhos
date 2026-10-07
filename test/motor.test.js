@@ -87,6 +87,12 @@ test('jornal: estatísticas batem com os gols e rumores fazem sentido de futebol
     assert.ok(media(s.est[j.id]) > 0);
   }
   assert.ok(s.destaques.A.time.length === 11);
+  // capa: o craque da rodada da sua série, com placar e nota do jogo dele
+  const m = s.manchete, j = base.jog.get(m.jogador), [id, nota] = s.destaques.A.time.slice().sort((x, y) => y[1] - x[1])[0];
+  assert.equal(m.rodada, 20);
+  assert.equal(m.jogador, id);
+  assert.ok(m.titulo.includes(j.curto) && m.sub.endsWith(`Nota ${nota.toFixed(1).replace('.', ',')}.`), `${m.titulo} / ${m.sub}`);
+  assert.match(m.sub, / \d+ × \d+ /);
 });
 
 import { precoPedido, fazerProposta, vontade, salarioPedido, aceitarContraproposta, renovar, pedidoRenovacao, observar, listasIA, bloqueioProposta } from '../public/js/motor/mercado.js';
