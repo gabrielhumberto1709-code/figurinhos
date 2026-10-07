@@ -412,6 +412,7 @@ $('#ficha').addEventListener('click', e => { if (e.target === e.currentTarget) e
 
 // campos do novo jogo ficam guardados no rascunho
 document.addEventListener('input', e => {
+  if (e.target.form?.dataset.form === 'entrar') e.target.form.querySelector('.erro').textContent = '';
   const k = e.target.dataset?.campo; if (!k || !app.novo) return;
   const v = e.target.value, n = app.novo;
   if (k === 'nome') n.tecnico.nome = v;
