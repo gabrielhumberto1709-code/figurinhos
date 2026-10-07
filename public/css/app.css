@@ -636,3 +636,7 @@ b.pos { color: var(--gramado); } b.neg { color: var(--cartao); }
 .evo-linha { grid-template-columns: 30px 24px 1fr auto !important; } .evo-linha .dm-barra { margin-top: 4px; height: 8px; } .aviso-ficha.evo { border-left-color: var(--gramado); }
 .pais { display: flex; align-items: center; gap: 6px; }
 .fig .band-fig { position: absolute; left: 4px; bottom: 4px; line-height: 0; } .fig .band-fig img { width: 16px; height: 11px; }
+.selo-fase { font-size: .7rem; letter-spacing: -2px; margin-left: 3px; vertical-align: 1px; }
+.selo-fase.excelente, .selo-fase.boa { color: var(--gramado); } .selo-fase.ruim, .selo-fase.pessima { color: var(--cartao); }
+.jc-nome .selo-fase { color: #fff; text-shadow: 1px 1px 0 #000; }
+.aviso-ficha.fase-excelente, .aviso-ficha.fase-boa { border-left-color: var(--gramado); }

@@ -6,6 +6,7 @@ import { fragilidade, indisponiveis, posJogo, TREINO_LES } from './dm.js';
 import { garantirCarreira, torcidaAposJogo, aposRodada, tituloDeCopa } from './carreira.js';
 import { evoluir } from './treino.js';
 import { rivais } from './rivais.js';
+import { registrarForma, bonusFase } from './forma.js';
 import { TORNEIOS, PREMIO_SUP, FASES_CONT, dataCont, dataSup, novaCont, contDevida, naCont, supDevida, jogosDaFase, decidirCont, avancarCont, timeFora, jogadorCont } from './continental.js';
 import { gerarNoticias } from './noticias.js';
 import { resolverMercado, garantirMercado } from './mercado.js';
@@ -191,7 +192,7 @@ export const compProxima = (base, s) => { const ev = proximoEvento(base, s); ret
 // Lesionados e suspensos ficam de fora; na escalação manual, a vaga deles é completada só para esse jogo.
 export function escalacao(base, s, ci, comp = compProxima(base, s)) {
   const elenco = base.elencos[ci], cond = s.cond || {}, fora = indisponiveis(s, elenco, comp);
-  if (ci !== s.tecnico.clube) { const t = taticaIA(base, ci); return { ...melhorTime(elenco, t.formacao, fora, cond), estilo: t.estilo, gatilhos: t.gatilhos }; }
+  if (ci !== s.tecnico.clube) { const t = taticaIA(base, ci); return { ...melhorTime(elenco, t.formacao, fora, cond, bonusFase(s)), estilo: t.estilo, gatilhos: t.gatilhos }; }
   let time = null, trocados = [];
   if (s.xi?.length === 11) {
     const porId = new Map(elenco.map(j => [j.id, j])), xi = s.xi.map(id => porId.get(id));
@@ -206,12 +207,13 @@ export function escalacao(base, s, ci, comp = compProxima(base, s)) {
       }) };
     }
   }
-  time = time || melhorTime(elenco, s.formacao, fora, cond);
+  time = time || melhorTime(elenco, s.formacao, fora, cond, bonusFase(s));
   const usados = new Set(time.xi.filter(Boolean).map(j => j.id)), resto = elenco.filter(j => !usados.has(j.id) && !fora.has(j.id));
   const banco = s.banco ? s.banco.map(id => resto.find(j => j.id === id)).filter(Boolean).slice(0, 9) : bancoAuto(resto, cond);
   return { formacao: time.formacao, xi: time.xi, banco, estilo: s.estilo || 'equilibrado', gatilhos: s.gatilhos || {}, cobrador: s.cobrador, capitao: capitaoDe(base, s, time.xi.filter(Boolean)), trocados, fora };
 }
 // quem tem histórico de lesão, idade e treino puxado se machuca mais
+const fase = s => bonusFase(s);
 const fragilDe = (base, s) => id => { const j = base.jog.get(id); return fragilidade(s, j) * (j?.clube === s.tecnico.clube ? TREINO_LES[s.treino] || 1 : 1); };
 
 // escolher capitão mexe com o vestiário: quem perde a braçadeira e ainda joga fica chateado
@@ -242,6 +244,11 @@ export function recuperar(base, s, dias) {
 // depois do jogo: condição de quem jogou e moral (resultado, nota, capitão)
 function aposJogo(base, s, h, a, sim) {
   for (const [id, c] of Object.entries(sim.cond || {})) s.cond[id] = c;
+  // fase: média recente das notas; seu jogador que entra em fase excelente ou péssima vira notícia
+  for (const t of [0, 1]) for (const [id, , depois] of registrarForma(s, sim.notas[t])) {
+    const j = base.jog.get(id);
+    if (j && j.clube === s.tecnico.clube && (depois.k === 'excelente' || depois.k === 'pessima')) s.noticias.unshift({ rodada: s.rodada, tipo: 'clube', jogador: id, div: base.clubes[j.clube].div, texto: depois.k === 'excelente' ? `${j.curto} vive fase excelente e rende acima do próprio nível.` : `${j.curto} atravessa fase péssima. A torcida já pede mudança.` });
+  }
   const k = rivais(base, h, a) ? 2 : 1, res = sim.gols[0] > sim.gols[1] ? [4 * k, -4 * k] : sim.gols[0] < sim.gols[1] ? [-4 * k, 4 * k] : [0, 0]; // clássico vale o dobro no vestiário
   [h, a].forEach((ci, t) => {
     let bonus = 0;
@@ -300,7 +307,7 @@ export function iniciarRodada(base, s) {
   let meu = null;
   for (const d of DIVS) for (const [h, a] of rodadasDe(base, s, d)[rd]) {
     const th = escalacao(base, s, h, 'L'), ta = escalacao(base, s, a, 'L'), seed = `${s.seed}-${d}-${rd}-${h}-${a}`;
-    const opts = { cond: s.cond, mor: s.mor, auto: [h === ci ? s.subsAuto !== false : true, a === ci ? s.subsAuto !== false : true], fragil: fragilDe(base, s) };
+    const opts = { cond: s.cond, mor: s.mor, auto: [h === ci ? s.subsAuto !== false : true, a === ci ? s.subsAuto !== false : true], fragil: fragilDe(base, s), fase: fase(s) };
     if (h === ci || a === ci) meu = { d, h, a, th, ta, seed, humano: h === ci ? 0 : 1, opts, capitao: (h === ci ? th : ta).capitao };
     else jogos.push({ d, h, a, sim: simular(th, ta, seed, opts) });
   }
@@ -339,7 +346,7 @@ export function iniciarCopa(base, s) {
   let meu = null;
   for (const chave of s.copa.chaves) {
     const [h, a] = mandoDe(i, chave), th = escalacao(base, s, h, 'CB'), ta = escalacao(base, s, a, 'CB'), seed = `${s.seed}-copa${s.ano}-${i}-${h}-${a}`;
-    const opts = { cond: s.cond, mor: s.mor, auto: [h === ci ? s.subsAuto !== false : true, a === ci ? s.subsAuto !== false : true], fragil: fragilDe(base, s) };
+    const opts = { cond: s.cond, mor: s.mor, auto: [h === ci ? s.subsAuto !== false : true, a === ci ? s.subsAuto !== false : true], fragil: fragilDe(base, s), fase: fase(s) };
     if (h === ci || a === ci) meu = { d: 'copa', h, a, th, ta, seed, humano: h === ci ? 0 : 1, opts, capitao: (h === ci ? th : ta).capitao, mataMata: FASES[i].k !== 'f1', agg: FASES[i].k === 'f2' ? agregadoIda(s, h, a) : [0, 0] };
     else jogos.push({ h, a, seed, sim: simular(th, ta, seed, opts) });
   }
@@ -387,7 +394,7 @@ const timeCont = (base, s, ci, comp) => base.clubes[ci].div === 'X' ? timeFora(b
 const daBase = (base, sim) => ({ ...sim, cond: Object.fromEntries(Object.entries(sim.cond || {}).filter(([id]) => base.jog.has(+id))), notas: sim.notas.map(n => Object.fromEntries(Object.entries(n).filter(([id]) => base.jog.has(+id)))) });
 function jogoCopa(base, s, h, a, comp, seed, extra = {}) {
   const ci = s.tecnico.clube, th = timeCont(base, s, h, comp), ta = timeCont(base, s, a, comp);
-  const opts = { cond: s.cond, mor: s.mor, auto: [h === ci ? s.subsAuto !== false : true, a === ci ? s.subsAuto !== false : true], fragil: fragilDe(base, s), neutro: !!extra.neutro };
+  const opts = { cond: s.cond, mor: s.mor, auto: [h === ci ? s.subsAuto !== false : true, a === ci ? s.subsAuto !== false : true], fragil: fragilDe(base, s), neutro: !!extra.neutro, fase: fase(s) };
   if (h === ci || a === ci) return { meu: { d: comp, h, a, th, ta, seed, humano: h === ci ? 0 : 1, opts, capitao: (h === ci ? th : ta).capitao, agg: [0, 0], ...extra } };
   return { jogo: { h, a, seed, sim: simular(th, ta, seed, opts) } };
 }

@@ -46,14 +46,14 @@ export const fatorCond = c => 1 - 0.35 * ((100 - (c ?? 100)) / 100) ** 1.5;
 export const fatorMoral = m => 0.95 + 0.1 * (m ?? 62) / 100;
 
 // melhor escalação: cada vaga com quem rende mais nela (cansado rende menos e vira reserva)
-export function melhorTime(jogadores, formacao = '4-3-3', indisponiveis = new Set(), cond = {}) {
+export function melhorTime(jogadores, formacao = '4-3-3', indisponiveis = new Set(), cond = {}, fase = () => 0) {
   const slots = FORMACOES[formacao];
   const livres = jogadores.filter(j => !indisponiveis.has(j.id));
   const usados = new Set(), xi = Array(slots.length).fill(null);
   const peso = j => { const c = cond[j.id] ?? 100; return fatorCond(c) ** 1.6 * (c < 60 ? 0.93 : 1); };
   // ponytail: guloso pelos melhores pares (jogador, vaga); Hungarian só se aparecer escalação absurda
   const pares = [];
-  slots.forEach((sl, i) => { for (const j of livres) pares.push([j.ovr * encaixe(j.pos, sl) * peso(j), i, j]); });
+  slots.forEach((sl, i) => { for (const j of livres) pares.push([(j.ovr + fase(j.id)) * encaixe(j.pos, sl) * peso(j), i, j]); });
   pares.sort((a, b) => b[0] - a[0]);
   for (const [, i, j] of pares) if (!xi[i] && !usados.has(j.id)) { xi[i] = j; usados.add(j.id); }
   return { formacao, xi, banco: bancoAuto(livres.filter(j => !usados.has(j.id)), cond) };
@@ -73,7 +73,7 @@ function forca(P, t) {
   time.xi.forEach((j, i) => {
     const slot = slots[i], s = SETOR[slot];
     if (!j) { acc[s].push(25); return; }
-    const f = encaixe(j.pos, slot) * fatorCond(P.cond[j.id]) * fatorMoral(P.mor[j.id]), a = j.att;
+    const f = encaixe(j.pos, slot) * fatorCond(P.cond[j.id]) * fatorMoral(P.mor[j.id]) * (1 + (P.fase?.(j.id) || 0) * 0.013), a = j.att; // fase: +3 rende ~4% a mais
     const v = s === 'GOL' ? j.ovr : s === 'DEF' ? 0.55 * a.def + 0.2 * a.fis + 0.15 * a.vel + 0.1 * a.pas : s === 'MEI' ? 0.45 * a.pas + 0.3 * a.dri + 0.15 * a.fis + 0.1 * a.def : 0.45 * a.fin + 0.25 * a.dri + 0.2 * a.vel + 0.1 * a.fis;
     acc[s].push(v * f);
     if (s === 'MEI') meio.push((0.5 * a.pas + 0.5 * a.dri) * f);
@@ -125,7 +125,7 @@ export function criarPartida(casa, fora, seed, opts = {}) {
     st: [0, 1].map(() => ({ posse: 0, chutes: 0, noAlvo: 0, xg: 0, faltas: 0, amarelos: 0, vermelhos: 0, escanteios: 0, defesas: 0 })),
     notas: [new Map(), new Map()], expulsos: [new Set(), new Set()], entrada: {}, subs: [0, 0], verm: [0, 0], disparou: [{}, {}],
     cond: { ...(opts.cond || {}) }, mor: opts.mor || {}, auto: opts.auto || [true, true],
-    r: rng('jogo' + seed), rn: rng('narra' + seed), ri: rng('ia' + seed), rl: rng('les' + seed), fragil: opts.fragil || (() => 1),
+    r: rng('jogo' + seed), rn: rng('narra' + seed), ri: rng('ia' + seed), rl: rng('les' + seed), fragil: opts.fragil || (() => 1), fase: opts.fase || null,
     mando: opts.neutro ? 1 : 1.08, narrar: !!opts.narrar, humano: opts.humano ?? -1, bola: null,
   };
   P.fim = 90 + Math.floor(P.r() * 5);

@@ -4,6 +4,7 @@ import { escalacao, escalar, trocarFormacao, definirCapitao, liderNatural, TATIC
 import { LESOES, CATEGORIA, COMP_NOME, COMP_DE, fragilidade, indisponivel, pendurado, infilInfo, infiltrar } from './motor/dm.js';
 import { POS_NOME, POS_ORDEM, SETOR, cartaDe, fmtDinheiro, estrelas } from './motor/util.js';
 import { ganho, idadeF, alternarFoco, MAX_FOCO } from './motor/treino.js';
+import { faseDe } from './motor/forma.js';
 import { media } from './motor/noticias.js';
 import { urlBoneco, urlBandeira } from './pixel.js';
 
@@ -32,6 +33,7 @@ const barraCond = c => `<span class="cond" title="Condição ${Math.round(c)}"><
 const boneco = (j, gk) => `<img class="px boneco" src="${urlBoneco(j.rosto, H.clube(j.clube), gk)}" width="12" height="17" alt="">`;
 const bandeira = nat => { const u = urlBandeira(nat); return u ? `<img class="px band" src="${u}" width="16" height="11" alt="${nat}">` : ''; };
 // selo de desfalque: lesão (jogos fora) ou suspensão
+export const seloFase = (s, id) => { const f = faseDe(s, id); return f.seta ? `<span class="selo-fase ${f.k}" title="${f.nome}">${f.seta}</span>` : ''; };
 export function seloDM(s, id) {
   const l = s.dm?.[id], sp = s.susp?.[id];
   return (l ? `<span class="selo-dm les" title="${LESOES[l.k]?.n || 'Lesão'}">✚ ${l.inf ? 'infiltrado' : `${l.n}j`}</span>` : '')
@@ -57,7 +59,7 @@ function telaJogadores() {
   return `<div class="titulo-linha"><h2>Jogadores</h2><span class="mudo">${lista.length} no elenco · ${titulares.size} titulares</span></div>
     <div class="chips" role="group" aria-label="Ordenar">${[['pos', 'Posição'], ['ovr', 'Overall'], ['cond', 'Mais cansados'], ['idade', 'Mais novos']].map(([k, t]) => `<button type="button" class="chip" data-acao="ord-jog" data-o="${k}" aria-pressed="${ord === k}">${t}</button>`).join('')}</div>
     <ul class="lista-jog">${lista.map(j => { const c = s.cond[j.id] ?? 100; return `<li><button type="button" class="linha-elenco ${titulares.has(j.id) ? 'tit' : ''}" data-acao="ficha" data-id="${j.id}">
-      <span class="pos-mini">${j.pos}</span>${boneco(j, j.pos === 'GOL')}<span class="le-nome"><b>${esc(j.curto)} ${seloDM(s, j.id)}</b><small>${bandeira(j.nat)} ${j.idade} anos · ${fmtDinheiro(j.valor * 1000)} · até ${j.contrato}</small></span>
+      <span class="pos-mini">${j.pos}</span>${boneco(j, j.pos === 'GOL')}<span class="le-nome"><b>${esc(j.curto)} ${seloFase(s, j.id)}${seloDM(s, j.id)}</b><small>${bandeira(j.nat)} ${j.idade} anos · ${fmtDinheiro(j.valor * 1000)} · até ${j.contrato}</small></span>
       ${carinha(s.mor[j.id])}${barraCond(c)}${chip(j.ovr, j.ovr)}</button></li>`; }).join('')}</ul>
     <p class="mudo" style="font-size:.95rem">Verde na borda: titular. A barrinha é a condição física; ela volta com descanso entre os jogos.</p>`;
 }
@@ -85,7 +87,7 @@ function telaEscalacao() {
         ${time.xi.map((j, i) => { const [, x, y] = POSICOES[time.formacao][i], r = rende(j, slots[i]), fora = encaixe(j.pos, slots[i]) < 0.9;
           return `<button class="jog-campo ${vaga === i ? 'sel' : ''}" style="left:${x}%;top:${y}%" data-acao="vaga" data-i="${i}" type="button" aria-label="${esc(j.curto)}, ${slots[i]}, rende ${r}">
             <span class="jc-fig">${boneco(j, slots[i] === 'GOL')}${carinha(s.mor[j.id])}${j.id === cap ? '<i class="braco">C</i>' : ''}</span>
-            <span class="jc-nome ${fora ? 'fora' : ''}">${esc(j.curto)}</span>${chip(`${slots[i]} · ${r}`, r)}</button>`; }).join('')}
+            <span class="jc-nome ${fora ? 'fora' : ''}">${esc(j.curto)}${seloFase(s, j.id)}</span>${chip(`${slots[i]} · ${r}`, r)}</button>`; }).join('')}
       </div>
       ${slotSel ? `<h3>Melhores opções para ${slotSel}</h3><div class="album opcoes-vaga">${opcoes.map(j => H.figurinha(j, titulares.has(j.id) ? 'titular escolha' : 'escolha', false, rende(j, slotSel))).join('')}</div>` : ''}
       <div class="setores">${[['Ataque', set.ataque], ['Meio', set.meio], ['Defesa', set.defesa], ['Goleiro', set.goleiro]].map(([t, v]) => `<div class="setor"><small>${t}</small><b class="num">${v}</b></div>`).join('')}</div>

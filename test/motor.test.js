@@ -444,3 +444,16 @@ test('rivais: clássicos reconhecidos, rival não entra no interesse, jogador n�
   const entreRivais = s.historicoTransf.filter(t => t.ia && rivais(base, t.de, t.para)).length;
   assert.ok(entreRivais <= 1, `${entreRivais} negócios entre rivais`);
 });
+
+import { registrarForma, faseDe } from '../public/js/motor/forma.js';
+test('fases: sequência de notas altas leva à fase excelente (+3 em campo), notas baixas à péssima; preço acompanha', () => {
+  const s = novoJogo(base, cfg(71)), j = base.elencos[s.tecnico.clube][5];
+  const p0 = precoPedido(base, s, j);
+  assert.equal(faseDe(s, j.id).k, 'normal');
+  for (let i = 0; i < 4; i++) registrarForma(s, { [j.id]: 8.4 });
+  assert.equal(faseDe(s, j.id).k, 'excelente');
+  assert.ok(precoPedido(base, s, j) > p0);
+  for (let i = 0; i < 6; i++) registrarForma(s, { [j.id]: 4.6 });
+  assert.equal(faseDe(s, j.id).k, 'pessima');
+  assert.ok(precoPedido(base, s, j) < p0);
+});
