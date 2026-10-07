@@ -334,3 +334,29 @@ test('cartões: 3 amarelos ou vermelho suspendem só na competição do jogo', (
   jogo(['amarelo', 'vermelho'].slice(1), 'L');
   assert.equal(s.susp[j.id].L, 2);
 });
+
+import { aposRodada, aceitarOferta, pilares } from '../public/js/motor/carreira.js';
+test('cargo: longe da meta e sem apoio leva ultimato; sem os pontos, demissão, propostas e clube novo', () => {
+  const s = novoJogo(base, cfg(21)), ci = s.tecnico.clube, d = base.clubes[ci].div;
+  ate(s, 12);
+  // o time perdeu todos os jogos do campeonato
+  for (const k of Object.keys(s.res[d])) { const [h, a] = k.split('-').map(Number); if (h === ci) s.res[d][k] = [0, 3]; if (a === ci) s.res[d][k] = [3, 0]; }
+  const tabs = () => Object.fromEntries(['A', 'B', 'C'].map(x => [x, tabela(base, s, x)]));
+  s.fin.diretoria = 20; s.torcida = 20; s.cargo.ults = []; s.cargo.ult = null;
+  for (const j of base.elencos[ci]) s.mor[j.id] = 40;
+  aposRodada(base, s, tabs());
+  assert.equal(s.cargo.st, 'ult');
+  assert.ok(s.noticias.length && s.cargo.ult.need >= 4);
+  s.cargo.ult.j0 -= 3; // 3 jogos depois, nenhum ponto
+  aposRodada(base, s, tabs());
+  assert.ok(s.demitido && s.demitido.de === ci, 'devia ter sido demitido');
+  assert.ok(s.ofertas.length >= 1 && s.ofertas.every(o => o.clube !== ci));
+  const novo = s.ofertas[0].clube;
+  aceitarOferta(base, s, novo);
+  assert.equal(s.tecnico.clube, novo);
+  assert.ok(!s.demitido && s.cargo.st === 'ok' && s.xi === null && s.caixa > 0);
+  assert.equal(s.carreira.length, 2);
+  assert.equal(pilares(base, s).T, 55);
+  // e o jogo segue com o clube novo
+  const r0 = s.rodada; avancar(base, s); assert.ok(s.rodada >= r0);
+});

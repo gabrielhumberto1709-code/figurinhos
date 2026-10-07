@@ -1,6 +1,7 @@
 // Interface do Figurinhos: telas, navegação por hash e saves na nuvem.
 import { Base, novoJogo, iniciarRodada, concluirRodada, iniciarCopa, concluirCopa, proximoEvento, copaSemVoce, tabela, rodadasDe, escalacao, paraSalvar, resumo, REPUTACOES, DIFICULDADES, dataRodada, janelaAberta, caixaInicial, aplicarSave, compProxima } from './motor/mundo.js';
 import { LESOES, COMP_NOME, indisponivel, pendurado } from './motor/dm.js';
+import { garantirCarreira, pilares, aceitarOferta, recusarOferta, pedirDemissao } from './motor/carreira.js';
 import { virarTemporada, fimDeTemporada } from './motor/temporada.js';
 import { campanha } from './motor/copa.js';
 import * as Torneios from './torneios.js';
@@ -237,8 +238,27 @@ const ATALHOS = [
   ['halter', 'Treino', '#/treino', '#E07B39'], ['broto', 'Base', '#/base', 'var(--gramado)'], ['cruz', 'DM', '#/dm', 'var(--cartao)'], ['micro', 'Coletiva', null, 'var(--carimbo)'], ['camisa', 'Uniforme', null, '#2BA8A0'],
 ];
 
+// ----- vida de técnico -----
+const CARGO_TXT = { ok: 'Cargo estável', risco: 'Cargo balançando' };
+function cargoChip() {
+  const C = app.s.cargo; if (!C || app.s.demitido) return '';
+  return `<span class="cargo ${C.st}">${C.ult ? `Ultimato: ${C.ult.need} pts em 3 jogos` : CARGO_TXT[C.st] || CARGO_TXT.ok}</span>`;
+}
+const ofertaLinha = o => `<li class="oferta"><span class="of-clube">${imgEscudo(o.clube, 30, 33)}<span><b>${esc(clube(o.clube).n)}</b><small>Série ${clube(o.clube).div} · ${estrelasTxt(forcaEstrelas(o.clube))}${o.ate ? ` · responder até a ${o.ate}ª rodada` : ''}</small></span></span>
+  <span class="of-botoes"><button class="botao peq" type="button" data-acao="aceitar-oferta" data-c="${o.clube}">Assumir</button>${o.tipo === 'vaga' ? `<button class="botao peq sec" type="button" data-acao="recusar-oferta" data-c="${o.clube}">Recusar</button>` : ''}</span></li>`;
+function ofertasHtml() {
+  const o = (app.s.ofertas || []).filter(x => x.tipo === 'vaga');
+  return o.length && !app.s.demitido ? `<section class="cartao ofertas"><h3>Propostas de emprego</h3><ul>${o.map(ofertaLinha).join('')}</ul><p class="mudo">Aceitar leva você para o clube novo na hora: o elenco, o caixa e a meta passam a ser os de lá.</p></section>` : '';
+}
+function demitidoHtml() {
+  const s = app.s, x = s.demitido;
+  return `<section class="cartao escuro demitido"><h2>${x.pediu ? 'Você deixou o' : 'Demitido do'} ${esc(clube(x.de).n)}</h2><p>${esc(x.motivo)}</p>
+    <p>Propostas na mesa. Escolha o próximo trabalho:</p><ul>${s.ofertas.map(ofertaLinha).join('')}</ul></section>`;
+}
+
 telas.clube = () => {
   const s = app.s, ci = s.tecnico.clube, c = clube(ci), d = c.div;
+  garantirCarreira(app.base, s);
   const ev = proximoEvento(app.base, s), fim = !ev;
   const jogo = ev && [ev.h, ev.a];
   const tab = tabela(app.base, s, d), pos = tab.findIndex(l => l.clube === ci);
@@ -247,8 +267,8 @@ telas.clube = () => {
   const acabando = s.rodada >= 19 ? app.base.elencos[ci].filter(j => j.contrato <= s.ano && !s.preContratos?.some(p => p.jogador === j.id) && !s.emprestimos?.[j.id]) : [];
   const lado = ci2 => `<div class="lado">${imgEscudo(ci2, 64, 69)}<span>${esc(clube(ci2).n)}</span>${s.rodada ? `<small>${posicaoNaTabela(ci2)}º</small>` : ''}</div>`;
   return `<div class="status-clube"><span title="Dinheiro em caixa"><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">${ICONES.moeda}</svg>${fmtDinheiro(s.caixa ?? 0)}</span>
-      <span>${s.rodada ? `${pos + 1}º na Série ${d}` : `Série ${d}`}</span><span class="${janela ? 'aberta' : ''}">${janela ? 'Janela aberta' : 'Janela fechada'}</span></div>
-    ${fim ? `<section class="cartao escuro fim-temporada"><h2>Fim da temporada ${s.ano}</h2><p>${esc(c.n)} terminou em <b>${pos + 1}º</b> na Série ${d}${pos < 4 && d !== 'A' ? ' e <b>subiu</b>' : pos >= 16 && d !== 'C' ? ' e <b>caiu</b>' : ''}. Campeão: <b>${esc(clube(tab[0].clube).n)}</b>.${s.copa?.campeao != null ? ` Copa do Brasil: <b>${esc(clube(s.copa.campeao).n)}</b>.` : ''}</p>
+      <span>${s.rodada ? `${pos + 1}º na Série ${d}` : `Série ${d}`}</span><span class="${janela ? 'aberta' : ''}">${janela ? 'Janela aberta' : 'Janela fechada'}</span>${cargoChip()}</div>
+    ${s.demitido ? demitidoHtml() : fim ? `<section class="cartao escuro fim-temporada"><h2>Fim da temporada ${s.ano}</h2><p>${esc(c.n)} terminou em <b>${pos + 1}º</b> na Série ${d}${pos < 4 && d !== 'A' ? ' e <b>subiu</b>' : pos >= 16 && d !== 'C' ? ' e <b>caiu</b>' : ''}. Campeão: <b>${esc(clube(tab[0].clube).n)}</b>.${s.copa?.campeao != null ? ` Copa do Brasil: <b>${esc(clube(s.copa.campeao).n)}</b>.` : ''}</p>
       ${acabando.length ? `<p style="color:var(--placar)">Saem por fim de contrato: ${acabando.map(j => esc(j.curto)).join(', ')}. Ainda dá para renovar na ficha de cada um.</p>` : ''}
       <button class="botao grande" type="button" data-acao="virar">Começar a temporada ${s.ano + 1}</button></section>`
     : `<section class="ingresso ${ev.tipo === 'copa' ? 'copa' : ''}" style="--cc:${c.c[0]};--cc2:${c.c[1] || '#fff'}">
@@ -257,7 +277,7 @@ telas.clube = () => {
         <div class="ingresso-jogo">${lado(jogo[0])}<span class="x">×</span>${lado(jogo[1])}</div>
         <span class="ingresso-local">${esc(clube(jogo[0]).est[0])}</span>
         <button class="botao grande" data-acao="jogar" type="button">Jogar</button></div></section>`}
-    ${desfalques(ci, fim)}
+    ${s.demitido ? '' : desfalques(ci, fim)}${ofertasHtml()}
     ${acabando.length && !fim ? `<a class="cartao aviso-contratos" href="#/elenco"><b>${acabando.length} ${acabando.length > 1 ? 'contratos acabam' : 'contrato acaba'} no fim da temporada</b><span>${acabando.slice(0, 5).map(j => esc(j.curto)).join(', ')}${acabando.length > 5 ? '…' : ''}. Quem não renovar sai de graça, e outro clube pode assinar pré-contrato.</span></a>` : ''}
     <nav class="atalhos" aria-label="Atalhos do clube">${ATALHOS.map(([ic, t, href, cor]) => {
       const off = !href || (href === '#/partida' && !s.ultima);
@@ -314,8 +334,22 @@ telas.financas = () => {
 };
 
 // ----- carreira -----
+function cargoHtml() {
+  const s = app.s, P = pilares(app.base, s), C = s.cargo, meta = metaDiretoria(app.base, s);
+  const barra = (rot, v) => `<div class="pilar"><span>${rot}</span><div class="dm-barra"><b style="width:${Math.max(3, v)}%;background:${v >= 55 ? 'var(--gramado)' : v >= 40 ? 'var(--placar)' : 'var(--cartao)'}"></b></div><b class="num">${v}</b></div>`;
+  const status = s.demitido ? 'sem clube' : C.ult ? `ultimato: ${C.ult.need} pontos em 3 jogos${C.ult.segunda ? ' (segunda chance)' : ''}` : C.st === 'risco' ? 'balançando' : 'estável';
+  const hist = (s.historico || []).map(h => `<li>${h.ano} · ${imgEscudo(h.clube, 18, 20)} ${esc(clube(h.clube).n)} · Série ${h.div}: <b>${h.pos}º</b> · meta ${esc(h.meta)} ${h.bateuMeta ? '✔' : '✘'}</li>`).join('');
+  return `<section class="cartao"><h3>Sustentação no cargo</h3>${barra('Diretoria', P.D)}${barra('Torcida', P.T)}${barra('Grupo', P.G)}
+      <p style="margin-top:8px"><b>Nota do cargo: ${P.I}</b> · ${status}</p>
+      <p class="mudo" style="font-size:.95rem">Meta: ${esc(meta.txt)}. A nota é 60% diretoria e 40% torcida. Abaixo de 55 o cargo balança; abaixo de 40 (ou com o grupo abaixo de 20) vem o ultimato: pontos em 3 jogos do campeonato. Se o grupo estiver em 70 ou mais, os jogadores pedem uma segunda chance. Dentro da meta (ou a até 3 pontos dela) e nas 8 primeiras rodadas no clube, ninguém mexe com você. Título de copa derruba o ultimato.</p></section>
+    <section class="cartao"><h3>Clubes</h3><ul class="lista-carreira">${(s.carreira || []).map(c => `<li>${imgEscudo(c.clube, 18, 20)} <b>${esc(clube(c.clube).n)}</b> · desde ${c.ano}${c.rodada ? ` (${c.rodada + 1}ª rodada)` : ''}${c.ateAno ? ` até ${c.ateAno} · ${c.saida}` : ' · atual'}</li>`).join('')}</ul>
+      ${hist ? `<h3 style="margin-top:12px">Temporadas</h3><ul class="lista-carreira">${hist}</ul>` : ''}</section>
+    ${s.demitido ? '' : `<section class="cartao"><h3>Pedir demissão</h3><p class="mudo">Você sai na hora e recebe propostas de clubes do mesmo tamanho ou menores.</p><button class="botao sec" type="button" data-acao="pedir-demissao">Pedir demissão</button></section>`}`;
+}
+
 telas.carreira = () => {
   const s = app.s, t = s.tecnico, ci = t.clube, d = clube(ci).div;
+  garantirCarreira(app.base, s);
   const l = tabela(app.base, s, d).find(x => x.clube === ci);
   const aprov = l.j ? Math.round(l.p / (l.j * 3) * 100) : 0;
   return `<div class="titulo-linha"><h2>Carreira</h2><a href="#/clube">Voltar</a></div>
@@ -324,7 +358,7 @@ telas.carreira = () => {
       <dl class="ficha-dl"><dt>Clube</dt><dd>${imgEscudo(ci, 18, 20)} ${esc(clube(ci).n)}</dd><dt>Temporada</dt><dd>${s.ano}</dd><dt>Dificuldade</dt><dd>${DIFICULDADES[s.dificuldade]}</dd></dl></div></section>
     <div class="kpis"><div class="cartao kpi"><small>Jogos</small><b class="num">${l.j}</b></div><div class="cartao kpi"><small>V · E · D</small><b class="num">${l.v}·${l.e}·${l.d}</b></div>
       <div class="cartao kpi"><small>Gols pró · contra</small><b class="num">${l.gp}·${l.gc}</b></div><div class="cartao kpi"><small>Aproveitamento</small><b class="num">${aprov}%</b></div></div>
-    <p class="mudo">Histórico de temporadas, propostas de outros clubes e demissão chegam com a fase "Vida de técnico".</p>`;
+    ${cargoHtml()}`;
 };
 
 // ----- elenco (módulo próprio) -----
@@ -420,6 +454,7 @@ async function render() {
   if (rota === 'ao-vivo' && !app.vivo) { location.hash = app.s ? '#/clube' : '#/saves'; return; }
   if (rota === 'tabela') { location.hash = '#/torneios'; return; }
   if (rota === 'base' || rota === 'treino' || rota === 'dm') { app.abaElenco = rota; location.hash = '#/elenco'; return; }
+  if (app.s?.demitido && ['elenco', 'mercado', 'financas', 'partida', 'calendario'].includes(rota)) { location.hash = '#/clube'; return; } // sem clube: só propostas, tabelas e notícias
   const precisaJogo = ['clube', 'elenco', 'torneios', 'calendario', 'partida', 'noticias', 'mercado', 'financas', 'carreira'].includes(rota);
   if (!app.conta && rota !== 'entrar') { location.hash = '#/entrar'; return; }
   if (precisaJogo && !app.s) { location.hash = '#/saves'; return; }
@@ -516,6 +551,9 @@ const acoes = {
     $('meta[name=theme-color]').content = novo === 'escuro' ? '#090B0F' : '#1B1F2A';
     render();
   },
+  'aceitar-oferta': el => { const m = aceitarOferta(app.base, app.s, +el.dataset.c); if (m) return aviso(m); aviso(`Bem-vindo ao ${clube(app.s.tecnico.clube).n}!`); salvar(); location.hash === '#/clube' ? render() : ir('#/clube'); },
+  'recusar-oferta': el => { recusarOferta(app.s, +el.dataset.c); render(); salvar(); },
+  'pedir-demissao': el => { if (el.dataset.confirma !== '1') { el.dataset.confirma = '1'; el.textContent = 'Tem certeza? Toque de novo'; return; } pedirDemissao(app.base, app.s); salvar(); ir('#/clube'); },
   virar: el => { el.disabled = true; const h = virarTemporada(app.base, app.s); if (h) aviso(`Bem-vindo a ${app.s.ano}!`); render(); salvar(); },
   ...Torneios.acoes,
 };

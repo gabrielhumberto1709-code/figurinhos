@@ -606,3 +606,13 @@ b.pos { color: var(--gramado); } b.neg { color: var(--cartao); }
 .aviso-dm { border-color: var(--cartao); box-shadow: 3px 3px 0 var(--cartao); }
 .aviso-ficha { margin: 8px 0 0; padding: 6px 10px; border-left: 4px solid var(--cartao); background: var(--campo-bg); font-weight: 700; }
 .lista-dm li { grid-template-columns: 30px 24px 1fr; } .lista-dm small { white-space: normal; }
+
+/* vida de técnico */
+.status-clube .cargo.risco { background: #F2C94A; color: #1B1F2A; } .status-clube .cargo.ult { background: var(--cartao); color: #fff; }
+.ofertas ul, .demitido ul { list-style: none; margin: 8px 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.oferta { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; padding: 8px 10px; border: 2px solid var(--linha); border-radius: var(--raio); background: var(--cartao-bg); color: var(--texto); }
+.of-clube { display: flex; align-items: center; gap: 10px; } .of-clube small { display: block; color: var(--texto-2); }
+.of-botoes { display: flex; gap: 6px; }
+.pilar { display: grid; grid-template-columns: 84px 1fr 34px; gap: 8px; align-items: center; margin: 6px 0; font-weight: 700; }
+.pilar .num { text-align: right; font-size: 1.2rem; }
+.lista-carreira { list-style: none; margin: 6px 0 0; padding: 0; } .lista-carreira li { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 6px; padding: 5px 0; border-top: 1px solid var(--linha-fraca); }

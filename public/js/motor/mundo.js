@@ -3,6 +3,7 @@ import { rng, pick, jogador } from './util.js';
 import { pontosCorridos } from './calendario.js';
 import { simular, melhorTime, bancoAuto, FORMACOES, encaixe, fatorCond } from './partida.js';
 import { fragilidade, indisponiveis, posJogo, TREINO_LES } from './dm.js';
+import { garantirCarreira, torcidaAposJogo, aposRodada, tituloDeCopa } from './carreira.js';
 import { gerarNoticias } from './noticias.js';
 import { resolverMercado, garantirMercado } from './mercado.js';
 import { contasDaRodada, financasIniciais, bilheteria, lancar } from './financas.js';
@@ -125,6 +126,7 @@ export function novoJogo(base, cfg) {
   };
   s.fin = financasIniciais(base, s);
   garantirMercado(s);
+  garantirCarreira(base, s);
   novaCopa(base, s);
   return s;
 }
@@ -336,6 +338,7 @@ export function concluirCopa(base, s, R, simMeu) {
     const meuJogo = h === ci || a === ci, placar = `${nome(h)} ${sim.gols[0]} × ${sim.gols[1]} ${nome(a)}${dec.pen ? ` (${dec.pen[0]} a ${dec.pen[1]} nos pênaltis)` : ''}`;
     if (meuJogo) {
       if (h === ci) { const b = bilheteria(base, s, ci, a, [], 10, s.fin.ingresso); lancar(s, 'bilheteria', `Bilheteria Copa do Brasil × ${nome(a)} (${b.publico.toLocaleString('pt-BR')} pagantes)`, b.renda); }
+      torcidaAposJogo(s, ci, h, sim.gols, { pen: dec.pen, mataMata: k !== 'f1', final: k === 'f2' });
       s.ultima = { rodada: s.rodada - 1, copa: FASES[i].nome, div: 'copa', casa: h, fora: a, ...sim, pen: dec.pen || null, xi: [R.meu.th.xi.map(j => j.id), R.meu.ta.xi.map(j => j.id)] };
       N.push({ tipo: 'clube', texto: `Copa do Brasil, ${FASES[i].nome.toLowerCase()}: ${placar}.${dec.vencedor === ci ? (k === 'f2' ? ' É CAMPEÃO!' : ' Classificado!') : dec.perdedor === ci ? ' Eliminado.' : ''}` });
     }
@@ -344,7 +347,7 @@ export function concluirCopa(base, s, R, simMeu) {
   avancarFase(s, vencedores);
   if (k === 'f2') {
     N.push({ tipo: 'destaque', texto: `${nome(s.copa.campeao)} é campeão da Copa do Brasil ${s.ano} em cima do ${nome(s.copa.vice)}.` });
-    if (s.copa.campeao === ci) lancar(s, 'premio', 'Copa do Brasil: prêmio de campeão', PREMIOS.campeao);
+    if (s.copa.campeao === ci) { lancar(s, 'premio', 'Copa do Brasil: prêmio de campeão', PREMIOS.campeao); tituloDeCopa(s); }
     if (s.copa.vice === ci) lancar(s, 'premio', 'Copa do Brasil: prêmio de vice', PREMIOS.vice);
   } else if (avancou && k !== 'f1') {
     const prox = FASES[s.copa.fase], adv = s.copa.chaves.find(c => c.includes(ci)).find(x => x !== ci);
@@ -375,12 +378,14 @@ export function concluirRodada(base, s, R, simMeu) {
   for (const { d, h, a, sim } of jogos) { s.res[d][chave(h, a)] = sim.gols; registrar(s.est, sim); aposJogo(base, s, h, a, sim); dmN.push(...posJogo(base, s, h, a, sim, 'L')); }
   const m = R.meu;
   s.ultima = m ? { rodada: R.rd, div: m.d, casa: m.h, fora: m.a, ...simMeu, xi: [m.th.xi.map(j => j.id), m.ta.xi.map(j => j.id)] } : null;
+  if (m && simMeu) torcidaAposJogo(s, s.tecnico.clube, m.h, simMeu.gols);
   s.rodada++;
   const tabs = Object.fromEntries(DIVS.map(d => [d, tabela(base, s, d)]));
   gerarNoticias(base, s, R.rd, jogos, tabs);
   const casa = R.meu && R.meu.h === s.tecnico.clube ? { adv: R.meu.a } : null;
   for (const txt of contasDaRodada(base, s, R.rd, casa, tabs[base.clubes[s.tecnico.clube].div])) s.noticias.unshift({ rodada: R.rd + 1, tipo: 'clube', evento: true, div: base.clubes[s.tecnico.clube].div, texto: txt });
   for (const n of dmN) s.noticias.unshift({ rodada: R.rd + 1, div: base.clubes[n.clube].div, ...n });
+  for (const n of aposRodada(base, s, tabs)) s.noticias.unshift({ rodada: R.rd + 1, div: base.clubes[n.clube].div, ...n });
   resolverMercado(base, s, R.rd);
   if (!naCopa(s, s.tecnico.clube)) copaSemVoce(base, s);
   return s.ultima;
