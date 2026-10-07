@@ -163,13 +163,38 @@ function portrait(look) {
       break;
     }
     case 'baixinho': {
-      const buzz = shade(HB, 1.15), skinDk = shade(SB, 0.55);
-      for (let y = 3; y <= 6; y++) { const s2 = headSpan(Math.max(4, y)) || [12, 19]; for (let x = s2[0]; x <= s2[1]; x++) g.set(x, y, y === 6 && (x === s2[0] || x === s2[1]) ? skinDk : buzz); }
-      for (const [x, y] of [[13, 4], [17, 4], [15, 5], [19, 5]]) g.set(x, y, shade(buzz, 1.25));
+      // cabelo rente: pontilhado de fio e couro cabeludo
+      const [r1, g1, b1] = hex2rgb(HB), [r2, g2, b2] = hex2rgb(SS), mix = rgb2hex((r1 + r2) / 2, (g1 + g2) / 2, (b1 + b2) / 2), skinDk = shade(SB, 0.55);
+      for (let y = 3; y <= 6; y++) { const s2 = headSpan(Math.max(4, y)) || [12, 19]; for (let x = s2[0]; x <= s2[1]; x++) g.set(x, y, y === 6 && (x === s2[0] || x === s2[1]) ? skinDk : (x + y) % 2 && y > 3 ? mix : HB); }
       for (let y = 7; y <= 9; y++) { g.set(HL, y, skinDk); g.set(HR, y, skinDk); }
       break;
     }
+    case 'cacheado-degrade': {
+      const rr = rng('cd' + HB + HL + (look.semente || ''));
+      for (let y = 0; y <= 6; y++) { const x0 = y === 0 ? 13 : y === 1 ? 11 : HL + 1, x1 = y === 0 ? 18 : y === 1 ? 20 : HR - 1; for (let x = x0; x <= x1; x++) { const v = rr(); g.set(x, y, (x + y) % 3 === 0 ? HH : v < 0.35 ? HS : HB); } }
+      for (const x of [12, 15, 19]) g.set(x, 0, HB);
+      for (let y = 6; y <= 10; y++) { g.set(HL, y, (y % 2) ? HS : shade(SB, 0.62)); g.set(HR, y, (y % 2) ? HS : shade(SB, 0.55)); }
+      break;
+    }
+    case 'dreads': {
+      cap(2, 6, HL + 1, HR - 1); g.hline(12, 19, 1, HB);
+      for (const x of [12, 15, 18]) Hh(x, 2);
+      for (const x of [HL - 1, HL, HR, HR + 1]) for (let y = 6; y <= 16; y++) g.set(x, y, (y + x) % 3 === 0 ? HS : HB);
+      for (const x of [HL - 2, HR + 2]) for (let y = 9; y <= 15; y++) if (y % 2) g.set(x, y, HS);
+      break;
+    }
+    case 'moicano': {
+      for (let y = 3; y <= 7; y++) { const s2 = headSpan(Math.max(4, y)) || [12, 19]; for (let x = s2[0]; x <= s2[1]; x++) if ((x + y) % 2 === 0) g.set(x, y, shade(SB, 0.66)); }
+      cap(0, 6, 13, 18); for (const x of [14, 16]) Hh(x, 1); Hs(18, 4);
+      break;
+    }
+    case 'franja': cap(3, 6, 10, 21); cap(4, 7, 9, 22); g.hline(11, 20, 2, HB); g.hline(10, 19, 8, HB); g.hline(10, 16, 9, HS); for (const x of [12, 15, 18]) Hh(x, 4); H(9, 9); H(22, 9); break;
+    case 'ondulado': cap(2, 6, 10, 21); cap(4, 7, 9, 22); for (let y = 7; y <= 13; y++) { H(8, y); H(23, y); if (y > 8) { H(9, y); Hs(22, y); } } for (const [x, y] of [[11, 3], [14, 2], [17, 3], [20, 4], [13, 5], [16, 4], [19, 6]]) Hh(x, y); g.hline(12, 19, 1, HB); break;
     case 'careca': g.set(13, 5, SH); g.set(14, 5, SH); g.set(15, 4, SH); for (let y = 8; y <= 12; y++) { g.set(9, y, HS); g.set(22, y, HS); } break;
+  }
+  if (look.luzes) {
+    const L = HAIR[look.luzes], troca = new Map([[HB, L[0]], [HH, L[1]], [HS, L[2]]]);
+    for (let y = 0; y <= 6; y++) for (let x = 0; x < 32; x++) { const c = g.get(x, y); if (troca.has(c)) g.set(x, y, troca.get(c)); }
   }
   if (look.acc === 'faixa') g.hline(9, 22, 7, look.accColor || '#FFFFFF');
   if (look.acc === 'brinco') g.set(23, 15, '#F2D24B');
@@ -353,17 +378,19 @@ function pitch(home, away) {
 
 
 
-// ---------- código de rosto (10 chars base36) -> look ----------
+// ---------- código de rosto (11 chars base36) -> look ----------
+// [pele, corCabelo, corte, barba, rosto, sobrancelha, nariz, boca, íris, acessório, luzes]
 const PELE = 6, CABELOS = ['preto', 'castanho', 'marrom', 'loiro', 'platinado', 'ruivo', 'grisalho'];
-const CORTES = ['curto', 'raspado', 'degrade', 'topete', 'black', 'cacheado', 'longo', 'trancas', 'coque', 'careca', 'topete-degrade', 'puxado', 'twists-degrade', 'baixinho'];
+const CORTES = ['curto', 'raspado', 'degrade', 'topete', 'black', 'cacheado', 'longo', 'trancas', 'coque', 'careca', 'topete-degrade', 'puxado', 'twists-degrade', 'baixinho', 'cacheado-degrade', 'dreads', 'moicano', 'franja', 'ondulado'];
+const LUZES = [null, 'loiro', 'platinado', 'ruivo'];
 const BARBAS = [null, 'rala', 'cheia', 'cavanhaque', 'bigode', 'bigodinho', 'aparada', 'curta'];
 const SOBRANCELHAS = ['normal', 'grossa', 'clara'], ROSTOS = ['oval', 'fino', 'quadrado'], ACC = [null, 'faixa', 'brinco'];
 export function lookDe(code, kit) {
-  const d = [...(code || '0000000000')].map(ch => parseInt(ch, 36) || 0);
+  const d = [...(code || '0000000000').padEnd(11, '0')].map(ch => parseInt(ch, 36) || 0);
   return {
     skin: Math.min(d[0], PELE - 1), hair: CABELOS[d[1]] || 'preto', style: CORTES[d[2]] || 'curto', beard: BARBAS[d[3]],
     rosto: ROSTOS[d[4]] || 'oval', sobrancelha: SOBRANCELHAS[d[5]] || 'normal', nariz: d[6] ? 'largo' : null, boca: d[7] ? 'cheia' : null,
-    iris: Math.min(d[8], IRIS.length - 1), acc: ACC[d[9]], kit,
+    iris: Math.min(d[8], IRIS.length - 1), acc: ACC[d[9]], luzes: LUZES[d[10]] || null, kit,
   };
 }
 

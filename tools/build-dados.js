@@ -58,7 +58,8 @@ function potencial(id, idade, ovr) {
 const HAIR_MAP = [0, 0, 1, 2, 3, 3, 5]; // índice da referência -> preto, castanho, marrom, loiro, platinado, ruivo, grisalho
 const CORTES_ESCUROS = [1, 2, 4, 7, 12, 13, 9, 2, 13];  // raspado, degradê, black, tranças, twists, baixinho, careca
 const CORTES_CLAROS = [0, 3, 2, 10, 6, 5, 9, 1, 8, 11]; // curto, topete, degradê, topete-degradê, longo, cacheado, careca, raspado, coque, puxado
-const CRAQUES = JSON.parse(fs.readFileSync(path.join(ROOT, 'tools', 'craques.json'), 'utf8'));
+// faces medidas em foto: craques desenhados à mão + Série A (tools/faces.json, id -> código)
+const CRAQUES = { ...JSON.parse(fs.readFileSync(path.join(ROOT, 'tools', 'faces.json'), 'utf8')), ...JSON.parse(fs.readFileSync(path.join(ROOT, 'tools', 'craques.json'), 'utf8')) };
 function rosto(id, nat, idade) {
   if (CRAQUES[id]) return CRAQUES[id];
   const r = rng('rosto' + id);
@@ -94,7 +95,7 @@ for (const [n, ci] of idxClube) {
   for (const r of elenco) {
     const [id, nome, curto, , pos, , idade, nat, ovr, , valor, contrato] = r;
     const ct = contrato && contrato >= ANO ? contrato : ANO + 1 + Math.floor(rng('ct' + id)() * 3);
-    jogadores.push([id, nome, curto, ci, pos, idade, nat, ovr, valor || 0, ct, potencial(id, idade, ovr), atributos(id, pos, ovr), rosto(id, nat, idade)]);
+    jogadores.push([id, nome, curto, ci, pos, idade, nat, ovr, valor || 0, ct, potencial(id, idade, ovr), atributos(id, pos, ovr), rosto(id, nat, idade), RAW.nums?.[id] || 0]);
   }
   // completa o elenco até 25 com garotos gerados (nomes da referência)
   const have = {}; for (const r of elenco) have[r[4]] = (have[r[4]] || 0) + 1;
@@ -104,8 +105,16 @@ for (const [n, ci] of idxClube) {
     if (total >= 25 && pos !== 'GOL') continue;
     const r = rng('gen' + n + genId), id = genId++;
     const nm = CORE.genName(r, 'BRA'), idade = 18 + Math.floor(r() * 14), ovr = clamp(Math.round(nivel - 6 + (r() - 0.5) * 8), 40, 80);
-    jogadores.push([id, nm.name, nm.short, ci, pos, idade, 'BRA', ovr, Math.round(ovr * ovr / 30), ANO + 1 + Math.floor(r() * 3), potencial(id, idade, ovr), atributos(id, pos, ovr), rosto(id, 'BRA', idade)]);
+    jogadores.push([id, nm.name, nm.short, ci, pos, idade, 'BRA', ovr, Math.round(ovr * ovr / 30), ANO + 1 + Math.floor(r() * 3), potencial(id, idade, ovr), atributos(id, pos, ovr), rosto(id, 'BRA', idade), 0]);
     total++;
+  }
+}
+// numeração: sem número ou repetido no clube ganha o próximo livre
+for (let ci = 0; ci < clubes.length; ci++) {
+  const usados = new Set();
+  for (const j of jogadores.filter(j => j[3] === ci)) {
+    if (!j[13] || usados.has(j[13])) { let n = j[4] === 'GOL' ? 12 : 2; while (usados.has(n) || n === 1 && j[4] !== 'GOL') n++; j[13] = n; }
+    usados.add(j[13]);
   }
 }
 const dados = { versao: 1, ano: ANO, fonte: 'Treineiros 1.38.10 (uso autorizado)', clubes, jogadores, divisoes: DIV };

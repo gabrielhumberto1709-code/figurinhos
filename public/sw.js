@@ -1,6 +1,6 @@
 // Offline básico: mostra o que está no cache e atualiza por trás. A API nunca é guardada.
-const CACHE = 'figurinhos-v1';
-const BASICO = ['/', '/css/app.css', '/js/app.js', '/js/pixel.js', '/js/motor/util.js', '/js/motor/calendario.js', '/js/motor/partida.js', '/js/motor/mundo.js', '/data/brasil.json', '/manifest.webmanifest', '/img/icone-192.png'];
+const CACHE = 'figurinhos-v2';
+const BASICO = ['/', '/css/app.css', '/js/app.js', '/js/pixel.js', '/js/motor/util.js', '/js/motor/calendario.js', '/js/motor/partida.js', '/js/motor/mundo.js', '/js/motor/noticias.js', '/js/motor/mercado.js', '/js/aovivo.js', '/data/brasil.json', '/manifest.webmanifest', '/img/icone-192.png'];
 self.addEventListener('install', e => { e.waitUntil(caches.open(CACHE).then(c => c.addAll(BASICO))); self.skipWaiting(); });
 self.addEventListener('activate', e => { e.waitUntil(caches.keys().then(ks => Promise.all(ks.filter(k => k !== CACHE).map(k => caches.delete(k)))).then(() => self.clients.claim())); });
 self.addEventListener('fetch', e => {

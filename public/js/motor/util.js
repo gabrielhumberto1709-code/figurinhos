@@ -18,8 +18,8 @@ export function shuffle(r, a) { const b = a.slice(); for (let i = b.length - 1; 
 export const ATT = ['vel', 'fin', 'pas', 'dri', 'def', 'fis'];
 export const ATT_NOME = { vel: 'Velocidade', fin: 'Finalização', pas: 'Passe', dri: 'Drible', def: 'Defesa', fis: 'Físico' };
 export function jogador(r) {
-  const [id, nome, curto, clube, pos, idade, nat, ovr, valor, contrato, pot, att, rosto] = r;
-  return { id, nome, curto, clube, pos, idade, nat, ovr, valor, contrato, pot, att: Object.fromEntries(ATT.map((k, i) => [k, att[i]])), rosto };
+  const [id, nome, curto, clube, pos, idade, nat, ovr, valor, contrato, pot, att, rosto, num] = r;
+  return { id, nome, curto, clube, pos, idade, nat, ovr, valor, contrato, pot, att: Object.fromEntries(ATT.map((k, i) => [k, att[i]])), rosto, num };
 }
 
 export const POS_NOME = { GOL: 'Goleiro', ZAG: 'Zagueiro', LD: 'Lateral-direito', LE: 'Lateral-esquerdo', VOL: 'Volante', MC: 'Meio-campo', MEI: 'Meia', ME: 'Meia-esquerda', MD: 'Meia-direita', PE: 'Ponta-esquerda', PD: 'Ponta-direita', CA: 'Centroavante', SA: 'Segundo atacante' };

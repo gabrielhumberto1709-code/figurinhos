@@ -3,6 +3,7 @@ import { rng, pick, jogador } from './util.js';
 import { pontosCorridos } from './calendario.js';
 import { simular, melhorTime } from './partida.js';
 import { gerarNoticias } from './noticias.js';
+import { resolverMercado } from './mercado.js';
 
 const DIVS = ['A', 'B', 'C'];
 
@@ -14,13 +15,38 @@ export const REPUTACOES = [
 ];
 export const DIFICULDADES = { facil: 'Fácil', normal: 'Normal', dificil: 'Difícil' };
 
+// datas das rodadas: começa numa quarta de fim de janeiro, alterna quarta/domingo e para na Copa do Mundo
+export function dataRodada(ano, r) {
+  const d = new Date(Date.UTC(ano, 0, 28) + (7 * r + (r % 2 ? 4 : 0)) * 864e5);
+  if (d >= new Date(Date.UTC(ano, 5, 7))) d.setUTCDate(d.getUTCDate() + 42); // pausa da Copa (junho/julho)
+  return d;
+}
+// janelas do Brasil: até o começo de março e do fim de julho ao começo de setembro
+export function janelaAberta(ano, r) {
+  const d = dataRodada(ano, Math.min(r, 37)), m = d.getUTCMonth(), dia = d.getUTCDate();
+  return m < 2 || (m === 2 && dia <= 3) || (m === 6 && dia >= 20) || m === 7 || (m === 8 && dia <= 2);
+}
+
+// caixa inicial: parte do valor do elenco + tamanho da torcida, pesado pela divisão
+const PESO_DIV = { A: 1, B: 0.4, C: 0.15 }, PESO_DIF = { facil: 1.5, normal: 1, dificil: 0.6 };
+export function caixaInicial(base, ci, dificuldade = 'normal') {
+  const c = base.clubes[ci], elenco = base.elencos[ci].reduce((t, j) => t + j.valor, 0) * 1000;
+  return Math.round((elenco * 0.12 + c.fan * c.fan * 150000 * PESO_DIV[c.div]) * (PESO_DIF[dificuldade] || 1) / 10000) * 10000;
+}
+
 export class Base {
   constructor(dados) {
     this.dados = dados;
     this.clubes = dados.clubes;
-    this.jog = new Map(dados.jogadores.map(r => { const j = jogador(r); return [j.id, j]; }));
+    this.jog = new Map(dados.jogadores.map(r => { const j = jogador(r); j.clubeOrig = j.clube; return [j.id, j]; }));
+    this.aplicarTransferencias({});
+  }
+  // cada save carrega as próprias transferências por cima da base original
+  aplicarTransferencias(transf) {
+    for (const j of this.jog.values()) j.clube = transf[j.id] ?? j.clubeOrig;
     this.elencos = this.clubes.map(() => []);
     for (const j of this.jog.values()) this.elencos[j.clube].push(j);
+    this._forca = null;
   }
   // força do clube: média dos 16 melhores (cacheada; o mercado vai precisar invalidar)
   forca(ci) {
@@ -47,7 +73,7 @@ export function novoJogo(base, cfg) {
     v: 1, dadosVersao: base.dados.versao, seed, criado: Date.now(), ano: base.dados.ano, rodada: 0,
     tecnico: { ...cfg.tecnico, clube, modo: cfg.modo },
     dificuldade: cfg.dificuldade || 'normal',
-    formacao: '4-3-3', xi: null, ultima: null, est: {}, noticias: [{ rodada: 0, tipo: 'clube', div: base.clubes[clube].div, texto: `${cfg.tecnico.nome} é o novo técnico do ${base.clubes[clube].n}.` }],
+    formacao: '4-3-3', xi: null, ultima: null, est: {}, caixa: caixaInicial(base, clube, cfg.dificuldade), transf: {}, propostas: [], historicoTransf: [], noticias: [{ rodada: 0, tipo: 'clube', div: base.clubes[clube].div, texto: `${cfg.tecnico.nome} é o novo técnico do ${base.clubes[clube].n}.` }],
   };
 }
 
@@ -103,29 +129,38 @@ function registrar(est, sim) {
   }
 }
 
-// avança uma rodada em todas as divisões; devolve o jogo do usuário (se houver)
-export function avancar(base, s) {
+// rodada em duas etapas: os jogos da IA são decididos logo; o seu pode ser assistido ao vivo
+export function iniciarRodada(base, s) {
   if (s.rodada >= 38) return null;
-  const rd = s.rodada, jogos = [];
+  const rd = s.rodada, ci = s.tecnico.clube, jogos = [];
+  let meu = null;
+  for (const d of DIVS) for (const [h, a] of rodadasDe(base, s, d)[rd]) {
+    const th = escalacao(base, s, h), ta = escalacao(base, s, a), seed = `${s.seed}-${d}-${rd}-${h}-${a}`;
+    if (h === ci || a === ci) meu = { d, h, a, th, ta, seed, humano: h === ci ? 0 : 1 };
+    else jogos.push({ d, h, a, sim: simular(th, ta, seed) });
+  }
+  return { rd, jogos, meu };
+}
+
+export function concluirRodada(base, s, R, simMeu) {
   s.res = s.res || { A: {}, B: {}, C: {} };
   s.est = s.est || {};
-  let meu = null;
-  for (const d of DIVS) {
-    for (const [h, a] of rodadasDe(base, s, d)[rd]) {
-      const th = escalacao(base, s, h), ta = escalacao(base, s, a);
-      const sim = simular(th, ta, `${s.seed}-${d}-${rd}-${h}-${a}`);
-      s.res[d][chave(h, a)] = sim.gols;
-      registrar(s.est, sim);
-      jogos.push({ d, h, a, sim });
-      if (h === s.tecnico.clube || a === s.tecnico.clube) {
-        meu = { rodada: rd, div: d, casa: h, fora: a, ...sim, xi: [th.xi.map(j => j && j.id), ta.xi.map(j => j && j.id)], formacoes: [th.formacao, ta.formacao] };
-      }
-    }
-  }
+  const jogos = R.jogos.slice();
+  if (R.meu) jogos.push({ d: R.meu.d, h: R.meu.h, a: R.meu.a, sim: simMeu });
+  for (const { d, h, a, sim } of jogos) { s.res[d][chave(h, a)] = sim.gols; registrar(s.est, sim); }
+  const m = R.meu;
+  s.ultima = m ? { rodada: R.rd, div: m.d, casa: m.h, fora: m.a, ...simMeu, xi: [m.th.xi.map(j => j.id), m.ta.xi.map(j => j.id)] } : null;
   s.rodada++;
-  s.ultima = meu;
-  gerarNoticias(base, s, rd, jogos, Object.fromEntries(DIVS.map(d => [d, tabela(base, s, d)])));
-  return meu;
+  gerarNoticias(base, s, R.rd, jogos, Object.fromEntries(DIVS.map(d => [d, tabela(base, s, d)])));
+  resolverMercado(base, s, R.rd);
+  return s.ultima;
+}
+
+// rodada inteira de uma vez (jogo do usuário simulado direto)
+export function avancar(base, s) {
+  const R = iniciarRodada(base, s);
+  if (!R) return null;
+  return concluirRodada(base, s, R, R.meu ? simular(R.meu.th, R.meu.ta, R.meu.seed) : null);
 }
 
 export function tabela(base, s, d) {

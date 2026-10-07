@@ -85,3 +85,35 @@ test('jornal: estatísticas batem com os gols e rumores fazem sentido de futebol
   }
   assert.ok(s.destaques.A.time.length === 11);
 });
+
+import { precoPedido, fazerProposta, vontade, aceitarRecebida } from '../public/js/motor/mercado.js';
+
+test('mercado: proposta boa por jogador que quer vir fecha na rodada seguinte; dinheiro e elenco mudam', () => {
+  const ci = base.clubes.findIndex(c => c.n === 'Flamengo');
+  const s = novoJogo(base, { ...cfg(21), clube: ci });
+  // reserva da Série B que seria titular no Flamengo? procura alguém que topa e o Flamengo pode pagar
+  const alvo = [...base.jog.values()].filter(j => j.clube !== ci && base.clubes[j.clube].div !== 'A' && vontade(base, s, j, ci) >= 70).sort((a, b) => b.ovr - a.ovr)[0];
+  assert.ok(alvo, 'precisa de um alvo');
+  const preco = precoPedido(base, s, alvo), caixa = s.caixa, n = base.elencos[ci].length;
+  assert.equal(fazerProposta(base, s, alvo, preco), null);
+  avancar(base, s);
+  const p = s.propostas[0];
+  assert.ok(['concluida', 'perdida'].includes(p.estado), `estado ${p.estado} ${p.motivo || ''}`);
+  if (p.estado === 'concluida') {
+    assert.equal(alvo.clube, ci);
+    assert.equal(s.caixa, caixa - preco);
+    assert.equal(base.elencos[ci].length, n + 1);
+  }
+  base.aplicarTransferencias({});
+});
+
+test('mercado: proposta baixa é recusada e janela fechada bloqueia', () => {
+  const s = novoJogo(base, cfg(22));
+  const alvo = base.elencos[5][0];
+  assert.equal(fazerProposta(base, s, alvo, precoPedido(base, s, alvo) * 0.5), null);
+  avancar(base, s);
+  assert.equal(s.propostas[0].estado, 'recusada');
+  s.rodada = 10;
+  assert.match(fazerProposta(base, s, base.elencos[6][0], 1e6), /janela/);
+  base.aplicarTransferencias({});
+});

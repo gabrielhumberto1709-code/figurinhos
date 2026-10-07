@@ -1,5 +1,7 @@
 // Interface do Figurinhos: telas, navegação por hash e saves na nuvem.
-import { Base, novoJogo, avancar, tabela, rodadasDe, escalacao, escalar, trocarFormacao, paraSalvar, resumo, REPUTACOES, DIFICULDADES } from './motor/mundo.js';
+import { Base, novoJogo, iniciarRodada, concluirRodada, tabela, rodadasDe, escalacao, escalar, trocarFormacao, paraSalvar, resumo, REPUTACOES, DIFICULDADES, dataRodada, janelaAberta, caixaInicial } from './motor/mundo.js';
+import { precoPedido, vontade, pistaVontade, fazerProposta, aceitarContraproposta, desistir, aceitarRecebida, recusarRecebida, bloqueioProposta } from './motor/mercado.js';
+import * as AoVivo from './aovivo.js';
 import { FORMACOES, encaixe } from './motor/partida.js';
 import { media } from './motor/noticias.js';
 import { POS_NOME, SETOR, ATT, ATT_NOME, cartaDe, estrelas, fmtDinheiro, POS_ORDEM } from './motor/util.js';
@@ -92,6 +94,17 @@ const ICONES = {
   tabela: '<path d="M4 5h16M4 10h16M4 15h16M4 20h10" stroke="currentColor" stroke-width="2.4"/>',
   calendario: '<rect x="3" y="5" width="18" height="16" rx="1" fill="none" stroke="currentColor" stroke-width="2.2"/><path d="M3 10h18M8 2v5M16 2v5" stroke="currentColor" stroke-width="2.2"/>',
   noticias: '<rect x="3" y="4" width="18" height="16" rx="1" fill="none" stroke="currentColor" stroke-width="2.2"/><path d="M7 9h10M7 13h10M7 17h6" stroke="currentColor" stroke-width="2.2"/>',
+  mercado: '<path d="M4 8h13l-3-3M20 16H7l3 3" fill="none" stroke="currentColor" stroke-width="2.2"/>',
+  torneios: '<path d="M7 4h10v4a5 5 0 0 1-10 0V4zM7 6H4v1a3 3 0 0 0 3 3M17 6h3v1a3 3 0 0 1-3 3M12 13v4M8 20h8" fill="none" stroke="currentColor" stroke-width="2.2"/>',
+  tatica: '<rect x="3" y="4" width="18" height="16" rx="1" fill="none" stroke="currentColor" stroke-width="2"/><path d="M12 4v16" stroke="currentColor" stroke-width="2"/><circle cx="12" cy="12" r="3" fill="none" stroke="currentColor" stroke-width="2"/>',
+  apito: '<circle cx="9" cy="14" r="5" fill="none" stroke="currentColor" stroke-width="2.2"/><path d="M12 10l9-4v4l-6 2" fill="none" stroke="currentColor" stroke-width="2.2"/>',
+  moeda: '<circle cx="12" cy="12" r="8" fill="none" stroke="currentColor" stroke-width="2.2"/><path d="M14.5 9.2c-.6-.8-1.5-1.2-2.6-1.2-1.6 0-2.6.8-2.6 2s1 1.7 2.6 2 2.7.8 2.7 2.1-1.1 2-2.7 2c-1.2 0-2.2-.5-2.8-1.3M12 6.5v11" fill="none" stroke="currentColor" stroke-width="1.8"/>',
+  pessoa: '<circle cx="12" cy="8" r="4" fill="none" stroke="currentColor" stroke-width="2.2"/><path d="M4 21c1-4 4.5-6 8-6s7 2 8 6" fill="none" stroke="currentColor" stroke-width="2.2"/>',
+  halter: '<path d="M2 12h20M5 8v8M8 6v12M16 6v12M19 8v8" fill="none" stroke="currentColor" stroke-width="2.2"/>',
+  broto: '<path d="M12 21v-9M12 12c0-4-3-6-7-6 0 4 3 6 7 6zM12 14c0-3 2.5-5 6-5 0 3-2.5 5-6 5z" fill="none" stroke="currentColor" stroke-width="2"/>',
+  cruz: '<path d="M9 3h6v6h6v6h-6v6H9v-6H3V9h6z" fill="none" stroke="currentColor" stroke-width="2"/>',
+  micro: '<rect x="9" y="3" width="6" height="11" rx="3" fill="none" stroke="currentColor" stroke-width="2.2"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3" fill="none" stroke="currentColor" stroke-width="2.2"/>',
+  camisa: '<path d="M8 3l-5 3 2 5 3-1v11h8V10l3 1 2-5-5-3c-.5 1.5-2 2.5-4 2.5S8.5 4.5 8 3z" fill="none" stroke="currentColor" stroke-width="2"/>',
   lua: '<path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z" fill="currentColor"/>',
   sol: '<circle cx="12" cy="12" r="4.5" fill="currentColor"/><path d="M12 1.5v3M12 19.5v3M1.5 12h3M19.5 12h3M4.6 4.6l2.1 2.1M17.3 17.3l2.1 2.1M4.6 19.4l2.1-2.1M17.3 6.7l2.1-2.1" stroke="currentColor" stroke-width="2.2"/>',
 };
@@ -100,7 +113,7 @@ const botaoTema = (classe = 'botao peq sec') => `<button class="${classe} tema" 
 
 function desenhaTopo() {
   const topo = $('#topo'), abas = $('#abas');
-  const emJogo = !!app.s && !['entrar', 'saves', 'novo'].includes(app.aba);
+  const emJogo = !!app.s && !['entrar', 'saves', 'novo', 'ao-vivo'].includes(app.aba);
   topo.hidden = abas.hidden = !emJogo;
   if (!emJogo) return;
   const s = app.s, ci = s.tecnico.clube;
@@ -109,8 +122,10 @@ function desenhaTopo() {
     <div class="info"><div class="clube-nome">${esc(clube(ci).n)}</div><small>Série ${clube(ci).div} · Rodada ${Math.min(s.rodada + 1, 38)}${s.rodada ? ` · ${posicaoNaTabela(ci)}º` : ''}</small></div>
     <button class="estado ${app.salvando}" data-acao="salvar" type="button" ${app.salvando === 'falhou' ? '' : 'tabindex="-1"'} style="background:none;border:0;cursor:pointer">${estado}</button>
     ${botaoTema('botao peq')}<button class="botao peq" data-acao="menu" type="button">Sair</button></div>`;
-  abas.innerHTML = `<ul>${[['clube', 'Clube'], ['elenco', 'Elenco'], ['tabela', 'Tabela'], ['calendario', 'Jogos'], ['noticias', 'Notícias']].map(([k, t]) =>
-    `<li><a href="#/${k}" ${app.aba === k ? 'aria-current="page"' : ''}><svg viewBox="0 0 24 24" aria-hidden="true">${ICONES[k]}</svg>${t}</a></li>`).join('')}</ul>`;
+  const pend = (s.recebidas || []).length + (s.propostas || []).filter(p => p.estado === 'contraproposta').length;
+  const ativa = { calendario: 'clube', partida: 'clube', financas: 'clube', carreira: 'clube' }[app.aba] || app.aba;
+  abas.innerHTML = `<ul>${[['clube', 'Clube'], ['elenco', 'Elenco'], ['mercado', 'Mercado'], ['torneios', 'Torneios'], ['noticias', 'Notícias']].map(([k, t]) =>
+    `<li><a href="#/${k}" ${ativa === k ? 'aria-current="page"' : ''}><svg viewBox="0 0 24 24" aria-hidden="true">${ICONES[k]}</svg>${t}${k === 'mercado' && pend ? `<span class="badge" aria-label="${pend} pendentes">${pend}</span>` : ''}</a></li>`).join('')}</ul>`;
 }
 
 // ---------- telas ----------
@@ -204,28 +219,68 @@ telas.novo = () => {
 };
 
 // ----- clube -----
+const MESES = ['JAN', 'FEV', 'MAR', 'ABR', 'MAI', 'JUN', 'JUL', 'AGO', 'SET', 'OUT', 'NOV', 'DEZ'], SEMANA = ['DOM', 'SEG', 'TER', 'QUA', 'QUI', 'SEX', 'SÁB'];
+const dataCurta = d => `${SEMANA[d.getUTCDay()]} ${String(d.getUTCDate()).padStart(2, '0')}/${String(d.getUTCMonth() + 1).padStart(2, '0')}`;
+const ATALHOS = [
+  ['tatica', 'Tática', '#/elenco', 'var(--gramado)'], ['calendario', 'Agenda', '#/calendario', 'var(--carimbo)'], ['apito', 'Último jogo', '#/partida', 'var(--placar)'],
+  ['moeda', 'Finanças', '#/financas', '#C9A227'], ['pessoa', 'Carreira', '#/carreira', 'var(--cartao)'],
+  ['halter', 'Treino', null, '#E07B39'], ['broto', 'Base', null, 'var(--gramado)'], ['cruz', 'DM', null, 'var(--cartao)'], ['micro', 'Coletiva', null, 'var(--carimbo)'], ['camisa', 'Uniforme', null, '#2BA8A0'],
+];
+
 telas.clube = () => {
-  const s = app.s, ci = s.tecnico.clube, d = clube(ci).div;
+  const s = app.s, ci = s.tecnico.clube, c = clube(ci), d = c.div;
   const fim = s.rodada >= 38;
   const jogo = fim ? null : rodadasDe(app.base, s, d)[s.rodada].find(([h, a]) => h === ci || a === ci);
   const tab = tabela(app.base, s, d), pos = tab.findIndex(l => l.clube === ci);
   const viz = tab.slice(Math.max(0, Math.min(pos - 2, tab.length - 5)), Math.max(5, pos + 3)).map(l => ({ ...l, n: tab.indexOf(l) + 1 }));
-  const u = s.ultima;
-  const lado = (c, rot) => `<div class="lado">${imgEscudo(c, 72, 78)}<span>${esc(clube(c).n)}</span><small class="mudo">${s.rodada ? posicaoNaTabela(c) + 'º · ' : ''}${rot}</small></div>`;
-  return `<div class="grade-clube"><div style="display:flex;flex-direction:column;gap:16px">
-    ${fim ? `<section class="cartao escuro"><h2>Fim da temporada</h2><p>${esc(clube(ci).n)} terminou em <b>${pos + 1}º</b> na Série ${d}. Campeão: <b>${esc(clube(tab[0].clube).n)}</b>.</p>
-      <p style="color:#C9C3B6">A virada de temporada, com acesso e rebaixamento, entra na próxima atualização.</p></section>`
-      : `<section class="cartao"><div class="titulo-linha"><h3>${s.rodada + 1}ª rodada · Série ${d}</h3><span class="mudo">${jogo[0] === ci ? 'Em casa' : 'Fora'}</span></div>
-      <div class="proximo">${lado(jogo[0], 'mandante')}<span class="x">×</span>${lado(jogo[1], 'visitante')}</div>
-      <p class="mudo" style="text-align:center">${esc(clube(jogo[0]).est[0])}</p>
-      <button class="botao grande" data-acao="jogar" type="button">Continuar</button></section>`}
-    ${u ? `<section class="cartao"><div class="titulo-linha"><h3>Último jogo</h3><a href="#/partida">Ver súmula</a></div>
-      <p style="font-size:1.25rem;font-weight:700">${esc(clube(u.casa).n)} <span class="num" style="font-size:1.6rem">${u.gols[0]} × ${u.gols[1]}</span> ${esc(clube(u.fora).n)}</p></section>` : ''}
-    <section class="cartao"><div class="titulo-linha"><h3>Seu clube no noticiário</h3><a href="#/noticias">Jornal da Bola</a></div><ul class="noticias">${s.noticias.filter(x => (x.tipo || 'clube') === 'clube').slice(0, 6).map(x => `<li><span class="rd">R${x.rodada}</span><span>${esc(x.texto)}</span></li>`).join('')}</ul></section>
-    </div>
-    <section class="cartao"><div class="titulo-linha"><h3>Série ${d}</h3><a href="#/tabela">Tabela completa</a></div>
+  const dt = dataRodada(s.ano, Math.min(s.rodada, 37)), janela = janelaAberta(s.ano, s.rodada);
+  const lado = ci2 => `<div class="lado">${imgEscudo(ci2, 64, 69)}<span>${esc(clube(ci2).n)}</span>${s.rodada ? `<small>${posicaoNaTabela(ci2)}º</small>` : ''}</div>`;
+  return `<div class="status-clube"><span title="Dinheiro em caixa"><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">${ICONES.moeda}</svg>${fmtDinheiro(s.caixa ?? 0)}</span>
+      <span>${s.rodada ? `${pos + 1}º na Série ${d}` : `Série ${d}`}</span><span class="${janela ? 'aberta' : ''}">${janela ? 'Janela aberta' : 'Janela fechada'}</span></div>
+    ${fim ? `<section class="cartao escuro"><h2>Fim da temporada</h2><p>${esc(c.n)} terminou em <b>${pos + 1}º</b> na Série ${d}. Campeão: <b>${esc(clube(tab[0].clube).n)}</b>.</p>
+      <p style="color:var(--barra-texto-2)">A virada de temporada, com acesso e rebaixamento, entra na próxima atualização.</p></section>`
+    : `<section class="ingresso" style="--cc:${c.c[0]};--cc2:${c.c[1] || '#fff'}">
+      <div class="ingresso-data"><span class="dia">${String(dt.getUTCDate()).padStart(2, '0')}</span><span class="mes">${MESES[dt.getUTCMonth()]}</span><span class="sem">${SEMANA[dt.getUTCDay()]}</span><span class="ano">${dt.getUTCFullYear()}</span></div>
+      <div class="ingresso-corpo"><span class="ingresso-tag">${s.rodada + 1}ª rodada · Série ${d} · ${jogo[0] === ci ? 'em casa' : 'fora'}</span>
+        <div class="ingresso-jogo">${lado(jogo[0])}<span class="x">×</span>${lado(jogo[1])}</div>
+        <span class="ingresso-local">${esc(clube(jogo[0]).est[0])}</span>
+        <button class="botao grande" data-acao="jogar" type="button">Jogar</button></div></section>`}
+    <nav class="atalhos" aria-label="Atalhos do clube">${ATALHOS.map(([ic, t, href, cor]) => {
+      const off = !href || (href === '#/partida' && !s.ultima);
+      return href && !off ? `<a class="atalho" href="${href}" style="--ac:${cor}"><svg viewBox="0 0 24 24" aria-hidden="true">${ICONES[ic]}</svg><span>${t}</span></a>`
+        : `<button class="atalho off" type="button" data-acao="em-breve" data-t="${t}" style="--ac:${cor}" aria-disabled="true"><svg viewBox="0 0 24 24" aria-hidden="true">${ICONES[ic]}</svg><span>${t}</span>${href ? '' : '<small>em breve</small>'}</button>`;
+    }).join('')}</nav>
+    <div class="grade-clube">
+      <section class="cartao"><div class="titulo-linha"><h3>Seu clube no noticiário</h3><a href="#/noticias">Jornal da Bola</a></div><ul class="noticias">${s.noticias.filter(x => (x.tipo || 'clube') === 'clube').slice(0, 6).map(x => `<li><span class="rd">R${x.rodada}</span><span>${esc(x.texto)}</span></li>`).join('')}</ul></section>
+      <section class="cartao"><div class="titulo-linha"><h3>Série ${d}</h3><a href="#/torneios">Tabela completa</a></div>
       <table><thead><tr><th>#</th><th style="text-align:left">Clube</th><th>P</th><th>J</th><th>SG</th></tr></thead>
       <tbody>${viz.map(l => `<tr class="${l.clube === ci ? 'meu' : ''}"><td class="pos">${l.n}</td><td class="clube-cel"><span>${imgEscudo(l.clube, 20, 22)}${esc(clube(l.clube).n)}</span></td><td class="p">${l.p}</td><td>${l.j}</td><td>${l.sg}</td></tr>`).join('')}</tbody></table></section></div>`;
+};
+
+// ----- finanças -----
+telas.financas = () => {
+  const s = app.s, ci = s.tecnico.clube, h = s.historicoTransf || [];
+  const compras = h.filter(x => x.para === ci).reduce((t, x) => t + x.valor, 0), vendas = h.filter(x => x.de === ci).reduce((t, x) => t + x.valor, 0);
+  const elenco = app.base.elencos[ci].reduce((t, j) => t + j.valor * 1000, 0);
+  return `<div class="titulo-linha"><h2>Finanças</h2><a href="#/clube">Voltar</a></div>
+    <div class="kpis"><div class="cartao kpi"><small>Em caixa</small><b class="num">${fmtDinheiro(s.caixa ?? 0)}</b></div><div class="cartao kpi"><small>Valor do elenco</small><b class="num">${fmtDinheiro(elenco)}</b></div>
+      <div class="cartao kpi"><small>Gasto em reforços</small><b class="num">${fmtDinheiro(compras)}</b></div><div class="cartao kpi"><small>Recebido em vendas</small><b class="num">${fmtDinheiro(vendas)}</b></div></div>
+    <section class="cartao"><h3>Movimentações</h3>${h.length ? `<ul class="noticias">${h.map(x => `<li><span class="rd">R${x.rodada + 1}</span><span>${x.para === ci ? 'Compra' : 'Venda'}: <b>${esc(x.nome)}</b> (${esc(clube(x.para === ci ? x.de : x.para).n)}) · ${fmtDinheiro(x.valor)}</span></li>`).join('')}</ul>` : '<p class="mudo">Nenhuma compra ou venda ainda.</p>'}</section>
+    <p class="mudo">Bilheteria, patrocínios e salários entram na fase de gestão do clube.</p>`;
+};
+
+// ----- carreira -----
+telas.carreira = () => {
+  const s = app.s, t = s.tecnico, ci = t.clube, d = clube(ci).div;
+  const l = tabela(app.base, s, d).find(x => x.clube === ci);
+  const aprov = l.j ? Math.round(l.p / (l.j * 3) * 100) : 0;
+  return `<div class="titulo-linha"><h2>Carreira</h2><a href="#/clube">Voltar</a></div>
+    <section class="cartao carreira"><div class="moldura-tec"><img class="px" src="${urlRosto(t.rosto, TERNO)}" width="32" height="32" alt=""></div>
+      <div><h2 style="font-size:1.6rem">${esc(t.nome)}</h2><p class="mudo">${bandeira(t.nat)} ${esc((NACOES.find(n => n[0] === t.nat) || [, t.nat])[1])} · ${REPUTACOES[t.reputacao]?.nome || ''}</p>
+      <dl class="ficha-dl"><dt>Clube</dt><dd>${imgEscudo(ci, 18, 20)} ${esc(clube(ci).n)}</dd><dt>Temporada</dt><dd>${s.ano}</dd><dt>Dificuldade</dt><dd>${DIFICULDADES[s.dificuldade]}</dd></dl></div></section>
+    <div class="kpis"><div class="cartao kpi"><small>Jogos</small><b class="num">${l.j}</b></div><div class="cartao kpi"><small>V · E · D</small><b class="num">${l.v}·${l.e}·${l.d}</b></div>
+      <div class="cartao kpi"><small>Gols pró · contra</small><b class="num">${l.gp}·${l.gc}</b></div><div class="cartao kpi"><small>Aproveitamento</small><b class="num">${aprov}%</b></div></div>
+    <p class="mudo">Histórico de temporadas, propostas de outros clubes e demissão chegam com a fase "Vida de técnico".</p>`;
 };
 
 // ----- elenco -----
@@ -273,9 +328,67 @@ function abrirFicha(id) {
       <dt>Potencial</dt><dd><span class="estrelas" aria-label="${meu ? estrelas(j.pot) + ' de 5' : 'desconhecido'}">${meu ? estrelasTxt(estrelas(j.pot)) : '? ? ?'}</span></dd></dl></div></div>
     <div class="atts">${ATT.map(k => `<div class="att" style="--c:${corAtt(j.att[k])}"><span>${ATT_NOME[k]}</span><span class="num">${j.att[k]}</span><div><b style="width:${j.att[k]}%"></b></div></div>`).join('')}</div>
     <dl><dt>Valor</dt><dd>${fmtDinheiro(j.valor * 1000)}</dd><dt>Contrato</dt><dd>até ${j.contrato}</dd></dl>
+    ${app.s ? blocoMercado(j, meu) : ''}
     <form method="dialog"><button class="botao sec" style="width:100%">Fechar</button></form></div>`;
-  d.showModal();
+  if (!d.open) d.showModal();
 }
+
+function blocoMercado(j, meu) {
+  const s = app.s;
+  if (meu) {
+    const ofertas = (s.recebidas || []).filter(x => x.jogador === j.id);
+    return ofertas.length ? `<section class="ficha-mercado"><h3>Propostas por ele</h3>${ofertas.map(x => `<div class="oferta"><span>${imgEscudo(x.de, 18, 20)} ${esc(clube(x.de).n)} · <b>${fmtDinheiro(x.valor)}</b></span><span class="linha-botoes"><button class="botao peq" type="button" data-acao="aceitar-recebida" data-id="${x.id}">Vender</button><button class="botao peq sec" type="button" data-acao="recusar-recebida" data-id="${x.id}">Recusar</button></span></div>`).join('')}</section>` : '';
+  }
+  const pedido = precoPedido(app.base, s, j), ja = (s.propostas || []).find(p => p.jogador === j.id && ['aguardando', 'contraproposta'].includes(p.estado));
+  const bloq = bloqueioProposta(app.base, s, j, pedido);
+  return `<section class="ficha-mercado"><h3>Mercado</h3><dl><dt>Preço pedido</dt><dd>${fmtDinheiro(pedido)}</dd><dt>Seu caixa</dt><dd>${fmtDinheiro(s.caixa)}</dd></dl>
+    <p class="mudo">${pistaVontade(vontade(app.base, s, j, s.tecnico.clube))}</p>
+    ${ja ? `<p><b>${ja.estado === 'contraproposta' ? `Contraproposta: ${fmtDinheiro(ja.contra)}. Veja em Mercado › Propostas.` : `Proposta de ${fmtDinheiro(ja.valor)} enviada. Resposta na próxima rodada.`}</b></p>`
+      : bloq && !/dinheiro/.test(bloq) ? `<p class="erro">${esc(bloq)}</p>`
+      : `<form class="proposta" data-form="proposta" data-id="${j.id}"><label>Sua proposta (€ milhões) <input type="number" name="valor" inputmode="decimal" step="0.01" min="0.05" value="${(pedido / 1e6).toFixed(2)}"></label>
+        <div class="chips">${[0.85, 1, 1.15].map(f => `<button type="button" class="chip" data-acao="sugerir" data-v="${(pedido * f / 1e6).toFixed(2)}">${fmtDinheiro(Math.round(pedido * f / 1e4) * 1e4)}</button>`).join('')}</div>
+        <p class="erro" role="alert"></p><button class="botao" type="submit">Enviar proposta</button></form>`}</section>`;
+}
+
+// ----- mercado -----
+const ROTULO = { aguardando: 'Aguardando resposta', contraproposta: 'Contraproposta', recusada: 'Recusada', perdida: 'Perdida para rival', concluida: 'Contratado', cancelada: 'Cancelada' };
+function filtrarMercado() {
+  const s = app.s, f = app.fMercado || (app.fMercado = { q: '', pos: '', div: '', ord: 'ovr' });
+  const q = f.q.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+  let l = [...app.base.jog.values()].filter(j => j.clube !== s.tecnico.clube && (!f.pos || j.pos === f.pos) && (!f.div || clube(j.clube).div === f.div)
+    && (!q || (j.nome + ' ' + clube(j.clube).n).normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().includes(q)));
+  l.sort(f.ord === 'barato' ? (a, b) => a.valor - b.valor || b.ovr - a.ovr : f.ord === 'jovem' ? (a, b) => a.idade - b.idade || b.ovr - a.ovr : (a, b) => b.ovr - a.ovr);
+  return l.slice(0, 60);
+}
+const linhaMercado = j => `<li><button type="button" class="linha-mercado" data-acao="ficha" data-id="${j.id}"><img class="px" src="${urlRosto(j.rosto, clube(j.clube))}" width="32" height="32" alt="" loading="lazy">
+  <span class="lm-nome"><b>${esc(j.curto)}</b><small>${imgEscudo(j.clube, 14, 15)} ${esc(clube(j.clube).n)} · ${j.idade} anos</small></span><span class="pos-mini">${j.pos}</span><span class="nota ${cartaDe(j.ovr).k}">${j.ovr}</span><span class="lm-valor">${fmtDinheiro(j.valor * 1000)}</span></button></li>`;
+
+telas.mercado = () => {
+  const s = app.s, aba = app.abaMercado || 'buscar', f = app.fMercado || (app.fMercado = { q: '', pos: '', div: '', ord: 'ovr' });
+  const janela = janelaAberta(s.ano, s.rodada), abertas = s.propostas.filter(p => ['aguardando', 'contraproposta'].includes(p.estado)).length;
+  const ABAS = [['buscar', 'Buscar'], ['propostas', `Propostas${abertas ? ` (${abertas})` : ''}`], ['recebidas', `Recebidas${s.recebidas?.length ? ` (${s.recebidas.length})` : ''}`], ['historico', 'Histórico']];
+  let corpo = '';
+  if (aba === 'buscar') corpo = `<section class="cartao filtros-mercado">
+      <label class="vh" for="busca-mercado">Buscar jogador ou clube</label><input type="text" id="busca-mercado" data-filtro="q" placeholder="Nome do jogador ou clube" value="${esc(f.q)}" autocomplete="off">
+      <div class="filtros-linha"><select data-filtro="pos" aria-label="Posição"><option value="">Todas as posições</option>${POS_ORDEM.map(p => `<option value="${p}" ${f.pos === p ? 'selected' : ''}>${POS_NOME[p]}</option>`).join('')}</select>
+        <select data-filtro="div" aria-label="Série"><option value="">Todas as séries</option>${['A', 'B', 'C'].map(x => `<option value="${x}" ${f.div === x ? 'selected' : ''}>Série ${x}</option>`).join('')}</select>
+        <select data-filtro="ord" aria-label="Ordenar"><option value="ovr" ${f.ord === 'ovr' ? 'selected' : ''}>Melhores</option><option value="barato" ${f.ord === 'barato' ? 'selected' : ''}>Mais baratos</option><option value="jovem" ${f.ord === 'jovem' ? 'selected' : ''}>Mais jovens</option></select></div></section>
+    <ul class="lista-mercado" id="lista-mercado">${filtrarMercado().map(linhaMercado).join('')}</ul>`;
+  else if (aba === 'propostas') corpo = s.propostas.length ? `<ul class="lista-propostas">${s.propostas.map(p => { const j = app.base.jog.get(p.jogador); return `<li class="cartao"><div class="titulo-linha"><b>${esc(j.curto)}</b><span class="tag ${p.estado === 'concluida' ? 'resultado' : ['recusada', 'perdida'].includes(p.estado) ? 'crise' : 'rumor'}">${ROTULO[p.estado]}</span></div>
+      <p class="mudo">${imgEscudo(p.de, 16, 17)} ${esc(clube(p.de).n)} · sua oferta ${fmtDinheiro(p.valor)}${p.motivo ? ` · ${esc(p.motivo)}` : ''}</p>
+      ${p.estado === 'contraproposta' ? `<div class="linha-botoes"><button class="botao peq" type="button" data-acao="aceitar-contra" data-id="${p.id}">Pagar ${fmtDinheiro(p.contra)}</button><button class="botao peq sec" type="button" data-acao="desistir" data-id="${p.id}">Desistir</button></div>`
+        : p.estado === 'aguardando' ? `<div class="linha-botoes"><button class="botao peq sec" type="button" data-acao="desistir" data-id="${p.id}">Cancelar proposta</button></div>` : ''}</li>`; }).join('')}</ul>` : '<section class="cartao"><p class="mudo">Você ainda não fez propostas. Busque um jogador e toque nele.</p></section>';
+  else if (aba === 'recebidas') corpo = s.recebidas?.length ? `<ul class="lista-propostas">${s.recebidas.map(x => { const j = app.base.jog.get(x.jogador); return `<li class="cartao"><div class="titulo-linha"><b>${esc(j.curto)}</b><span class="nota ${cartaDe(j.ovr).k}">${j.ovr}</span></div>
+      <p class="mudo">${imgEscudo(x.de, 16, 17)} ${esc(clube(x.de).n)} oferece <b>${fmtDinheiro(x.valor)}</b> · vale ${fmtDinheiro(j.valor * 1000)}</p>
+      <div class="linha-botoes"><button class="botao peq" type="button" data-acao="aceitar-recebida" data-id="${x.id}">Vender</button><button class="botao peq sec" type="button" data-acao="recusar-recebida" data-id="${x.id}">Recusar</button></div></li>`; }).join('')}</ul>` : '<section class="cartao"><p class="mudo">Nenhuma proposta pelos seus jogadores. Quem joga bem chama atenção dos clubes maiores.</p></section>';
+  else corpo = s.historicoTransf?.length ? `<section class="cartao"><ul class="noticias">${s.historicoTransf.map(x => `<li><span class="rd">R${x.rodada + 1}</span><span><b>${esc(x.nome)}</b>: ${esc(clube(x.de).n)} → ${esc(clube(x.para).n)} · ${fmtDinheiro(x.valor)}</span></li>`).join('')}</ul></section>` : '<section class="cartao"><p class="mudo">Nenhuma transferência ainda.</p></section>';
+  return `<div class="titulo-linha"><h2>Mercado</h2><span class="mudo">${fmtDinheiro(s.caixa)} em caixa</span></div>
+    <p class="janela ${janela ? 'aberta' : ''}">${janela ? 'Janela aberta: propostas respondidas na próxima rodada.' : `Janela fechada. Você pode olhar e planejar; propostas voltam quando ela abrir.`}</p>
+    <div class="chips" role="group" aria-label="Seções do mercado">${ABAS.map(([k, t]) => `<button type="button" class="chip" data-acao="aba-mercado" data-a="${k}" aria-pressed="${aba === k}">${t}</button>`).join('')}</div>
+    ${corpo}`;
+};
+
+
 
 // ----- tabela -----
 const ZONAS = {
@@ -283,10 +396,11 @@ const ZONAS = {
   B: [[1, 4, 'z-sobe', 'Acesso', 'var(--gramado)'], [17, 20, 'z-cai', 'Rebaixamento', 'var(--cartao)']],
   C: [[1, 4, 'z-sobe', 'Acesso', 'var(--gramado)'], [17, 20, 'z-cai', 'Rebaixamento', 'var(--cartao)']],
 };
-telas.tabela = () => {
+telas.torneios = () => {
   const s = app.s, ci = s.tecnico.clube, d = app.divTabela || clube(ci).div;
   const zona = n => (ZONAS[d].find(([a, b]) => n >= a && n <= b) || [])[2] || '';
-  return `<div class="titulo-linha"><h2>Classificação</h2><span class="mudo">${s.rodada} de 38 rodadas</span></div>
+  const art = [...app.base.jog.values()].filter(j => clube(j.clube).div === d && s.est?.[j.id]?.[1]).sort((a, b) => s.est[b.id][1] - s.est[a.id][1] || s.est[a.id][0] - s.est[b.id][0]).slice(0, 10);
+  return `<div class="titulo-linha"><h2>Torneios</h2><span class="mudo">${s.rodada} de 38 rodadas</span></div>
     <div class="chips" role="group" aria-label="Divisão">${['A', 'B', 'C'].map(x => `<button type="button" class="chip" data-acao="div-tabela" data-div="${x}" aria-pressed="${d === x}">Série ${x}</button>`).join('')}</div>
     <section class="cartao tabela-wrap"><table><caption class="vh">Série ${d}</caption>
       <thead><tr><th>#</th><th style="text-align:left">Clube</th><th>P</th><th>J</th><th>V</th><th class="so-largo">E</th><th class="so-largo">D</th><th class="so-largo">GP</th><th>SG</th><th class="so-largo">Últimos</th></tr></thead>
@@ -294,18 +408,20 @@ telas.tabela = () => {
         <td class="clube-cel"><span>${imgEscudo(l.clube, 20, 22)}${esc(clube(l.clube).n)}</span></td><td class="p">${l.p}</td><td>${l.j}</td><td>${l.v}</td>
         <td class="so-largo">${l.e}</td><td class="so-largo">${l.d}</td><td class="so-largo">${l.gp}</td><td>${l.sg}</td>
         <td class="so-largo"><span class="forma">${l.ultimos.map(r => `<i class="${r}" title="${{ V: 'Vitória', E: 'Empate', D: 'Derrota' }[r]}"></i>`).join('')}</span></td></tr>`).join('')}</tbody></table></section>
-    <div class="legenda">${ZONAS[d].map(z => `<span style="--c:${z[4]}">${z[3]}</span>`).join('')}</div>`;
+    <div class="legenda">${ZONAS[d].map(z => `<span style="--c:${z[4]}">${z[3]}</span>`).join('')}</div>
+    <div class="grade-clube"><section class="cartao"><h3>Artilharia · Série ${d}</h3>${art.length ? `<table><thead><tr><th>#</th><th style="text-align:left">Jogador</th><th>G</th><th>J</th></tr></thead><tbody>${art.map((j, i) => `<tr class="${j.clube === ci ? 'meu' : ''}"><td class="pos">${i + 1}</td><td class="clube-cel"><span>${imgEscudo(j.clube, 18, 20)}${esc(j.curto)}</span></td><td class="p">${s.est[j.id][1]}</td><td>${s.est[j.id][0]}</td></tr>`).join('')}</tbody></table>` : '<p class="mudo">Ninguém marcou ainda.</p>'}</section>
+      <section class="cartao em-breve-card"><h3>Copa do Brasil</h3><p class="mudo">Mata-mata com os 60 clubes, jogos no meio de semana. Chega no próximo marco.</p></section></div>`;
 };
 
 // ----- calendário -----
 telas.calendario = () => {
   const s = app.s, ci = s.tecnico.clube, d = clube(ci).div, cal = rodadasDe(app.base, s, d);
-  return `<div class="titulo-linha"><h2>Jogos</h2><span class="mudo">Série ${d}</span></div>
+  return `<div class="titulo-linha"><h2>Agenda</h2><a href="#/clube">Voltar</a></div>
     <section class="cartao"><ol class="rodadas">${cal.map((rd, i) => {
       const [h, a] = rd.find(([x, y]) => x === ci || y === ci), casa = h === ci, adv = casa ? a : h;
       const g = s.res?.[d]?.[`${h}-${a}`], meus = g && (casa ? g[0] : g[1]), deles = g && (casa ? g[1] : g[0]);
       const r = g ? (meus > deles ? 'V' : meus < deles ? 'D' : 'E') : '';
-      return `<li class="${i === s.rodada ? 'atual' : ''}"><span class="rd">${i + 1}ª</span>${imgEscudo(adv, 22, 24)}<span>${esc(clube(adv).n)} <small class="mudo">${casa ? '(casa)' : '(fora)'}</small></span>
+      return `<li class="${i === s.rodada ? 'atual' : ''}"><span class="rd">${i + 1}ª<br>${dataCurta(dataRodada(s.ano, i))}</span>${imgEscudo(adv, 22, 24)}<span>${esc(clube(adv).n)} <small class="mudo">${casa ? '(casa)' : '(fora)'}</small></span>
         ${g ? `<span class="res ${r}">${meus}-${deles}</span>` : '<span class="mudo">–</span>'}</li>`; }).join('')}</ol></section>`;
 };
 
@@ -318,10 +434,10 @@ telas.partida = () => {
   const corDe = (c, evita) => [...c.c, '#1B1F2A'].find(x => !claro(x) && x !== evita);
   const corCasa = corDe(clube(u.casa)), corFora = corDe(clube(u.fora), corCasa);
   const linha = (rot, a, b, fmt = v => v) => { const t = (a + b) || 1; return `<div class="stat"><span class="v">${fmt(a)}</span><div class="barra">${rot}<div><b style="width:${a / t * 100}%;background:${corCasa}"></b><b style="width:${b / t * 100}%;background:${corFora}"></b></div></div><span class="v">${fmt(b)}</span></div>`; };
-  const lances = u.eventos.filter(e => ['gol', 'amarelo', 'vermelho'].includes(e.tipo));
-  const txt = e => e.tipo === 'gol' ? `<span class="gol"><i class="ic bola"></i>${nome(e.jogador)}${e.assist ? `<span class="assist">assist. ${nome(e.assist)}</span>` : ''}</span>` : `<i class="ic ${e.tipo}"></i>${nome(e.jogador)}${e.segundo ? ' (2º amarelo)' : ''}`;
+  const lances = u.eventos.filter(e => ['gol', 'amarelo', 'vermelho', 'sub'].includes(e.tipo));
+  const txt = e => e.tipo === 'sub' ? `<span class="assist" style="display:inline">⇄ ${nome(e.jogador)} no lugar de ${nome(e.sai)}</span>` : e.tipo === 'gol' ? `<span class="gol"><i class="ic bola"></i>${nome(e.jogador)}${e.assist ? `<span class="assist">assist. ${nome(e.assist)}</span>` : ''}</span>` : `<i class="ic ${e.tipo}"></i>${nome(e.jogador)}${e.segundo ? ' (2º amarelo)' : ''}`;
   const classe = n => n >= 7.5 ? 'alta' : n < 5.5 ? 'baixa' : '';
-  const notasTime = t => u.xi[t].filter(Boolean).map(id => [id, u.notas[t][id]]).sort((a, b) => b[1] - a[1]);
+  const notasTime = t => Object.entries(u.notas[t]).map(([id, n]) => [+id, n]).sort((a, b) => b[1] - a[1]);
   const resultado = u.gols[0] === u.gols[1] ? 'Empate' : (u.gols[0] > u.gols[1]) === (u.casa === ci) ? 'Vitória' : 'Derrota';
   return `<div class="titulo-linha"><h2>${resultado}</h2><span class="mudo">${u.rodada + 1}ª rodada</span></div>
     <section class="placar"><div class="lado">${imgEscudo(u.casa, 60, 65)}<span>${esc(clube(u.casa).n)}</span></div>
@@ -359,10 +475,31 @@ telas.noticias = () => {
     </div></div>`;
 };
 
+// saves antigos ganham os campos novos; a base recebe as transferências deste save
+function migrar(s) {
+  app.base.aplicarTransferencias(s.transf || (s.transf = {}));
+  s.propostas ||= []; s.recebidas ||= []; s.historicoTransf ||= []; s.est ||= {};
+  if (s.caixa == null) s.caixa = caixaInicial(app.base, s.tecnico.clube, s.dificuldade);
+  return s;
+}
+
+// ----- ao vivo -----
+telas['ao-vivo'] = () => AoVivo.tela(app.vivo);
+function concluirAoVivo() {
+  const V = app.vivo; if (!V) return;
+  if (!V.fim) AoVivo.pular(V);
+  concluirRodada(app.base, app.s, V.R, AoVivo.resultadoFinal(V));
+  app.vivo = null;
+  salvar();
+}
+
 // ---------- navegação ----------
 async function render() {
   const rota = location.hash.replace(/^#\/?/, '') || (app.conta ? 'saves' : 'entrar');
-  const precisaJogo = ['clube', 'elenco', 'tabela', 'calendario', 'partida', 'noticias'].includes(rota);
+  if (app.vivo && rota !== 'ao-vivo') concluirAoVivo(); // saiu no meio do jogo: termina na hora
+  if (rota === 'ao-vivo' && !app.vivo) { location.hash = app.s ? '#/clube' : '#/saves'; return; }
+  if (rota === 'tabela') { location.hash = '#/torneios'; return; }
+  const precisaJogo = ['clube', 'elenco', 'torneios', 'calendario', 'partida', 'noticias', 'mercado', 'financas', 'carreira'].includes(rota);
   if (!app.conta && rota !== 'entrar') { location.hash = '#/entrar'; return; }
   if (precisaJogo && !app.s) { location.hash = '#/saves'; return; }
   if (rota === 'novo' && !app.novo) { location.hash = '#/saves'; return; }
@@ -377,6 +514,7 @@ async function render() {
     main.innerHTML = `<section class="cartao"><h2>Ops</h2><p>${esc(e.message)}</p><button class="botao" type="button" data-acao="recarregar">Tentar de novo</button></section>`;
   }
   desenhaTopo();
+  if (rota === 'ao-vivo') AoVivo.comecar(app.vivo);
   if (render.anterior !== rota) { window.scrollTo(0, 0); main.focus({ preventScroll: true }); }
   render.anterior = rota;
 }
@@ -403,6 +541,7 @@ const acoes = {
     const n = app.novo;
     if (n.modo === 'escolher' && n.clube == null) { $('.erro').textContent = 'Escolha um clube.'; return; }
     el.disabled = true;
+    app.base.aplicarTransferencias({});
     app.s = novoJogo(app.base, { tecnico: { ...n.tecnico, nome: n.tecnico.nome.trim() }, modo: n.modo, clube: n.clube, divisao: n.abaDiv, dificuldade: n.dificuldade });
     app.novo = null;
     ir('#/clube');
@@ -418,7 +557,7 @@ const acoes = {
       const { dados, atualizado } = await api('GET', `/saves/${slot}`);
       const local = guardado.ler(`fig.backup.${app.conta.apelido}.${slot}`);
       const usarLocal = local && local.quando > atualizado;
-      app.s = await descompacta(usarLocal ? local.dados : dados);
+      app.s = migrar(await descompacta(usarLocal ? local.dados : dados));
       app.slot = slot;
       ir('#/clube');
       if (usarLocal) { aviso('Recuperei um progresso que não tinha subido.'); salvar(); }
@@ -433,10 +572,21 @@ const acoes = {
 
   jogar: el => {
     el.disabled = true;
-    avancar(app.base, app.s);
-    ir('#/partida');
-    salvar();
+    const R = iniciarRodada(app.base, app.s);
+    if (!R) return;
+    if (!R.meu) { concluirRodada(app.base, app.s, R, null); salvar(); return render(); }
+    app.vivo = AoVivo.novaPartidaAoVivo(R);
+    ir('#/ao-vivo');
   },
+  'vivo-fim': () => { concluirAoVivo(); ir('#/partida'); },
+  'em-breve': el => aviso(`${el.dataset.t} chega numa próxima atualização.`),
+  'aba-mercado': el => { app.abaMercado = el.dataset.a; render(); },
+  sugerir: el => { const i = el.closest('form').valor; i.value = el.dataset.v; },
+  'aceitar-contra': el => { const e = aceitarContraproposta(app.s, el.dataset.id); aviso(e || 'Topou pagar. A resposta final sai na próxima rodada.'); render(); salvar(); },
+  desistir: el => { desistir(app.s, el.dataset.id); render(); salvar(); },
+  'aceitar-recebida': el => { const e = aceitarRecebida(app.base, app.s, el.dataset.id); aviso(e || 'Venda concluída.'); if ($('#ficha').open) $('#ficha').close(); render(); salvar(); },
+  'recusar-recebida': el => { recusarRecebida(app.s, el.dataset.id); if ($('#ficha').open) $('#ficha').close(); render(); salvar(); },
+  ...AoVivo.acoes,
   formacao: el => { trocarFormacao(app.base, app.s, el.dataset.f); app.vaga = null; render(); salvar(); },
   vaga: el => { const i = +el.dataset.i; app.vaga = app.vaga === i ? null : i; render(); },
   escolher: el => { escalar(app.base, app.s, app.vaga, +el.dataset.id); app.vaga = null; render(); salvar(); },
@@ -462,6 +612,8 @@ $('#ficha').addEventListener('click', e => { if (e.target === e.currentTarget) e
 
 // campos do novo jogo ficam guardados no rascunho
 document.addEventListener('input', e => {
+  const fk = e.target.dataset?.filtro;
+  if (fk && app.fMercado) { app.fMercado[fk] = e.target.value; const l = $('#lista-mercado'); if (l) l.innerHTML = filtrarMercado().map(linhaMercado).join(''); return; }
   if (e.target.form?.dataset.form === 'entrar') e.target.form.querySelector('.erro').textContent = '';
   const k = e.target.dataset?.campo; if (!k || !app.novo) return;
   const v = e.target.value, n = app.novo;
@@ -474,6 +626,14 @@ document.addEventListener('input', e => {
 });
 
 document.addEventListener('submit', async e => {
+  if (e.target.dataset.form === 'proposta') {
+    e.preventDefault();
+    const f = e.target, j = app.base.jog.get(+f.dataset.id), valor = Math.round(parseFloat(String(f.valor.value).replace(',', '.')) * 1e6);
+    const erro = fazerProposta(app.base, app.s, j, valor);
+    if (erro) { f.querySelector('.erro').textContent = erro; return; }
+    $('#ficha').close(); aviso('Proposta enviada. A resposta sai na próxima rodada.'); render(); salvar();
+    return;
+  }
   if (e.target.dataset.form !== 'entrar') return;
   e.preventDefault();
   const f = e.target, modo = e.submitter?.value || 'entrar', erro = f.querySelector('.erro');
@@ -493,6 +653,7 @@ document.addEventListener('submit', async e => {
   }
 });
 
+AoVivo.configurar({ app, clube, esc, imgEscudo, $ });
 window.addEventListener('hashchange', render);
 render();
 // a vitrine entra sem redesenhar a tela, para não apagar o que a pessoa já digitou
