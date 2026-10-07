@@ -6,8 +6,8 @@ import * as Campinho from './campinho.js';
 let H; // utilidades da interface (app, clube, esc, imgEscudo, $)
 export const configurar = h => { H = h; };
 
-const NOTAVEIS = new Set(['gol', 'defesa', 'fora', 'falta', 'amarelo', 'vermelho', 'sub', 'impedimento', 'escanteio', 'intervalo', 'fim']);
-const ICONE = { gol: '⚽', defesa: '🧤', fora: '↗', falta: '✋', amarelo: '🟨', vermelho: '🟥', sub: '⇄', impedimento: '🚩', escanteio: '⛳', intervalo: '⏸', fim: '🏁' };
+const NOTAVEIS = new Set(['gol', 'defesa', 'fora', 'falta', 'amarelo', 'vermelho', 'lesao', 'sub', 'impedimento', 'escanteio', 'intervalo', 'fim']);
+const ICONE = { gol: '⚽', defesa: '🧤', fora: '↗', falta: '✋', amarelo: '🟨', vermelho: '🟥', lesao: '✚', sub: '⇄', impedimento: '🚩', escanteio: '⛳', intervalo: '⏸', fim: '🏁' };
 
 // cores dos dois times no campo, sem repetir
 function rgb(h) { const n = parseInt(h.slice(1), 16); return [n >> 16, n >> 8 & 255, n & 255]; }
@@ -67,7 +67,7 @@ function statsHtml(V) {
 
 function escalacoesHtml(V) {
   const { clube, esc } = H, P = V.P, m = V.R.meu;
-  const marcas = (t, id) => P.ev.filter(e => e.time === t && (e.jogador === id || e.sai === id)).map(e => e.tipo === 'gol' && e.jogador === id ? '⚽' : e.tipo === 'amarelo' ? '🟨' : e.tipo === 'vermelho' ? '🟥' : e.tipo === 'sub' ? (e.sai === id ? '↓' : '↑') : '').join('');
+  const marcas = (t, id) => P.ev.filter(e => e.time === t && (e.jogador === id || (e.tipo === 'sub' && e.sai === id))).map(e => e.tipo === 'gol' && e.jogador === id ? '⚽' : e.tipo === 'amarelo' ? '🟨' : e.tipo === 'vermelho' ? '🟥' : e.tipo === 'lesao' ? '✚' : e.tipo === 'sub' ? (e.sai === id ? '↓' : '↑') : '').join('');
   const lista = t => {
     const time = P.times[t], slots = FORMACOES[time.formacao];
     const saiu = P.ev.filter(e => e.tipo === 'sub' && e.time === t).map(e => e.sai);
@@ -114,7 +114,7 @@ function mostrar(V, l) {
   if (NOTAVEIS.has(l.tipo)) {
     V.historico.unshift(l);
     $('#vivo-lances').insertAdjacentHTML('afterbegin', lanceHtml(l));
-    if (['gol', 'amarelo', 'vermelho', 'sub'].includes(l.tipo)) $('#vivo-esc').innerHTML = escalacoesHtml(V);
+    if (['gol', 'amarelo', 'vermelho', 'lesao', 'sub'].includes(l.tipo)) $('#vivo-esc').innerHTML = escalacoesHtml(V);
   }
   if (l.min !== V.minStats) { V.minStats = l.min; $('#vivo-stats').innerHTML = statsHtml(V); }
 }

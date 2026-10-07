@@ -163,6 +163,7 @@ export function lance(cp, P, l, prox) {
       return;
     }
     case 'amarelo': case 'vermelho': marca(cp, { tipo: l.tipo, id: l.j }); cp.espera = 0.9; return;
+    case 'lesao': cp.dono = null; cp.conducao = null; marca(cp, { tipo: 'lesao', id: l.j, dur: 2 }); cp.espera = 1.1; return;
     case 'impedimento': cp.dono = null; cp.conducao = null; marca(cp, { tipo: 'bandeira', x: b.x }); cp.posse = 1 - l.t; cp.espera = 0.7; return;
     case 'intervalo': return recomecar(cp, 1 - l.t);
     case 'fim': cp.saida = true; cp.dono = null; voar(cp, 50, 50, { rapido: 0.6 }); return;
@@ -253,6 +254,12 @@ export function desenhar(cv, cp, cores) {
       const x = fx(s.x) + r * 0.6, y = fy(s.y) - r * 2.1;
       ctx.fillStyle = m.tipo === 'amarelo' ? '#F2C230' : '#D7263D'; ctx.fillRect(x, y, r * 0.75, r * 1.05);
       ctx.lineWidth = Math.max(1, r * 0.12); ctx.strokeStyle = '#1B1F2A'; ctx.strokeRect(x, y, r * 0.75, r * 1.05);
+    } else if (m.tipo === 'lesao') {
+      const s = cp.sp.get(m.id); if (!s) continue;
+      const x = fx(s.x), y = fy(s.y) - r * 2.2, q = r * 0.55;
+      ctx.fillStyle = '#fff'; ctx.fillRect(x - q * 1.2, y - q * 1.2, q * 2.4, q * 2.4);
+      ctx.lineWidth = Math.max(1, r * 0.12); ctx.strokeStyle = '#1B1F2A'; ctx.strokeRect(x - q * 1.2, y - q * 1.2, q * 2.4, q * 2.4);
+      ctx.fillStyle = '#D7263D'; ctx.fillRect(x - q * 0.3, y - q, q * 0.6, q * 2); ctx.fillRect(x - q, y - q * 0.3, q * 2, q * 0.6);
     } else if (m.tipo === 'bandeira') {
       const x = fx(m.x), y = fy(0);
       ctx.strokeStyle = '#1B1F2A'; ctx.lineWidth = Math.max(1, r * 0.15); ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x, y - my * 0.9 + 1); ctx.stroke();

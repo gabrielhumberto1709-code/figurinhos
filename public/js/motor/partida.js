@@ -125,7 +125,7 @@ export function criarPartida(casa, fora, seed, opts = {}) {
     st: [0, 1].map(() => ({ posse: 0, chutes: 0, noAlvo: 0, xg: 0, faltas: 0, amarelos: 0, vermelhos: 0, escanteios: 0, defesas: 0 })),
     notas: [new Map(), new Map()], expulsos: [new Set(), new Set()], entrada: {}, subs: [0, 0], verm: [0, 0], disparou: [{}, {}],
     cond: { ...(opts.cond || {}) }, mor: opts.mor || {}, auto: opts.auto || [true, true],
-    r: rng('jogo' + seed), rn: rng('narra' + seed), ri: rng('ia' + seed),
+    r: rng('jogo' + seed), rn: rng('narra' + seed), ri: rng('ia' + seed), rl: rng('les' + seed), fragil: opts.fragil || (() => 1),
     mando: opts.neutro ? 1 : 1.08, narrar: !!opts.narrar, humano: opts.humano ?? -1, bola: null,
   };
   P.fim = 90 + Math.floor(P.r() * 5);
@@ -176,6 +176,8 @@ export function passo(P) {
   const min = P.min, N = P.narrar ? narrador(P) : null;
   // cansaço: cada minuto em campo gasta condição (mais nos estilos intensos e nos veteranos)
   for (const t of [0, 1]) { const fad = (ESTILOS[P.times[t].estilo] || ESTILOS.equilibrado).fad; for (const j of P.emCampo(t)) P.cond[j.id] = Math.max(0, P.cond[j.id] - 0.3 * fad * (j.idade >= 31 ? 1.15 : j.idade <= 21 ? 0.9 : 1)); }
+  // lesões: raras, mais em quem está esgotado e nos frágeis (sorteio próprio para não mexer no resto do jogo)
+  for (const t of [0, 1]) for (const j of P.emCampo(t)) if (P.rl() < (0.00015 + Math.max(0, 55 - P.cond[j.id]) * 0.00002) * P.fragil(j.id)) lesao(P, t, j);
   if (min % 5 === 0) recalcular(P);
   gatilhos(P, 0); gatilhos(P, 1);
   if (P.auto[0]) substituicaoIA(P, 0);
@@ -250,6 +252,17 @@ export function passo(P) {
   return P.lances.slice(inicio);
 }
 
+// lesionado sai na hora (entra o melhor do banco para a vaga); sem troca, o time fica com um a menos
+function lesao(P, t, j) {
+  P.ev.push({ min: P.min, tipo: 'lesao', time: t, jogador: j.id });
+  if (P.narrar) P.lances.push({ min: P.min, t, tipo: 'lesao', txt: `${NOME(j)} sente a lesão e não tem condições de seguir`, x: P.bola?.x ?? 50, y: P.bola?.y ?? 50, j: j.id });
+  const entra = P.subs[t] < 5 && melhorDoBanco(P, t, P.slotDe(t, j));
+  if (entra) substituir(P, t, j.id, entra.id);
+  else { P.expulsos[t].add(j.id); P.verm[t]++; recalcular(P); }
+}
+const melhorDoBanco = (P, t, slot) => P.times[t].banco.filter(j => (slot === 'GOL') === (j.pos === 'GOL')).reduce((m, j) => { const v = j.ovr * encaixe(j.pos, slot) * ((P.cond[j.id] ?? 100) >= 70 ? 1 : 0.9); return !m || v > m.v ? { j, v } : m; }, null)?.j
+  || P.times[t].banco.reduce((m, j) => !m || j.ovr * encaixe(j.pos, slot) > m.ovr * encaixe(m.pos, slot) ? j : m, null);
+
 // pênalti: 76% gol, 14% defesa, 10% para fora; bate o cobrador escolhido se estiver em campo
 function penalti(P, t, o, N) {
   const { r } = P, campo = P.emCampo(t).filter(j => P.slotDe(t, j) !== 'GOL');
@@ -303,16 +316,13 @@ export function trocarEsquema(P, t, formacao) {
 const JANELAS = { 60: 2, 70: 2, 80: 1 };
 function substituicaoIA(P, t) {
   const n = JANELAS[P.min]; if (!n) return;
-  const time = P.times[t];
   for (let k = 0; k < n && P.subs[t] < 5; k++) {
     const campo = P.emCampo(t).filter(j => P.slotDe(t, j) !== 'GOL');
     const nota = j => P.notas[t].get(j.id) ?? 6;
     const cand = campo.filter(j => P.cond[j.id] < 62 || nota(j) < 5.6 || P.min === 80).sort((a, b) => (P.cond[a.id] + (nota(a) - 6) * 8) - (P.cond[b.id] + (nota(b) - 6) * 8))[0];
     if (!cand) return;
-    const slot = P.slotDe(t, cand);
-    const opcoes = time.banco.filter(j => j.pos !== 'GOL');
-    const entra = opcoes.reduce((m, j) => { const v = j.ovr * encaixe(j.pos, slot) * ((P.cond[j.id] ?? 100) >= 70 ? 1 : 0.9); return !m || v > m.v ? { j, v } : m; }, null)?.j;
-    if (!entra) return;
+    const entra = melhorDoBanco(P, t, P.slotDe(t, cand));
+    if (!entra || entra.pos === 'GOL') return;
     substituir(P, t, cand.id, entra.id);
   }
 }

@@ -1,5 +1,6 @@
 // Interface do Figurinhos: telas, navegação por hash e saves na nuvem.
-import { Base, novoJogo, iniciarRodada, concluirRodada, iniciarCopa, concluirCopa, proximoEvento, copaSemVoce, tabela, rodadasDe, escalacao, paraSalvar, resumo, REPUTACOES, DIFICULDADES, dataRodada, janelaAberta, caixaInicial, aplicarSave } from './motor/mundo.js';
+import { Base, novoJogo, iniciarRodada, concluirRodada, iniciarCopa, concluirCopa, proximoEvento, copaSemVoce, tabela, rodadasDe, escalacao, paraSalvar, resumo, REPUTACOES, DIFICULDADES, dataRodada, janelaAberta, caixaInicial, aplicarSave, compProxima } from './motor/mundo.js';
+import { LESOES, COMP_NOME, indisponivel, pendurado } from './motor/dm.js';
 import { virarTemporada, fimDeTemporada } from './motor/temporada.js';
 import { campanha } from './motor/copa.js';
 import * as Torneios from './torneios.js';
@@ -224,11 +225,16 @@ telas.novo = () => {
 };
 
 // ----- clube -----
+// quem não joga a próxima partida (lesão ou suspensão naquela competição)
+function desfalques(ci, fim) {
+  const s = app.s, comp = compProxima(app.base, s), d = fim ? [] : app.base.elencos[ci].filter(j => indisponivel(s, j.id, comp));
+  return d.length ? `<a class="cartao aviso-contratos aviso-dm" href="#/dm"><b>Desfalques no próximo jogo</b><span>${d.map(j => `${esc(j.curto)} (${indisponivel(s, j.id, comp) === 'lesao' ? `lesão, ${s.dm[j.id].n} jogo${s.dm[j.id].n > 1 ? 's' : ''}` : 'suspenso'})`).join(', ')}</span></a>` : '';
+}
 const MESES = ['JAN', 'FEV', 'MAR', 'ABR', 'MAI', 'JUN', 'JUL', 'AGO', 'SET', 'OUT', 'NOV', 'DEZ'], SEMANA = ['DOM', 'SEG', 'TER', 'QUA', 'QUI', 'SEX', 'SÁB'];
 const ATALHOS = [
   ['tatica', 'Tática', '#/elenco', 'var(--gramado)'], ['calendario', 'Agenda', '#/calendario', 'var(--carimbo)'], ['apito', 'Último jogo', '#/partida', 'var(--placar)'],
   ['moeda', 'Finanças', '#/financas', '#C9A227'], ['pessoa', 'Carreira', '#/carreira', 'var(--cartao)'],
-  ['halter', 'Treino', '#/treino', '#E07B39'], ['broto', 'Base', '#/base', 'var(--gramado)'], ['cruz', 'DM', null, 'var(--cartao)'], ['micro', 'Coletiva', null, 'var(--carimbo)'], ['camisa', 'Uniforme', null, '#2BA8A0'],
+  ['halter', 'Treino', '#/treino', '#E07B39'], ['broto', 'Base', '#/base', 'var(--gramado)'], ['cruz', 'DM', '#/dm', 'var(--cartao)'], ['micro', 'Coletiva', null, 'var(--carimbo)'], ['camisa', 'Uniforme', null, '#2BA8A0'],
 ];
 
 telas.clube = () => {
@@ -251,6 +257,7 @@ telas.clube = () => {
         <div class="ingresso-jogo">${lado(jogo[0])}<span class="x">×</span>${lado(jogo[1])}</div>
         <span class="ingresso-local">${esc(clube(jogo[0]).est[0])}</span>
         <button class="botao grande" data-acao="jogar" type="button">Jogar</button></div></section>`}
+    ${desfalques(ci, fim)}
     ${acabando.length && !fim ? `<a class="cartao aviso-contratos" href="#/elenco"><b>${acabando.length} ${acabando.length > 1 ? 'contratos acabam' : 'contrato acaba'} no fim da temporada</b><span>${acabando.slice(0, 5).map(j => esc(j.curto)).join(', ')}${acabando.length > 5 ? '…' : ''}. Quem não renovar sai de graça, e outro clube pode assinar pré-contrato.</span></a>` : ''}
     <nav class="atalhos" aria-label="Atalhos do clube">${ATALHOS.map(([ic, t, href, cor]) => {
       const off = !href || (href === '#/partida' && !s.ultima);
@@ -323,6 +330,12 @@ telas.carreira = () => {
 // ----- elenco (módulo próprio) -----
 telas.elenco = () => Elenco.tela();
 
+function dmFicha(j) {
+  const s = app.s, l = s.dm?.[j.id], sp = s.susp?.[j.id], p = ['L', 'CB'].filter(c => pendurado(s, j.id, c));
+  return [l && `✚ ${esc(LESOES[l.k]?.n || 'Lesão')}: ${l.inf ? 'vai jogar infiltrado' : `fora dos próximos ${l.n} jogo${l.n > 1 ? 's' : ''}`}.`,
+    sp && `Suspenso: ${Object.entries(sp).map(([c, n]) => `${n} jogo${n > 1 ? 's' : ''} ${c === 'CB' ? 'da Copa do Brasil' : 'do campeonato'}`).join(' e ')}.`,
+    p.length && `Pendurado (2 amarelos) no ${p.map(c => COMP_NOME[c]).join(' e na ')}.`].filter(Boolean).map(t => `<p class="aviso-ficha">${t}</p>`).join('');
+}
 function abrirFicha(id) {
   const j = app.base.jog.get(+id); if (!j) return;
   const meu = j.clube === app.s?.tecnico.clube, carta = cartaDe(j.ovr);
@@ -334,6 +347,7 @@ function abrirFicha(id) {
       <dl style="margin-top:8px">${app.s && meu ? `<dt>Condição</dt><dd>${Math.round(app.s.cond?.[j.id] ?? 100)}%</dd><dt>Moral</dt><dd>${Elenco.carinha(app.s.mor?.[j.id])} ${Math.round(app.s.mor?.[j.id] ?? 62)}</dd>` : ''}<dt>Idade</dt><dd>${j.idade} anos</dd><dt>País</dt><dd>${bandeira(j.nat)}${esc(j.nat)}</dd><dt>Carta</dt><dd>${carta.nome}</dd>
       <dt>Potencial</dt><dd>${app.s ? Mercado.potencialTxt(j) : '? ? ?'}</dd></dl></div></div>
     <div class="atts">${ATT.map(k => `<div class="att" style="--c:${corAtt(j.att[k])}"><span>${ATT_NOME[k]}</span><span class="num">${j.att[k]}</span><div><b style="width:${j.att[k]}%"></b></div></div>`).join('')}</div>
+    ${app.s ? dmFicha(j) : ''}
     <dl><dt>Valor</dt><dd>${fmtDinheiro(j.valor * 1000)}</dd><dt>Contrato</dt><dd>até ${j.contrato}</dd></dl>
     ${app.s ? Mercado.blocoFicha(j) : ''}
     <form method="dialog"><button class="botao sec" style="width:100%">Fechar</button></form></div>`;
@@ -356,8 +370,8 @@ telas.partida = () => {
   const corDe = (c, evita) => [...c.c, '#1B1F2A'].find(x => !claro(x) && x !== evita);
   const corCasa = corDe(clube(u.casa)), corFora = corDe(clube(u.fora), corCasa);
   const linha = (rot, a, b, fmt = v => v) => { const t = (a + b) || 1; return `<div class="stat"><span class="v">${fmt(a)}</span><div class="barra">${rot}<div><b style="width:${a / t * 100}%;background:${corCasa}"></b><b style="width:${b / t * 100}%;background:${corFora}"></b></div></div><span class="v">${fmt(b)}</span></div>`; };
-  const lances = u.eventos.filter(e => ['gol', 'amarelo', 'vermelho', 'sub'].includes(e.tipo));
-  const txt = e => e.tipo === 'sub' ? `<span class="assist" style="display:inline">⇄ ${nome(e.jogador)} no lugar de ${nome(e.sai)}</span>` : e.tipo === 'gol' ? `<span class="gol"><i class="ic bola"></i>${nome(e.jogador)}${e.assist ? `<span class="assist">assist. ${nome(e.assist)}</span>` : ''}</span>` : `<i class="ic ${e.tipo}"></i>${nome(e.jogador)}${e.segundo ? ' (2º amarelo)' : ''}`;
+  const lances = u.eventos.filter(e => ['gol', 'amarelo', 'vermelho', 'lesao', 'sub'].includes(e.tipo));
+  const txt = e => e.tipo === 'sub' ? `<span class="assist" style="display:inline">⇄ ${nome(e.jogador)} no lugar de ${nome(e.sai)}</span>` : e.tipo === 'gol' ? `<span class="gol"><i class="ic bola"></i>${nome(e.jogador)}${e.assist ? `<span class="assist">assist. ${nome(e.assist)}</span>` : ''}</span>` : `<i class="ic ${e.tipo}"></i>${nome(e.jogador)}${e.segundo ? ' (2º amarelo)' : e.tipo === 'lesao' ? ' (lesão)' : ''}`;
   const classe = n => n >= 7.5 ? 'alta' : n < 5.5 ? 'baixa' : '';
   const notasTime = t => Object.entries(u.notas[t]).map(([id, n]) => [+id, n]).sort((a, b) => b[1] - a[1]);
   const resultado = u.pen ? ((u.pen[0] > u.pen[1]) === (u.casa === ci) ? 'Vitória nos pênaltis' : 'Derrota nos pênaltis') : u.gols[0] === u.gols[1] ? 'Empate' : (u.gols[0] > u.gols[1]) === (u.casa === ci) ? 'Vitória' : 'Derrota';
@@ -405,7 +419,7 @@ async function render() {
   if (app.vivo && rota !== 'ao-vivo') concluirAoVivo(); // saiu no meio do jogo: termina na hora
   if (rota === 'ao-vivo' && !app.vivo) { location.hash = app.s ? '#/clube' : '#/saves'; return; }
   if (rota === 'tabela') { location.hash = '#/torneios'; return; }
-  if (rota === 'base' || rota === 'treino') { app.abaElenco = rota; location.hash = '#/elenco'; return; }
+  if (rota === 'base' || rota === 'treino' || rota === 'dm') { app.abaElenco = rota; location.hash = '#/elenco'; return; }
   const precisaJogo = ['clube', 'elenco', 'torneios', 'calendario', 'partida', 'noticias', 'mercado', 'financas', 'carreira'].includes(rota);
   if (!app.conta && rota !== 'entrar') { location.hash = '#/entrar'; return; }
   if (precisaJogo && !app.s) { location.hash = '#/saves'; return; }
@@ -421,6 +435,7 @@ async function render() {
     main.innerHTML = `<section class="cartao"><h2>Ops</h2><p>${esc(e.message)}</p><button class="botao" type="button" data-acao="recarregar">Tentar de novo</button></section>`;
   }
   desenhaTopo();
+  $('.aba-sub[aria-selected=true]')?.scrollIntoView({ inline: 'nearest', block: 'nearest' }); // aba escolhida sempre visível no celular
   if (rota === 'ao-vivo') AoVivo.comecar(app.vivo);
   if (render.anterior !== rota) { window.scrollTo(0, 0); main.focus({ preventScroll: true }); }
   render.anterior = rota;

@@ -195,6 +195,7 @@ tr.z-sul td.pos { border-left-color: var(--gramado); } tr.z-sobe td.pos { border
 .lances .assist { display: block; font-size: .9rem; color: var(--texto-2); font-weight: 500; }
 .ic { display: inline-block; width: 10px; height: 13px; border-radius: 1px; vertical-align: -1px; margin: 0 4px; }
 .ic.amarelo { background: #F5D33A; box-shadow: 0 0 0 1px var(--linha); } .ic.vermelho { background: var(--cartao); box-shadow: 0 0 0 1px var(--linha); }
+.ic.lesao { width: 12px; height: 12px; background: linear-gradient(var(--cartao), var(--cartao)) center / 4px 10px no-repeat, linear-gradient(var(--cartao), var(--cartao)) center / 10px 4px no-repeat, #fff; box-shadow: 0 0 0 1px var(--linha); }
 .ic.bola { width: 12px; height: 12px; border-radius: 50%; background: #fff; box-shadow: inset -2px -2px 0 #B9B1A2, 0 0 0 1.5px var(--linha); }
 .stats { display: flex; flex-direction: column; gap: 10px; }
 .stat { display: grid; grid-template-columns: 44px 1fr 44px; gap: 8px; align-items: center; }
@@ -342,7 +343,7 @@ tr.z-sul td.pos { border-left-color: var(--gramado); } tr.z-sobe td.pos { border
 .campo-h canvas { display: block; width: 100%; height: 100%; }
 .ticker { margin-top: -14px; padding: 10px 12px; border: 2px solid var(--linha); border-top: 0; border-radius: 0 0 var(--raio) var(--raio); background: var(--barra); color: var(--barra-texto); font-weight: 700; text-align: center; min-height: 44px; }
 .ticker.t0 { background: var(--c0); color: var(--t0); } .ticker.t1 { background: var(--c1); color: var(--t1); }
-.ticker.gol { background: var(--placar); color: #1B1F2A; } .ticker.vermelho { background: var(--cartao); color: #fff; }
+.ticker.gol { background: var(--placar); color: #1B1F2A; } .ticker.vermelho, .ticker.lesao { background: var(--cartao); color: #fff; }
 .resultado-vivo { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 14px 16px; border: 2px solid var(--linha); border-radius: var(--raio); box-shadow: var(--sombra); background: #B9B1A2; color: #1B1F2A; }
 .resultado-vivo strong { font-family: var(--f-placar); font-weight: 400; font-size: 2.6rem; line-height: 1; text-transform: uppercase; }
 .resultado-vivo.vitória { background: #A7E08F; } .resultado-vivo.derrota { background: #F2A0A8; }
@@ -590,3 +591,18 @@ b.pos { color: var(--gramado); } b.neg { color: var(--cartao); }
 .rodadas.agenda li { grid-template-columns: 92px 24px 1fr auto; }
 .rodadas.agenda .rd small { font-size: .62rem; white-space: nowrap; }
 .resultado-vivo { flex-wrap: wrap; }
+
+/* departamento médico */
+.selo-dm { display: inline-block; font: 700 .72rem/1.3 var(--f-corpo); padding: 0 5px; border-radius: 3px; vertical-align: 2px; color: #fff; background: var(--cartao); white-space: nowrap; }
+.selo-dm.sus { background: #1B1F2A; }
+.dm-card { display: flex; flex-direction: column; gap: 6px; }
+.dm-topo { display: grid; grid-template-columns: auto 1fr auto; gap: 10px; align-items: center; }
+.dm-jogos { display: flex; flex-direction: column; align-items: center; line-height: 1; }
+.dm-jogos b { font-size: 2rem; color: var(--cartao); } .dm-jogos small { font-size: .8rem; color: var(--texto-2); }
+.dm-diag { font-weight: 700; }
+.dm-barra { height: 10px; border: 2px solid var(--linha); border-radius: 3px; background: var(--campo-bg); overflow: hidden; }
+.dm-barra b { display: block; height: 100%; background: var(--gramado); }
+.dm-rodape { font-size: .92rem; } .dm-inf { font-weight: 700; color: var(--cartao); }
+.aviso-dm { border-color: var(--cartao); box-shadow: 3px 3px 0 var(--cartao); }
+.aviso-ficha { margin: 8px 0 0; padding: 6px 10px; border-left: 4px solid var(--cartao); background: var(--campo-bg); font-weight: 700; }
+.lista-dm li { grid-template-columns: 30px 24px 1fr; } .lista-dm small { white-space: normal; }

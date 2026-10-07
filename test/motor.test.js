@@ -74,18 +74,23 @@ test('escalação manual: entra quem eu escolho, titular troca de vaga e muda es
 
 test('jornal: estatísticas batem com os gols e rumores fazem sentido de futebol', () => {
   const s = novoJogo(base, cfg(9));
-  ate(s, 20);
+  // o rumor tem que fazer sentido quando sai (depois o mercado mexe nos elencos)
+  const rumores = [];
+  while (s.rodada < 20) {
+    avancar(base, s);
+    for (const n of s.noticias) {
+      if (n.para == null || rumores.includes(n)) continue;
+      rumores.push(n);
+      const j = base.jog.get(n.jogador);
+      assert.ok(base.forca(n.para) >= base.forca(n.de) + 2, 'clube interessado tem que ser maior');
+      assert.ok(interessados(base, j).includes(n.para));
+      assert.ok(media(s.est[j.id]) > 0);
+    }
+  }
   const golsTabela = ['A', 'B', 'C'].reduce((t, d) => t + Object.values(s.res[d]).reduce((x, g) => x + g[0] + g[1], 0), 0);
   const golsEst = Object.values(s.est).reduce((t, e) => t + e[1], 0); // tem gente que trocou de série no mercado
   assert.equal(golsEst, golsTabela);
-  const rumores = s.noticias.filter(n => n.para != null);
   assert.ok(rumores.length >= 10, `só ${rumores.length} rumores`);
-  for (const n of rumores) {
-    const j = base.jog.get(n.jogador);
-    assert.ok(base.forca(n.para) >= base.forca(n.de) + 2, 'clube interessado tem que ser maior');
-    assert.ok(interessados(base, j).includes(n.para));
-    assert.ok(media(s.est[j.id]) > 0);
-  }
   assert.ok(s.destaques.A.time.length === 11);
   // capa: o craque da rodada da sua série, com placar e nota do jogo dele
   const m = s.manchete, j = base.jog.get(m.jogador), [id, nota] = s.destaques.A.time.slice().sort((x, y) => y[1] - x[1])[0];
@@ -283,4 +288,49 @@ test('virada de temporada: 4 sobem e 4 caem, todo mundo envelhece, contratos e c
   assert.equal(base.elencos[ci].length, n);
   ate(s, 3);
   assert.equal(tabela(base, s, 'A').reduce((t, l) => t + l.j, 0), 60);
+});
+
+import { posJogo, infilInfo, infiltrar } from '../public/js/motor/dm.js';
+test('DM: lesionado e suspenso ficam fora, a vaga é completada e o desfalque é cumprido', () => {
+  const s = novoJogo(base, cfg(11)), ci = s.tecnico.clube;
+  ate(s, 12);
+  assert.ok(Object.keys(s.dm).length > 0, 'ninguém se machucou em 12 rodadas');
+  for (const c of base.clubes.map((x, i) => i).filter(i => base.clubes[i].div === 'A')) {
+    const t = escalacao(base, s, c, 'L');
+    for (const j of [...t.xi, ...t.banco].filter(Boolean)) { assert.ok(!s.dm[j.id], `${j.curto} lesionado escalado`); assert.ok(!(s.susp[j.id]?.L > 0), `${j.curto} suspenso escalado`); }
+  }
+  // titular da escalação manual se machuca: entra outro só nesse jogo, a escalação salva continua igual
+  const time = escalacao(base, s, ci, 'L'); s.xi = time.xi.map(j => j.id); s.formacao = time.formacao;
+  const alvo = time.xi[9]; s.dm[alvo.id] = { k: 'posterior', n: 2, tot: 5 };
+  const novo = escalacao(base, s, ci, 'L');
+  assert.ok(!novo.xi.includes(alvo) && novo.trocados[0][0] === alvo && s.xi.includes(alvo.id));
+  // reta final: dá pra infiltrar; aí ele pode jogar
+  assert.ok(infilInfo(s, alvo.id).ok);
+  infiltrar(s, alvo.id);
+  assert.ok(escalacao(base, s, ci, 'L').xi.includes(alvo));
+  // cumpre um jogo por partida do clube
+  const n0 = s.dm[alvo.id].n;
+  posJogo(base, s, ci, ci === 0 ? 1 : 0, { notas: [{}, {}], eventos: [] }, 'L');
+  assert.equal(s.dm[alvo.id].n, n0 - 1);
+  assert.ok(!s.dm[alvo.id].inf);
+});
+
+test('cartões: 3 amarelos ou vermelho suspendem só na competição do jogo', () => {
+  const s = novoJogo(base, cfg(12)), ci = s.tecnico.clube, j = base.elencos[ci][3], adv = ci === 0 ? 1 : 0;
+  const jogo = (ev, comp) => posJogo(base, s, ci, adv, { notas: [{ [j.id]: 6 }, {}], eventos: ev.map(tipo => ({ tipo, jogador: j.id, time: 0 })) }, comp);
+  jogo(['amarelo'], 'L'); jogo(['amarelo'], 'L');
+  assert.ok(!s.susp[j.id]);
+  jogo(['amarelo'], 'CB');
+  assert.ok(!s.susp[j.id], 'amarelo da copa não soma no campeonato');
+  const N = jogo(['amarelo'], 'L');
+  assert.equal(s.susp[j.id].L, 1);
+  assert.ok(N.some(n => n.texto.includes('terceiro amarelo')));
+  assert.ok(!escalacao(base, s, ci, 'L').xi.includes(j) && !escalacao(base, s, ci, 'L').banco.includes(j));
+  // cumpre no próximo jogo do campeonato (o da copa não conta)
+  posJogo(base, s, ci, adv, { notas: [{}, {}], eventos: [] }, 'CB');
+  assert.equal(s.susp[j.id].L, 1);
+  posJogo(base, s, ci, adv, { notas: [{}, {}], eventos: [] }, 'L');
+  assert.ok(!s.susp[j.id]);
+  jogo(['amarelo', 'vermelho'].slice(1), 'L');
+  assert.equal(s.susp[j.id].L, 2);
 });

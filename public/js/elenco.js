@@ -1,6 +1,7 @@
-// Aba Elenco: Jogadores, Escalação (campo, capitão, estilo, planos, banco), Números, Base e Treino.
+// Aba Elenco: Jogadores, Escalação (campo, capitão, estilo, planos, banco), Números, DM, Base e Treino.
 import { FORMACOES, POSICOES, ESTILOS, encaixe, forcaSetores, fatorCond } from './motor/partida.js';
-import { escalacao, escalar, trocarFormacao, definirCapitao, liderNatural, TATICA_PADRAO } from './motor/mundo.js';
+import { escalacao, escalar, trocarFormacao, definirCapitao, liderNatural, TATICA_PADRAO, compProxima } from './motor/mundo.js';
+import { LESOES, CATEGORIA, COMP_NOME, fragilidade, indisponivel, pendurado, infilInfo, infiltrar } from './motor/dm.js';
 import { POS_NOME, POS_ORDEM, SETOR, cartaDe, fmtDinheiro } from './motor/util.js';
 import { media } from './motor/noticias.js';
 import { urlBoneco, urlBandeira } from './pixel.js';
@@ -8,7 +9,7 @@ import { urlBoneco, urlBandeira } from './pixel.js';
 let H; // { app, clube, esc, imgEscudo, figurinha, render, salvar, aviso }
 export const configurar = h => { H = h; };
 
-const ABAS = [['jogadores', 'Jogadores'], ['escalacao', 'Escalação'], ['numeros', 'Números'], ['base', 'Base'], ['treino', 'Treino']];
+const ABAS = [['jogadores', 'Jogadores'], ['escalacao', 'Escalação'], ['numeros', 'Números'], ['dm', 'DM'], ['base', 'Base'], ['treino', 'Treino']];
 const ICONE_ESTILO = {
   equilibrado: '<path d="M12 3v18M5 7h14M5 7l-3 6h6zM19 7l-3 6h6z" fill="none" stroke="currentColor" stroke-width="2"/>',
   gegenpress: '<path d="M13 2 5 14h6l-1 8 8-12h-6z" fill="none" stroke="currentColor" stroke-width="2"/>',
@@ -29,12 +30,18 @@ const chip = (txt, v) => `<span class="chip-nota ${cartaDe(v).k}">${txt}</span>`
 const barraCond = c => `<span class="cond" title="Condição ${Math.round(c)}"><b style="width:${c}%;background:${c >= 80 ? 'var(--gramado)' : c >= 60 ? 'var(--placar)' : 'var(--cartao)'}"></b></span>`;
 const boneco = (j, gk) => `<img class="px boneco" src="${urlBoneco(j.rosto, H.clube(j.clube), gk)}" width="12" height="17" alt="">`;
 const bandeira = nat => { const u = urlBandeira(nat); return u ? `<img class="px band" src="${u}" width="16" height="11" alt="${nat}">` : ''; };
+// selo de desfalque: lesão (jogos fora) ou suspensão
+export function seloDM(s, id) {
+  const l = s.dm?.[id], sp = s.susp?.[id];
+  return (l ? `<span class="selo-dm les" title="${LESOES[l.k]?.n || 'Lesão'}">✚ ${l.inf ? 'infiltrado' : `${l.n}j`}</span>` : '')
+    + (sp ? `<span class="selo-dm sus" title="Suspenso">${Object.entries(sp).map(([c, n]) => `${c === 'CB' ? 'Copa ' : ''}susp. ${n}`).join(' · ')}</span>` : '');
+}
 
 export function tela() {
   const { app } = H, s = app.s;
   Object.assign(s, { ...TATICA_PADRAO(), ...s });
   const aba = app.abaElenco || 'escalacao';
-  const corpo = { jogadores: telaJogadores, escalacao: telaEscalacao, numeros: telaNumeros, base: telaBase, treino: telaTreino }[aba]();
+  const corpo = { jogadores: telaJogadores, escalacao: telaEscalacao, numeros: telaNumeros, dm: telaDM, base: telaBase, treino: telaTreino }[aba]();
   return `<div class="abas-sub" role="tablist">${ABAS.map(([k, t]) => `<button type="button" role="tab" class="aba-sub" data-acao="aba-elenco" data-a="${k}" aria-selected="${aba === k}">${t}</button>`).join('')}</div>${corpo}`;
 }
 
@@ -49,7 +56,7 @@ function telaJogadores() {
   return `<div class="titulo-linha"><h2>Jogadores</h2><span class="mudo">${lista.length} no elenco · ${titulares.size} titulares</span></div>
     <div class="chips" role="group" aria-label="Ordenar">${[['pos', 'Posição'], ['ovr', 'Overall'], ['cond', 'Mais cansados'], ['idade', 'Mais novos']].map(([k, t]) => `<button type="button" class="chip" data-acao="ord-jog" data-o="${k}" aria-pressed="${ord === k}">${t}</button>`).join('')}</div>
     <ul class="lista-jog">${lista.map(j => { const c = s.cond[j.id] ?? 100; return `<li><button type="button" class="linha-elenco ${titulares.has(j.id) ? 'tit' : ''}" data-acao="ficha" data-id="${j.id}">
-      <span class="pos-mini">${j.pos}</span>${boneco(j, j.pos === 'GOL')}<span class="le-nome"><b>${esc(j.curto)}</b><small>${bandeira(j.nat)} ${j.idade} anos · ${fmtDinheiro(j.valor * 1000)} · até ${j.contrato}</small></span>
+      <span class="pos-mini">${j.pos}</span>${boneco(j, j.pos === 'GOL')}<span class="le-nome"><b>${esc(j.curto)} ${seloDM(s, j.id)}</b><small>${bandeira(j.nat)} ${j.idade} anos · ${fmtDinheiro(j.valor * 1000)} · até ${j.contrato}</small></span>
       ${carinha(s.mor[j.id])}${barraCond(c)}${chip(j.ovr, j.ovr)}</button></li>`; }).join('')}</ul>
     <p class="mudo" style="font-size:.95rem">Verde na borda: titular. A barrinha é a condição física; ela volta com descanso entre os jogos.</p>`;
 }
@@ -60,13 +67,14 @@ function telaEscalacao() {
   const vaga = app.vaga, slotSel = vaga != null ? slots[vaga] : null, titulares = new Set(time.xi.map(j => j.id));
   const rende = (j, slot) => Math.round(j.ovr * encaixe(j.pos, slot) * fatorCond(s.cond[j.id]));
   const elenco = app.base.elencos[ci].slice().sort((a, b) => POS_ORDEM.indexOf(a.pos) - POS_ORDEM.indexOf(b.pos) || b.ovr - a.ovr);
-  const opcoes = slotSel ? elenco.filter(j => j.id !== time.xi[vaga].id).sort((a, b) => rende(b, slotSel) - rende(a, slotSel)).slice(0, 8) : [];
+  const opcoes = slotSel ? elenco.filter(j => j.id !== time.xi[vaga].id && !time.fora.has(j.id)).sort((a, b) => rende(b, slotSel) - rende(a, slotSel)).slice(0, 8) : [];
   const set = forcaSetores(time, s.cond, s.mor), cap = time.capitao, auto = liderNatural(app.base, s, time.xi);
+  const desf = time.trocados.length ? `<a class="cartao aviso-contratos" href="#/dm"><b>Desfalques no próximo jogo</b><span>${time.trocados.map(([a, b]) => `${esc(a.curto)} (${indisponivel(s, a.id, compProxima(app.base, s)) === 'lesao' ? 'lesão' : 'suspenso'}) → entra ${esc(b.curto)}`).join(' · ')}. A sua escalação continua salva; ele volta quando estiver liberado.</span></a>` : '';
   const g = s.gatilhos || {};
   const linhaPlano = (k, rot) => { const p = g[k] || {}; return `<div class="plano"><span>${rot}</span>
     <select data-plano="${k}" data-campo-plano="estilo" aria-label="Estilo ${rot}"><option value="">Não mudar</option>${Object.entries(ESTILOS).map(([e, x]) => `<option value="${e}" ${p.estilo === e ? 'selected' : ''}>${x.nome}</option>`).join('')}</select>
     <select data-plano="${k}" data-campo-plano="formacao" aria-label="Formação ${rot}"><option value="">Mesma formação</option>${Object.keys(FORMACOES).map(f => `<option value="${f}" ${p.formacao === f ? 'selected' : ''}>${f}</option>`).join('')}</select></div>`; };
-  return `<section class="cartao"><div class="titulo-linha"><h3>Escalações salvas</h3><span class="mudo">${s.escSalvas.length}/3</span></div>
+  return `${desf}<section class="cartao"><div class="titulo-linha"><h3>Escalações salvas</h3><span class="mudo">${s.escSalvas.length}/3</span></div>
       <div class="salvas">${s.escSalvas.map((e, i) => `<div class="salva"><button type="button" class="salva-usar" data-acao="usar-salva" data-i="${i}"><b>${esc(e.nome)}</b><small>${e.formacao} · ${ESTILOS[e.estilo]?.nome || ''}</small></button><button type="button" class="salva-x" data-acao="apagar-salva" data-i="${i}" aria-label="Apagar ${esc(e.nome)}">×</button></div>`).join('')}
       ${s.escSalvas.length < 3 ? '<button type="button" class="salva nova" data-acao="salvar-escalacao">+ Salvar atual</button>' : ''}</div></section>
     <section class="cartao"><h3>Formação</h3>
@@ -98,7 +106,7 @@ function telaEscalacao() {
 function bancoHtml(time) {
   const { app, esc } = H, s = app.s, ci = s.tecnico.clube;
   const naoTit = new Set([...time.xi, ...time.banco].map(j => j.id));
-  const reservas = app.base.elencos[ci].filter(j => !naoTit.has(j.id)).sort((a, b) => b.ovr - a.ovr);
+  const reservas = app.base.elencos[ci].filter(j => !naoTit.has(j.id) && !time.fora.has(j.id)).sort((a, b) => b.ovr - a.ovr);
   return `<section class="cartao"><div class="titulo-linha"><h3>Banco · ${time.banco.length}/9 · ${s.banco ? 'manual' : 'automático'}</h3>${s.banco ? '<button class="botao peq sec" type="button" data-acao="banco-auto">Voltar ao automático</button>' : ''}</div>
     <ul class="lista-banco">${time.banco.map(j => `<li><span class="pos-mini">${j.pos}</span>${boneco(j, j.pos === 'GOL')}<span class="le-nome"><b>${esc(j.curto)}</b><small>${POS_NOME[j.pos]} · condição ${Math.round(s.cond[j.id] ?? 100)}</small></span>${carinha(s.mor[j.id])}${chip(j.ovr, j.ovr)}<button type="button" class="salva-x" data-acao="banco-tirar" data-id="${j.id}" aria-label="Tirar ${esc(j.curto)} do banco">×</button></li>`).join('')}</ul>
     ${time.banco.length < 9 && reservas.length ? `<label class="sel-linha"><span>Pôr no banco</span><select data-acao-change="banco-por" aria-label="Pôr no banco"><option value="">Escolha um reserva…</option>${reservas.map(j => `<option value="${j.id}">${j.pos} · ${esc(j.curto)} (${j.ovr})</option>`).join('')}</select></label>` : ''}
@@ -115,6 +123,33 @@ function telaNumeros() {
     <div class="chips" role="group" aria-label="Ordenar">${[['g', 'Gols'], ['a', 'Assistências'], ['n', 'Nota média'], ['j', 'Jogos']].map(([k, t]) => `<button type="button" class="chip" data-acao="ord-num" data-o="${k}" aria-pressed="${ord === k}">${t}</button>`).join('')}</div>
     <section class="cartao tabela-wrap"><table><thead><tr><th style="text-align:left">Jogador</th><th>J</th><th>G</th><th>A</th><th>Nota</th><th class="so-largo">Amarelos</th><th class="so-largo">Vermelhos</th></tr></thead>
     <tbody>${lista.map(j => { const x = e(j); return `<tr><td class="clube-cel"><span><span class="pos-mini">${j.pos}</span> ${esc(j.curto)}</span></td><td>${x[0]}</td><td class="p">${x[1]}</td><td>${x[2]}</td><td>${x[0] ? media(x).toFixed(1).replace('.', ',') : '–'}</td><td class="so-largo">${x[4]}</td><td class="so-largo">${x[5]}</td></tr>`; }).join('')}</tbody></table></section>`;
+}
+
+// ---------- departamento médico ----------
+function telaDM() {
+  const { app, esc } = H, s = app.s, ci = s.tecnico.clube, el = app.base.elencos[ci], comp = compProxima(app.base, s);
+  const les = el.filter(j => s.dm?.[j.id]).sort((a, b) => s.dm[a.id].n - s.dm[b.id].n);
+  const sus = el.filter(j => s.susp?.[j.id]), pend = el.filter(j => pendurado(s, j.id, 'L') || pendurado(s, j.id, 'CB'));
+  const carga = el.map(j => [j, fragilidade(s, j)]).filter(([, f]) => f >= 1.3).sort((a, b) => b[1] - a[1]).slice(0, 5);
+  const pct = x => Math.round(x * 100);
+  const card = j => {
+    const l = s.dm[j.id], L = LESOES[l.k] || { n: 'Lesão', cat: 'con' }, rec = (l.tot - l.n) / l.tot, inf = infilInfo(s, j.id);
+    return `<section class="cartao dm-card"><div class="dm-topo">${boneco(j, j.pos === 'GOL')}<span class="le-nome"><b>${esc(j.curto)}</b><small>${POS_NOME[j.pos]} · ${CATEGORIA[L.cat]}</small></span>
+        <span class="dm-jogos"><b class="num">${l.n}</b><small>jogo${l.n > 1 ? 's' : ''} fora</small></span></div>
+      <p class="dm-diag">${esc(L.n)}${(s.lesH?.[j.id]?.[0] || 0) > 2 ? ' · <span class="selo-dm les">histórico de lesões</span>' : ''}</p>
+      <div class="dm-barra" role="img" aria-label="Recuperação ${pct(rec)}%"><b style="width:${Math.max(4, pct(rec))}%"></b></div>
+      <p class="mudo dm-rodape">Recuperação ${pct(rec)}% · ${l.n === 1 ? 'volta depois do próximo jogo' : `volta em ${l.n} jogos do clube`}</p>
+      ${inf.ok ? `<button class="botao peq" type="button" data-acao="infiltrar" data-id="${j.id}">Infiltrar para o próximo jogo · risco de agravar ${pct(inf.risco)}%</button>`
+        : inf.marcada ? `<p class="dm-inf">Vai jogar infiltrado no próximo jogo (risco de agravar: ${pct(inf.risco)}%). <button class="link" type="button" data-acao="desinfiltrar" data-id="${j.id}">Desmarcar</button></p>`
+        : `<p class="mudo dm-rodape">Infiltração: ${inf.motivo}</p>`}</section>`;
+  };
+  const linha = (j, txt) => `<li><span class="pos-mini">${j.pos}</span>${boneco(j, j.pos === 'GOL')}<span class="le-nome"><b>${esc(j.curto)}</b><small>${txt}</small></span></li>`;
+  return `<div class="titulo-linha"><h2>Departamento médico</h2><span class="mudo">${les.length} lesionado${les.length === 1 ? '' : 's'} · ${sus.length} suspenso${sus.length === 1 ? '' : 's'}</span></div>
+    ${les.length ? les.map(card).join('') : '<section class="cartao"><p class="mudo">Ninguém no DM. Elenco inteiro à disposição.</p></section>'}
+    ${sus.length ? `<section class="cartao"><h3>Suspensos</h3><ul class="lista-banco lista-dm">${sus.map(j => linha(j, Object.entries(s.susp[j.id]).map(([c, n]) => `${n} jogo${n > 1 ? 's' : ''} ${c === 'CB' ? 'da Copa do Brasil' : 'do campeonato'}`).join(' · '))).join('')}</ul></section>` : ''}
+    ${pend.length ? `<section class="cartao"><h3>Pendurados</h3><ul class="lista-banco lista-dm">${pend.map(j => linha(j, ['L', 'CB'].filter(c => pendurado(s, j.id, c)).map(c => `2 amarelos no ${COMP_NOME[c]}`).join(' · '))).join('')}</ul><p class="mudo" style="font-size:.95rem">Mais um amarelo e fica fora do jogo seguinte daquela competição.</p></section>` : ''}
+    ${carga.length ? `<section class="cartao"><h3>Atenção à carga</h3><ul class="lista-banco lista-dm">${carga.map(([j, f]) => linha(j, `propensão ${f >= 1.6 ? 'muito alta' : 'alta'} a lesão · condição ${Math.round(s.cond[j.id] ?? 100)}`)).join('')}</ul></section>` : ''}
+    <section class="cartao"><h3>Como funciona</h3><p class="mudo" style="font-size:.95rem">Lesão acontece no jogo, mais em quem entra esgotado (condição abaixo de 55), nos veteranos, em quem já se machucou e com treino intenso. A recuperação conta jogos do clube. Infiltração só na reta final da recuperação e uma vez por lesão: ele joga, mas pode agravar. Cartões valem por competição: 3 amarelos = 1 jogo; vermelho direto = 2; dois amarelos no mesmo jogo = 1. ${comp === 'CB' ? 'O próximo jogo é pela Copa do Brasil.' : ''}</p></section>`;
 }
 
 function telaBase() {
@@ -147,6 +182,8 @@ export const acoes = {
   },
   'usar-salva': el => { const s = H.app.s, e = s.escSalvas[+el.dataset.i]; Object.assign(s, { formacao: e.formacao, estilo: e.estilo, xi: e.xi.slice(), banco: e.banco ? e.banco.slice() : null, gatilhos: JSON.parse(JSON.stringify(e.gatilhos || {})) }); H.aviso(`${e.nome} em campo.`); H.render(); H.salvar(); },
   'apagar-salva': el => { H.app.s.escSalvas.splice(+el.dataset.i, 1); H.render(); H.salvar(); },
+  infiltrar: el => { const m = infiltrar(H.app.s, +el.dataset.id); if (m) H.aviso(m); H.render(); H.salvar(); },
+  desinfiltrar: el => { infiltrar(H.app.s, +el.dataset.id, false); H.render(); H.salvar(); },
   'banco-auto': () => { H.app.s.banco = null; H.render(); H.salvar(); },
   'banco-tirar': el => { const { app } = H, s = app.s; const atual = escalacao(app.base, s, s.tecnico.clube).banco.map(j => j.id); s.banco = atual.filter(id => id !== +el.dataset.id); H.render(); H.salvar(); },
 };

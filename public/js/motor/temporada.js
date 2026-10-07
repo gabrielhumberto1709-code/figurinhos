@@ -5,6 +5,7 @@ import { tabela, aplicarSave } from './mundo.js';
 import { FASES, novaCopa, campanha } from './copa.js';
 import { metaDiretoria, folhaDia, lancar, cotaTV, garantirFinancas } from './financas.js';
 import { garantirMercado } from './mercado.js';
+import { viradaDM } from './dm.js';
 
 const DIVS = ['A', 'B', 'C'];
 export const fimDeTemporada = s => s.rodada >= 38 && !(s.copa && s.copa.fase < FASES.length);
@@ -103,6 +104,7 @@ export function virarTemporada(base, s) {
   if (meus.length) add(`Subiram da base: ${meus.map(r => `${r[2]} (${r[4]}, ${r[5]} anos)`).join(', ')}.`);
 
   // temporada zerada
+  viradaDM(base, s);
   Object.assign(s, { rodada: 0, res: { A: {}, B: {}, C: {} }, est: {}, ultima: null, lider: {}, rumores: {}, destaques: {}, ultimaData: null, recuperado: null, cond: {}, mor: {}, semJogar: {}, xi: null, banco: null, recebidas: [], preContratos: [] });
   delete s._cal;
   s.propostas = s.propostas.filter(p => !['aguardando', 'contraproposta'].includes(p.estado)).slice(0, 30);

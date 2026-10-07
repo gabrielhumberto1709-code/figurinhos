@@ -1,7 +1,8 @@
 // Estado do jogo: cria a carreira, avança rodadas e calcula tabelas.
 import { rng, pick, jogador } from './util.js';
 import { pontosCorridos } from './calendario.js';
-import { simular, melhorTime, bancoAuto } from './partida.js';
+import { simular, melhorTime, bancoAuto, FORMACOES, encaixe, fatorCond } from './partida.js';
+import { fragilidade, indisponiveis, posJogo, TREINO_LES } from './dm.js';
 import { gerarNoticias } from './noticias.js';
 import { resolverMercado, garantirMercado } from './mercado.js';
 import { contasDaRodada, financasIniciais, bilheteria, lancar } from './financas.js';
@@ -165,20 +166,35 @@ export function capitaoDe(base, s, xi) {
   return ids.has(s.capitao) ? s.capitao : ids.has(s.vice) ? s.vice : liderNatural(base, s, xi)?.id ?? null;
 }
 
-// IA escala os melhores (poupando cansados) no esquema dela; o seu time usa a escalação manual quando ela ainda vale
-export function escalacao(base, s, ci) {
-  const elenco = base.elencos[ci], cond = s.cond || {};
-  if (ci !== s.tecnico.clube) { const t = taticaIA(base, ci); return { ...melhorTime(elenco, t.formacao, new Set(), cond), estilo: t.estilo, gatilhos: t.gatilhos }; }
-  let time = null;
+// competição do próximo jogo do seu clube (os cartões valem por competição)
+export const compProxima = (base, s) => proximoEvento(base, s)?.tipo === 'copa' ? 'CB' : 'L';
+
+// IA escala os melhores (poupando cansados) no esquema dela; o seu time usa a escalação manual quando ela ainda vale.
+// Lesionados e suspensos ficam de fora; na escalação manual, a vaga deles é completada só para esse jogo.
+export function escalacao(base, s, ci, comp = compProxima(base, s)) {
+  const elenco = base.elencos[ci], cond = s.cond || {}, fora = indisponiveis(s, elenco, comp);
+  if (ci !== s.tecnico.clube) { const t = taticaIA(base, ci); return { ...melhorTime(elenco, t.formacao, fora, cond), estilo: t.estilo, gatilhos: t.gatilhos }; }
+  let time = null, trocados = [];
   if (s.xi?.length === 11) {
     const porId = new Map(elenco.map(j => [j.id, j])), xi = s.xi.map(id => porId.get(id));
-    if (xi.every(Boolean)) time = { formacao: s.formacao, xi };
+    if (xi.every(Boolean)) {
+      const usados = new Set(xi.filter(j => !fora.has(j.id)).map(j => j.id)), slots = FORMACOES[s.formacao];
+      const rende = (j, slot) => j.ovr * encaixe(j.pos, slot) * fatorCond(cond[j.id]);
+      time = { formacao: s.formacao, xi: xi.map((j, i) => {
+        if (!fora.has(j.id)) return j;
+        const sub = elenco.filter(x => !usados.has(x.id) && !fora.has(x.id)).sort((a, b) => rende(b, slots[i]) - rende(a, slots[i]))[0];
+        if (sub) { usados.add(sub.id); trocados.push([j, sub]); }
+        return sub || j; // sem ninguém para pôr, ele vai assim mesmo
+      }) };
+    }
   }
-  time = time || melhorTime(elenco, s.formacao, new Set(), cond);
-  const usados = new Set(time.xi.map(j => j.id)), resto = elenco.filter(j => !usados.has(j.id));
+  time = time || melhorTime(elenco, s.formacao, fora, cond);
+  const usados = new Set(time.xi.filter(Boolean).map(j => j.id)), resto = elenco.filter(j => !usados.has(j.id) && !fora.has(j.id));
   const banco = s.banco ? s.banco.map(id => resto.find(j => j.id === id)).filter(Boolean).slice(0, 9) : bancoAuto(resto, cond);
-  return { formacao: time.formacao, xi: time.xi, banco, estilo: s.estilo || 'equilibrado', gatilhos: s.gatilhos || {}, cobrador: s.cobrador, capitao: capitaoDe(base, s, time.xi) };
+  return { formacao: time.formacao, xi: time.xi, banco, estilo: s.estilo || 'equilibrado', gatilhos: s.gatilhos || {}, cobrador: s.cobrador, capitao: capitaoDe(base, s, time.xi.filter(Boolean)), trocados, fora };
 }
+// quem tem histórico de lesão, idade e treino puxado se machuca mais
+const fragilDe = (base, s) => id => { const j = base.jog.get(id); return fragilidade(s, j) * (j?.clube === s.tecnico.clube ? TREINO_LES[s.treino] || 1 : 1); };
 
 // escolher capitão mexe com o vestiário: quem perde a braçadeira e ainda joga fica chateado
 export function definirCapitao(base, s, id) {
@@ -264,8 +280,8 @@ export function iniciarRodada(base, s) {
   descansarAte(base, s, dataRodada(s.ano, rd));
   let meu = null;
   for (const d of DIVS) for (const [h, a] of rodadasDe(base, s, d)[rd]) {
-    const th = escalacao(base, s, h), ta = escalacao(base, s, a), seed = `${s.seed}-${d}-${rd}-${h}-${a}`;
-    const opts = { cond: s.cond, mor: s.mor, auto: [h === ci ? s.subsAuto !== false : true, a === ci ? s.subsAuto !== false : true] };
+    const th = escalacao(base, s, h, 'L'), ta = escalacao(base, s, a, 'L'), seed = `${s.seed}-${d}-${rd}-${h}-${a}`;
+    const opts = { cond: s.cond, mor: s.mor, auto: [h === ci ? s.subsAuto !== false : true, a === ci ? s.subsAuto !== false : true], fragil: fragilDe(base, s) };
     if (h === ci || a === ci) meu = { d, h, a, th, ta, seed, humano: h === ci ? 0 : 1, opts, capitao: (h === ci ? th : ta).capitao };
     else jogos.push({ d, h, a, sim: simular(th, ta, seed, opts) });
   }
@@ -297,8 +313,8 @@ export function iniciarCopa(base, s) {
   descansarAte(base, s, dataCopa(dataRodada, s.ano, i));
   let meu = null;
   for (const chave of s.copa.chaves) {
-    const [h, a] = mandoDe(i, chave), th = escalacao(base, s, h), ta = escalacao(base, s, a), seed = `${s.seed}-copa${s.ano}-${i}-${h}-${a}`;
-    const opts = { cond: s.cond, mor: s.mor, auto: [h === ci ? s.subsAuto !== false : true, a === ci ? s.subsAuto !== false : true] };
+    const [h, a] = mandoDe(i, chave), th = escalacao(base, s, h, 'CB'), ta = escalacao(base, s, a, 'CB'), seed = `${s.seed}-copa${s.ano}-${i}-${h}-${a}`;
+    const opts = { cond: s.cond, mor: s.mor, auto: [h === ci ? s.subsAuto !== false : true, a === ci ? s.subsAuto !== false : true], fragil: fragilDe(base, s) };
     if (h === ci || a === ci) meu = { d: 'copa', h, a, th, ta, seed, humano: h === ci ? 0 : 1, opts, capitao: (h === ci ? th : ta).capitao, mataMata: FASES[i].k !== 'f1', agg: FASES[i].k === 'f2' ? agregadoIda(s, h, a) : [0, 0] };
     else jogos.push({ h, a, seed, sim: simular(th, ta, seed, opts) });
   }
@@ -309,8 +325,10 @@ export function concluirCopa(base, s, R, simMeu) {
   const i = R.fase, ci = s.tecnico.clube, k = FASES[i].k, N = [], vencedores = [], nome = c => base.clubes[c].n;
   const jogos = R.jogos.slice();
   if (R.meu) { simMeu.capitao = R.meu.capitao; jogos.push({ h: R.meu.h, a: R.meu.a, seed: R.meu.seed, sim: simMeu }); }
+  const dmN = [];
   for (const { h, a, seed, sim } of jogos) {
     aposJogo(base, s, h, a, sim);
+    dmN.push(...posJogo(base, s, h, a, sim, 'CB'));
     const dec = decidir(s, i, h, a, sim.gols, seed);
     s.copa.jogos.push({ fase: i, h, a, gols: sim.gols, pen: dec.pen || null });
     for (const e of sim.eventos) if (e.tipo === 'gol') s.copa.art[e.jogador] = (s.copa.art[e.jogador] || 0) + 1;
@@ -333,7 +351,7 @@ export function concluirCopa(base, s, R, simMeu) {
     if (PREMIOS[prox.k]) lancar(s, 'premio', `Copa do Brasil: classificação para ${prox.k === 'f1' ? 'a final' : prox.nome.toLowerCase()}`, PREMIOS[prox.k]);
     N.push({ tipo: 'clube', texto: `Sorteio da Copa do Brasil: ${prox.k === 'f1' ? 'final' : prox.nome.toLowerCase()} contra o ${nome(adv)}.` });
   }
-  s.noticias = [...N.map(n => ({ rodada: s.rodada, div: base.clubes[ci].div, copa: true, ...n })), ...s.noticias].slice(0, 220);
+  s.noticias = [...dmN.map(n => ({ rodada: s.rodada, div: base.clubes[n.clube].div, ...n })), ...N.map(n => ({ rodada: s.rodada, div: base.clubes[ci].div, copa: true, ...n })), ...s.noticias].slice(0, 220);
   return R.meu ? s.ultima : null;
 }
 
@@ -353,7 +371,8 @@ export function concluirRodada(base, s, R, simMeu) {
   const jogos = R.jogos.slice();
   if (R.meu) jogos.push({ d: R.meu.d, h: R.meu.h, a: R.meu.a, sim: simMeu });
   if (R.meu && simMeu) simMeu.capitao = R.meu.capitao;
-  for (const { d, h, a, sim } of jogos) { s.res[d][chave(h, a)] = sim.gols; registrar(s.est, sim); aposJogo(base, s, h, a, sim); }
+  const dmN = [];
+  for (const { d, h, a, sim } of jogos) { s.res[d][chave(h, a)] = sim.gols; registrar(s.est, sim); aposJogo(base, s, h, a, sim); dmN.push(...posJogo(base, s, h, a, sim, 'L')); }
   const m = R.meu;
   s.ultima = m ? { rodada: R.rd, div: m.d, casa: m.h, fora: m.a, ...simMeu, xi: [m.th.xi.map(j => j.id), m.ta.xi.map(j => j.id)] } : null;
   s.rodada++;
@@ -361,6 +380,7 @@ export function concluirRodada(base, s, R, simMeu) {
   gerarNoticias(base, s, R.rd, jogos, tabs);
   const casa = R.meu && R.meu.h === s.tecnico.clube ? { adv: R.meu.a } : null;
   for (const txt of contasDaRodada(base, s, R.rd, casa, tabs[base.clubes[s.tecnico.clube].div])) s.noticias.unshift({ rodada: R.rd + 1, tipo: 'clube', evento: true, div: base.clubes[s.tecnico.clube].div, texto: txt });
+  for (const n of dmN) s.noticias.unshift({ rodada: R.rd + 1, div: base.clubes[n.clube].div, ...n });
   resolverMercado(base, s, R.rd);
   if (!naCopa(s, s.tecnico.clube)) copaSemVoce(base, s);
   return s.ultima;
