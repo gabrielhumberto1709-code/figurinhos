@@ -1,6 +1,7 @@
 // Departamento médico e disciplina: lesões (no jogo), recuperação contada em jogos do clube,
 // infiltração, suspensões por cartão separadas por competição (L = liga, CB = Copa do Brasil).
 import { rng, pickW, clamp } from './util.js';
+import { naSelecao } from './selecao.js';
 
 // cat: mus muscular, art articulação/ligamento, oss óssea, cab cabeça, con contusão
 // min/max em jogos fora; inf: aceita infiltração; risco: chance base de agravar jogando infiltrado
@@ -46,6 +47,7 @@ export function indisponivel(s, id, comp = 'L') {
   if (l && !l.inf) return 'lesao';
   if (s.susp?.[id]?.[comp] > 0) return 'suspenso';
   if (s.afast?.[id]?.n > 0) return 'afastado';
+  if (naSelecao(s, id)) return 'selecao';
   return null;
 }
 export const indisponiveis = (s, elenco, comp) => new Set(elenco.filter(j => indisponivel(s, j.id, comp)).map(j => j.id));

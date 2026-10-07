@@ -630,3 +630,22 @@ test('gala: 3 finalistas por prêmio, artilheiro leva a Chuteira, arquivo na vir
   const com = precoPedido(base, s, j), g = s.galas; s.galas = []; const sem = precoPedido(base, s, j); s.galas = g;
   assert.ok(com > sem, `${com} > ${sem}`);
 });
+
+import { convocar, naSelecao, DATAS_FIFA } from '../public/js/motor/selecao.js';
+import { indisponivel } from '../public/js/motor/dm.js';
+test('data FIFA: Brasil convoca 26 por posição (máx 5 por clube), convocado do Brasileirão desfalca 2 rodadas e ganha moral', () => {
+  const s = novoJogo(base, cfg(99));
+  const bra = convocar(s, [...base.jog.values()].filter(j => j.nat === 'BRA' && !j.fora && base.clubes[j.clube].div !== 'L'));
+  assert.equal(bra.length, 26);
+  assert.equal(bra.filter(j => j.pos === 'GOL').length, 3);
+  const por = {}; for (const j of bra) por[j.clube] = (por[j.clube] || 0) + 1;
+  assert.ok(Math.max(...Object.values(por)) <= 5);
+  ate(s, DATAS_FIFA[0]);
+  const c = s.convocados;
+  assert.ok(c && c.rodada === DATAS_FIFA[0] && c.ids.length && c.bra.length === 26);
+  const id = c.ids[0];
+  assert.equal(indisponivel(s, id), 'selecao');
+  assert.ok(s.noticias.some(n => n.texto.startsWith('Data FIFA')));
+  ate(s, DATAS_FIFA[0] + 2);
+  assert.ok(!naSelecao(s, id));
+});

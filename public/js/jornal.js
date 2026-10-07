@@ -66,6 +66,12 @@ function selecao() {
   }).join('')}</div>`).join('')}</div></section>`;
 }
 
+function convocacao() {
+  const c = H.app.s.convocados, js = c.bra.map(jog).filter(Boolean);
+  return `<section class="cartao"><h3>Seleção Brasileira · Data FIFA da ${c.rodada}ª rodada</h3>${['GOL', 'DEF', 'MEI', 'ATA'].map(st => `<p class="conv-setor"><b>${st}</b> ${js.filter(j => SETOR[j.pos] === st).map(j => `<span>${H.imgEscudo(j.clube, 14, 15)} ${H.esc(j.curto)}</span>`).join('')}</p>`).join('')}
+    <p class="mudo" style="font-size:.9rem">Quem joga no Brasil desfalca o clube por 2 rodadas.</p></section>`;
+}
+
 function cartao(n, ci) {
   const j = n.jogador != null && jog(n.jogador);
   const av = j ? `<img class="px" src="${urlRosto(j.rosto, H.clube(j.clube))}" width="32" height="32" alt="">` : n.clube != null ? H.imgEscudo(n.clube, 24, 26) : (n.tipo || 'clube') === 'clube' ? H.imgEscudo(ci, 24, 26) : bola(24);
@@ -76,8 +82,8 @@ export function tela() {
   const { app } = H, s = app.s, ci = s.tecnico.clube, f = app.filtroNoticias || 'tudo';
   const lista = s.noticias.filter(n => f === 'tudo' || CATS[f](n, ci)), qtos = app.qtasNoticias || 25;
   return `${capa()}
-    <div class="titulo-linha jb-titulo"><h2>Notícias</h2><button type="button" class="botao sec peq" data-acao="ver-selecao" aria-pressed="${!!app.verSelecao}">Seleção da rodada</button></div>
-    ${app.verSelecao ? selecao() : ''}
+    <div class="titulo-linha jb-titulo"><h2>Notícias</h2><span class="linha-botoes">${s.convocados?.bra?.length ? `<button type="button" class="botao sec peq" data-acao="ver-convocacao" aria-pressed="${!!app.verConv}">Convocação</button>` : ''}<button type="button" class="botao sec peq" data-acao="ver-selecao" aria-pressed="${!!app.verSelecao}">Seleção da rodada</button></span></div>
+    ${app.verConv && s.convocados?.bra?.length ? convocacao() : ''}${app.verSelecao ? selecao() : ''}
     <div class="chips" role="group" aria-label="Filtrar notícias">${FILTROS.map(([k, t]) => `<button type="button" class="chip" data-acao="filtro-noticias" data-f="${k}" aria-pressed="${f === k}">${t}</button>`).join('')}</div>
     ${lista.length ? `<ul class="feed-jb">${lista.slice(0, qtos).map(n => cartao(n, ci)).join('')}</ul>` : '<section class="cartao"><p class="mudo">Nada por aqui ainda. As notícias saem a cada rodada.</p></section>'}
     ${lista.length > qtos ? '<button class="botao sec" data-acao="mais-noticias" type="button">Mais notícias</button>' : ''}`;
@@ -87,4 +93,5 @@ export const acoes = {
   'filtro-noticias': el => { H.app.filtroNoticias = el.dataset.f; H.app.qtasNoticias = 25; H.render(); },
   'mais-noticias': () => { H.app.qtasNoticias = (H.app.qtasNoticias || 25) + 25; H.render(); },
   'ver-selecao': () => { H.app.verSelecao = !H.app.verSelecao; H.render(); },
+  'ver-convocacao': () => { H.app.verConv = !H.app.verConv; H.render(); },
 };

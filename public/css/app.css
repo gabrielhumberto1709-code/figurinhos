@@ -710,3 +710,6 @@ b.pos { color: var(--gramado); } b.neg { color: var(--cartao); }
 .finalistas .trofeu { color: var(--placar); flex: none; }
 @keyframes vence { from { transform: scale(.94); } to { transform: none; } }
 @media (prefers-reduced-motion: reduce) { .finalistas li.vence { animation: none; } }
+.conv-setor { display: flex; flex-wrap: wrap; gap: 4px 10px; align-items: center; margin: 6px 0; }
+.conv-setor b { min-width: 2.6em; }
+.conv-setor span { display: inline-flex; align-items: center; gap: 4px; }

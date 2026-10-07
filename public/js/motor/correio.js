@@ -45,10 +45,13 @@ export function correio(base, s) {
     const comp = compProxima(base, s), adv = ev.h === ci ? ev.a : ev.h;
     const fora = el.filter(j => indisponivel(s, j.id, comp)).sort((a, b) => b.ovr - a.ovr);
     if (fora.length) enviar(s, 'diretor', `desf-${tag}`, `Desfalques contra o ${nome(adv)}`,
-      `Professor, para o jogo contra o ${nome(adv)} não teremos ${lista(fora.map(j => `${j.curto} (${{ lesao: `lesão, ${s.dm[j.id]?.n} jogo${s.dm[j.id]?.n > 1 ? 's' : ''}`, suspenso: 'suspenso', afastado: `afastado pelo clube (${s.afast?.[j.id]?.motivo})` }[indisponivel(s, j.id, comp)]})`))}. Confira a escalação antes de entrar em campo.`, { link: '#/elenco' });
+      `Professor, para o jogo contra o ${nome(adv)} não teremos ${lista(fora.map(j => `${j.curto} (${{ lesao: `lesão, ${s.dm[j.id]?.n} jogo${s.dm[j.id]?.n > 1 ? 's' : ''}`, suspenso: 'suspenso', afastado: `afastado pelo clube (${s.afast?.[j.id]?.motivo})`, selecao: 'convocado pela seleção' }[indisponivel(s, j.id, comp)]})`))}. Confira a escalação antes de entrar em campo.`, { link: '#/elenco' });
     const pend = el.filter(j => pendurado(s, j.id, comp) && !indisponivel(s, j.id, comp));
     if (pend.length) enviar(s, 'diretor', `pend-${tag}`, 'Pendurados', `${lista(pend.map(j => j.curto))} ${pend.length > 1 ? 'estão pendurados' : 'está pendurado'} ${COMP_DE[comp] || ''}. Mais um amarelo e ${pend.length > 1 ? 'ficam' : 'fica'} fora do jogo seguinte.`, { link: '#/dm' });
   }
+  // convocados para a data FIFA
+  const cv = s.convocados, conv = cv?.ano === s.ano && s.rodada < cv.ate ? cv.ids.map(id => base.jog.get(id)).filter(j => j?.clube === ci) : [];
+  if (conv.length) enviar(s, 'diretor', `fifa-${s.ano}-${cv.rodada}`, 'Data FIFA', `${lista(conv.map(j => j.curto))} ${conv.length > 1 ? 'foram convocados e ficam' : 'foi convocado e fica'} fora das próximas 2 rodadas. É vitrine para o clube, mas o time sente.`, { link: '#/elenco' });
   // lesões novas (o médico escreve)
   for (const j of el) { const l = s.dm?.[j.id]; if (l && l.n === l.tot) enviar(s, 'medico', `les-${j.id}-${l.tot}-${s.ano}-${s.lesH?.[j.id]?.[0] || 0}`, `Lesão de ${j.curto}`, `Exames confirmaram: ${(LESOES[l.k]?.n || 'lesão').toLowerCase()}. Previsão de ${l.n} jogo${l.n > 1 ? 's' : ''} fora.${LESOES[l.k]?.inf ? ' Na reta final dá pra pensar em infiltração.' : ''}`, { link: '#/dm', jogador: j.id }); }
   // propostas recebidas, com a opinião do diretor
