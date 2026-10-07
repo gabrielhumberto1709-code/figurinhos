@@ -2,6 +2,9 @@
 import { rng, pick, jogador } from './util.js';
 import { pontosCorridos } from './calendario.js';
 import { simular, melhorTime } from './partida.js';
+import { gerarNoticias } from './noticias.js';
+
+const DIVS = ['A', 'B', 'C'];
 
 export const REPUTACOES = [
   { k: 0, nome: 'Desconhecido', desc: 'Nunca treinou ninguém. Só clubes pequenos te chamam.', faixa: [0, 0.35] },
@@ -19,8 +22,12 @@ export class Base {
     this.elencos = this.clubes.map(() => []);
     for (const j of this.jog.values()) this.elencos[j.clube].push(j);
   }
-  // força do clube para sorteio e modo reputação: média dos 16 melhores
-  forca(ci) { const t = this.elencos[ci].map(j => j.ovr).sort((a, b) => b - a).slice(0, 16); return t.reduce((a, b) => a + b, 0) / t.length; }
+  // força do clube: média dos 16 melhores (cacheada; o mercado vai precisar invalidar)
+  forca(ci) {
+    this._forca = this._forca || [];
+    if (this._forca[ci] == null) { const t = this.elencos[ci].map(j => j.ovr).sort((a, b) => b - a).slice(0, 16); this._forca[ci] = t.reduce((a, b) => a + b, 0) / t.length; }
+    return this._forca[ci];
+  }
   ranking() { return this.clubes.map((c, i) => i).sort((a, b) => this.forca(b) - this.forca(a)); }
 }
 
@@ -40,7 +47,7 @@ export function novoJogo(base, cfg) {
     v: 1, dadosVersao: base.dados.versao, seed, criado: Date.now(), ano: base.dados.ano, rodada: 0,
     tecnico: { ...cfg.tecnico, clube, modo: cfg.modo },
     dificuldade: cfg.dificuldade || 'normal',
-    formacao: '4-3-3', ultima: null, noticias: [{ rodada: 0, texto: `${cfg.tecnico.nome} é o novo técnico do ${base.clubes[clube].n}.` }],
+    formacao: '4-3-3', xi: null, ultima: null, est: {}, noticias: [{ rodada: 0, tipo: 'clube', div: base.clubes[clube].div, texto: `${cfg.tecnico.nome} é o novo técnico do ${base.clubes[clube].n}.` }],
   };
 }
 
@@ -59,19 +66,57 @@ export function rodadasDe(base, s, d) {
   return s._cal[d];
 }
 
-export function escalacao(base, s, ci) { return melhorTime(base.elencos[ci], ci === s.tecnico.clube ? s.formacao : '4-3-3'); }
+// IA escala os melhores no 4-3-3; o seu time usa a escalação manual (s.xi) quando ela ainda vale
+export function escalacao(base, s, ci) {
+  const elenco = base.elencos[ci];
+  if (ci !== s.tecnico.clube) return melhorTime(elenco, '4-3-3');
+  if (s.xi?.length === 11) {
+    const porId = new Map(elenco.map(j => [j.id, j])), xi = s.xi.map(id => porId.get(id));
+    if (xi.every(Boolean)) { const usados = new Set(s.xi); return { formacao: s.formacao, xi, banco: elenco.filter(j => !usados.has(j.id)).sort((a, b) => b.ovr - a.ovr).slice(0, 9) }; }
+  }
+  return melhorTime(elenco, s.formacao);
+}
+
+// coloca o jogador na vaga; se ele já era titular, os dois trocam de lugar
+export function escalar(base, s, vaga, id) {
+  const xi = escalacao(base, s, s.tecnico.clube).xi.map(j => j.id);
+  const onde = xi.indexOf(id);
+  if (onde >= 0) xi[onde] = xi[vaga];
+  xi[vaga] = id;
+  s.xi = xi;
+}
+
+// muda o esquema mantendo os mesmos 11 (cada um vai para a vaga em que rende mais)
+export function trocarFormacao(base, s, formacao) {
+  const atuais = s.xi ? escalacao(base, s, s.tecnico.clube).xi : null;
+  s.formacao = formacao;
+  if (atuais) s.xi = melhorTime(atuais, formacao).xi.map(j => j.id);
+}
+
+// estatísticas da temporada por jogador: [jogos, gols, assistências, soma das notas x10, amarelos, vermelhos]
+function registrar(est, sim) {
+  for (const t of [0, 1]) for (const [id, n] of Object.entries(sim.notas[t])) { const e = est[id] || (est[id] = [0, 0, 0, 0, 0, 0]); e[0]++; e[3] += Math.round(n * 10); }
+  for (const ev of sim.eventos) {
+    if (ev.tipo === 'gol') { est[ev.jogador][1]++; if (ev.assist) est[ev.assist][2]++; }
+    else if (ev.tipo === 'amarelo') est[ev.jogador][4]++;
+    else if (ev.tipo === 'vermelho') est[ev.jogador][5]++;
+  }
+}
 
 // avança uma rodada em todas as divisões; devolve o jogo do usuário (se houver)
 export function avancar(base, s) {
   if (s.rodada >= 38) return null;
-  const rd = s.rodada;
+  const rd = s.rodada, jogos = [];
   s.res = s.res || { A: {}, B: {}, C: {} };
+  s.est = s.est || {};
   let meu = null;
-  for (const d of ['A', 'B', 'C']) {
+  for (const d of DIVS) {
     for (const [h, a] of rodadasDe(base, s, d)[rd]) {
       const th = escalacao(base, s, h), ta = escalacao(base, s, a);
       const sim = simular(th, ta, `${s.seed}-${d}-${rd}-${h}-${a}`);
       s.res[d][chave(h, a)] = sim.gols;
+      registrar(s.est, sim);
+      jogos.push({ d, h, a, sim });
       if (h === s.tecnico.clube || a === s.tecnico.clube) {
         meu = { rodada: rd, div: d, casa: h, fora: a, ...sim, xi: [th.xi.map(j => j && j.id), ta.xi.map(j => j && j.id)], formacoes: [th.formacao, ta.formacao] };
       }
@@ -79,13 +124,7 @@ export function avancar(base, s) {
   }
   s.rodada++;
   s.ultima = meu;
-  if (meu) {
-    const nomes = id => base.jog.get(id).curto;
-    const gc = meu.eventos.filter(e => e.tipo === 'gol');
-    const placar = `${base.clubes[meu.casa].n} ${meu.gols[0]} × ${meu.gols[1]} ${base.clubes[meu.fora].n}`;
-    s.noticias.unshift({ rodada: rd + 1, texto: gc.length ? `${placar}. Gols: ${gc.map(e => `${nomes(e.jogador)} ${e.min}'`).join(', ')}.` : `${placar}. Sem gols.` });
-    s.noticias = s.noticias.slice(0, 30);
-  }
+  gerarNoticias(base, s, rd, jogos, Object.fromEntries(DIVS.map(d => [d, tabela(base, s, d)])));
   return meu;
 }
 

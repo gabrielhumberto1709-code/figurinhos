@@ -1,6 +1,7 @@
 // Interface do Figurinhos: telas, navegação por hash e saves na nuvem.
-import { Base, novoJogo, avancar, tabela, rodadasDe, escalacao, paraSalvar, resumo, REPUTACOES, DIFICULDADES } from './motor/mundo.js';
-import { FORMACOES } from './motor/partida.js';
+import { Base, novoJogo, avancar, tabela, rodadasDe, escalacao, escalar, trocarFormacao, paraSalvar, resumo, REPUTACOES, DIFICULDADES } from './motor/mundo.js';
+import { FORMACOES, encaixe } from './motor/partida.js';
+import { media } from './motor/noticias.js';
 import { POS_NOME, SETOR, ATT, ATT_NOME, cartaDe, estrelas, fmtDinheiro, POS_ORDEM } from './motor/util.js';
 import { urlRosto, urlEscudo, urlBandeira, urlBotao } from './pixel.js';
 
@@ -73,9 +74,9 @@ const clube = ci => app.base.clubes[ci];
 const imgEscudo = (ci, w, h) => `<img class="px" src="${urlEscudo(clube(ci))}" width="${w}" height="${h}" alt="">`;
 const bandeira = nat => { const u = urlBandeira(nat); return u ? `<img class="px" src="${u}" width="20" height="14" alt="">` : ''; };
 
-function figurinha(j, extra = '', estatica = false) {
-  const carta = cartaDe(j.ovr), tag = estatica ? 'div' : 'button';
-  return `<${tag} class="fig ${carta.k} ${extra}" ${estatica ? '' : `data-acao="ficha" data-id="${j.id}" type="button"`} aria-label="${esc(j.nome)}, ${POS_NOME[j.pos]}, overall ${j.ovr}">
+function figurinha(j, extra = '', estatica = false, rendeNaVaga = null) {
+  const carta = cartaDe(j.ovr), tag = estatica ? 'div' : 'button', escolha = rendeNaVaga != null;
+  return `<${tag} class="fig ${carta.k} ${extra}" ${estatica ? '' : `data-acao="${escolha ? 'escolher' : 'ficha'}" data-id="${j.id}" type="button"`} aria-label="${esc(j.nome)}, ${POS_NOME[j.pos]}, overall ${j.ovr}${escolha ? `, rende ${rendeNaVaga} na vaga` : ''}">${escolha ? `<span class="rende">${rendeNaVaga}</span>` : ''}
     <span class="foto"><img class="px" src="${urlRosto(j.rosto, clube(j.clube))}" width="32" height="32" alt="" loading="lazy"><span class="ovr">${j.ovr}</span><span class="pos">${j.pos}</span></span>
     <span class="nome">${esc(j.curto)}</span><span class="tier">${carta.nome}</span></${tag}>`;
 }
@@ -90,7 +91,12 @@ const ICONES = {
   elenco: '<rect x="3" y="4" width="8" height="11" rx="1" fill="none" stroke="currentColor" stroke-width="2.2"/><rect x="13" y="8" width="8" height="11" rx="1" fill="none" stroke="currentColor" stroke-width="2.2"/>',
   tabela: '<path d="M4 5h16M4 10h16M4 15h16M4 20h10" stroke="currentColor" stroke-width="2.4"/>',
   calendario: '<rect x="3" y="5" width="18" height="16" rx="1" fill="none" stroke="currentColor" stroke-width="2.2"/><path d="M3 10h18M8 2v5M16 2v5" stroke="currentColor" stroke-width="2.2"/>',
+  noticias: '<rect x="3" y="4" width="18" height="16" rx="1" fill="none" stroke="currentColor" stroke-width="2.2"/><path d="M7 9h10M7 13h10M7 17h6" stroke="currentColor" stroke-width="2.2"/>',
+  lua: '<path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z" fill="currentColor"/>',
+  sol: '<circle cx="12" cy="12" r="4.5" fill="currentColor"/><path d="M12 1.5v3M12 19.5v3M1.5 12h3M19.5 12h3M4.6 4.6l2.1 2.1M17.3 17.3l2.1 2.1M4.6 19.4l2.1-2.1M17.3 6.7l2.1-2.1" stroke="currentColor" stroke-width="2.2"/>',
 };
+const escuro = () => document.documentElement.dataset.tema === 'escuro';
+const botaoTema = (classe = 'botao peq sec') => `<button class="${classe} tema" data-acao="tema" type="button" aria-label="${escuro() ? 'Usar tema claro' : 'Usar tema escuro'}"><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">${ICONES[escuro() ? 'sol' : 'lua']}</svg></button>`;
 
 function desenhaTopo() {
   const topo = $('#topo'), abas = $('#abas');
@@ -102,8 +108,8 @@ function desenhaTopo() {
   topo.innerHTML = `<div class="topo-in">${imgEscudo(ci, 36, 39)}
     <div class="info"><div class="clube-nome">${esc(clube(ci).n)}</div><small>Série ${clube(ci).div} · Rodada ${Math.min(s.rodada + 1, 38)}${s.rodada ? ` · ${posicaoNaTabela(ci)}º` : ''}</small></div>
     <button class="estado ${app.salvando}" data-acao="salvar" type="button" ${app.salvando === 'falhou' ? '' : 'tabindex="-1"'} style="background:none;border:0;cursor:pointer">${estado}</button>
-    <button class="botao peq" data-acao="menu" type="button">Sair</button></div>`;
-  abas.innerHTML = `<ul>${[['clube', 'Clube'], ['elenco', 'Elenco'], ['tabela', 'Tabela'], ['calendario', 'Jogos']].map(([k, t]) =>
+    ${botaoTema('botao peq')}<button class="botao peq" data-acao="menu" type="button">Sair</button></div>`;
+  abas.innerHTML = `<ul>${[['clube', 'Clube'], ['elenco', 'Elenco'], ['tabela', 'Tabela'], ['calendario', 'Jogos'], ['noticias', 'Notícias']].map(([k, t]) =>
     `<li><a href="#/${k}" ${app.aba === k ? 'aria-current="page"' : ''}><svg viewBox="0 0 24 24" aria-hidden="true">${ICONES[k]}</svg>${t}</a></li>`).join('')}</ul>`;
 }
 
@@ -117,7 +123,7 @@ const vitrine = () => {
   return `<div class="vitrine" aria-hidden="true">${[fixos[0], melhor, fixos[1]].filter(Boolean).map(j => figurinha(j, '', true)).join('')}</div>`;
 };
 telas.entrar = () => {
-  return `<section class="entrada">
+  return `<section class="entrada"><div style="display:flex;justify-content:flex-end">${botaoTema()}</div>
     <div><h1 class="logo">Figurinhos</h1><p class="logo-sub">Manager de futebol de botão. Monte o álbum, escale o time, brigue pelo título.</p></div>
     ${app.base ? vitrine() : ''}
     <form class="cartao" data-form="entrar" novalidate>
@@ -134,11 +140,11 @@ telas.saves = async () => {
   const lista = await api('GET', '/saves');
   const porSlot = Object.fromEntries(lista.map(x => [x.slot, x]));
   const quando = t => new Date(t).toLocaleString('pt-BR', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
-  return `<div class="titulo-linha"><h2>Carreiras</h2><button class="botao peq sec" data-acao="sair" type="button">Trocar conta</button></div>
+  return `<div class="titulo-linha"><h2>Carreiras</h2><div class="linha-botoes" style="flex:0 0 auto">${botaoTema()}<button class="botao peq sec" data-acao="sair" type="button">Trocar conta</button></div></div>
     <p class="mudo">Olá, ${esc(app.conta.apelido)}. Você tem 3 espaços de carreira.</p>
     ${[1, 2, 3].map(n => { const x = porSlot[n]; return x ? `<article class="cartao slot">
       <span class="num" style="font-size:2.6rem;text-align:center">${n}</span>
-      <div><h3 style="color:var(--tinta)">${esc(x.nome)}</h3><p>${esc(x.resumo)}</p><p class="mudo" style="font-size:.9rem">Salvo em ${quando(x.atualizado)}</p></div>
+      <div><h3 style="color:var(--texto)">${esc(x.nome)}</h3><p>${esc(x.resumo)}</p><p class="mudo" style="font-size:.9rem">Salvo em ${quando(x.atualizado)}</p></div>
       <div class="linha-botoes"><button class="botao" data-acao="continuar" data-slot="${n}" data-quando="${x.atualizado}" type="button">Continuar</button>
       <button class="botao perigo" data-acao="apagar" data-slot="${n}" type="button" style="flex:0 0 auto">Apagar</button></div></article>`
       : `<article class="cartao slot-vazio"><p class="mudo">Espaço ${n} livre</p><button class="botao" data-acao="novo" data-slot="${n}" type="button">Novo jogo</button></article>`; }).join('')}`;
@@ -215,7 +221,7 @@ telas.clube = () => {
       <button class="botao grande" data-acao="jogar" type="button">Continuar</button></section>`}
     ${u ? `<section class="cartao"><div class="titulo-linha"><h3>Último jogo</h3><a href="#/partida">Ver súmula</a></div>
       <p style="font-size:1.25rem;font-weight:700">${esc(clube(u.casa).n)} <span class="num" style="font-size:1.6rem">${u.gols[0]} × ${u.gols[1]}</span> ${esc(clube(u.fora).n)}</p></section>` : ''}
-    <section class="cartao"><h3>Notícias</h3><ul class="noticias">${s.noticias.slice(0, 8).map(x => `<li><span class="rd">R${x.rodada}</span><span>${esc(x.texto)}</span></li>`).join('')}</ul></section>
+    <section class="cartao"><div class="titulo-linha"><h3>Seu clube no noticiário</h3><a href="#/noticias">Jornal da Bola</a></div><ul class="noticias">${s.noticias.filter(x => (x.tipo || 'clube') === 'clube').slice(0, 6).map(x => `<li><span class="rd">R${x.rodada}</span><span>${esc(x.texto)}</span></li>`).join('')}</ul></section>
     </div>
     <section class="cartao"><div class="titulo-linha"><h3>Série ${d}</h3><a href="#/tabela">Tabela completa</a></div>
       <table><thead><tr><th>#</th><th style="text-align:left">Clube</th><th>P</th><th>J</th><th>SG</th></tr></thead>
@@ -232,19 +238,27 @@ const COORD = {
 };
 const SETORES = [['GOL', 'Goleiros'], ['DEF', 'Defensores'], ['MEI', 'Meio-campistas'], ['ATA', 'Atacantes']];
 
+// rendimento do jogador numa vaga do esquema (fora de posição rende menos)
+const rende = (j, slot) => Math.round(j.ovr * encaixe(j.pos, slot));
+
 telas.elenco = () => {
-  const s = app.s, ci = s.tecnico.clube, time = escalacao(app.base, s, ci);
-  const titulares = new Set(time.xi.filter(Boolean).map(j => j.id));
+  const s = app.s, ci = s.tecnico.clube, time = escalacao(app.base, s, ci), slots = FORMACOES[time.formacao];
+  const titulares = new Set(time.xi.map(j => j.id)), vaga = app.vaga, slotSel = vaga != null ? slots[vaga] : null;
   const elenco = app.base.elencos[ci].slice().sort((a, b) => POS_ORDEM.indexOf(a.pos) - POS_ORDEM.indexOf(b.pos) || b.ovr - a.ovr);
-  const media = Math.round(time.xi.reduce((t, j) => t + (j ? j.ovr : 0), 0) / 11);
-  return `<div class="titulo-linha"><h2>Elenco</h2><span class="mudo">${elenco.length} jogadores · time titular <b class="num" style="font-size:1.3rem">${media}</b></span></div>
-    <section class="cartao"><div class="titulo-linha"><h3>Esquema</h3><span class="mudo" style="font-size:.95rem">Escalação automática pelos melhores</span></div>
+  const forcaXI = Math.round(time.xi.reduce((t, j, i) => t + rende(j, slots[i]), 0) / 11);
+  const opcoes = slotSel ? elenco.filter(j => j.id !== time.xi[vaga].id).sort((a, b) => rende(b, slotSel) - rende(a, slotSel)).slice(0, 8) : [];
+  const card = j => figurinha(j, `${titulares.has(j.id) ? 'titular' : ''} ${slotSel ? 'escolha' : ''}`, false, slotSel ? rende(j, slotSel) : null);
+  return `<div class="titulo-linha"><h2>Elenco</h2><span class="mudo">${elenco.length} jogadores · força do time <b class="num" style="font-size:1.3rem">${forcaXI}</b></span></div>
+    <section class="cartao"><div class="titulo-linha"><h3>Esquema</h3>${s.xi ? '<button class="botao peq sec" data-acao="auto" type="button">Escalar os melhores</button>' : '<span class="mudo" style="font-size:.95rem">Escalação automática</span>'}</div>
       <div class="chips" role="group" aria-label="Formação">${Object.keys(FORMACOES).map(f => `<button type="button" class="chip" data-acao="formacao" data-f="${f}" aria-pressed="${s.formacao === f}">${f}</button>`).join('')}</div>
+      <p class="dica" role="status">${slotSel ? `Quem entra no lugar de <b>${esc(time.xi[vaga].curto)}</b> (${slotSel})? Toque na figurinha. <button class="link" data-acao="vaga" data-i="${vaga}" type="button">Cancelar</button>` : 'Toque num jogador do campo para trocar.'}</p>
       <div class="campo"><span class="area cima"></span><span class="area baixo"></span><span class="meio"></span><span class="roda"></span>
-        ${time.xi.map((j, i) => { const [x, y] = COORD[time.formacao][i]; return j ? `<button class="botao-campo" style="left:${x}%;top:${y}%" data-acao="ficha" data-id="${j.id}" type="button"><img class="px" src="${urlBotao(clube(ci))}" width="12" height="13" alt=""><span>${esc(j.curto)}</span></button>` : ''; }).join('')}
-      </div></section>
-    ${SETORES.map(([k, t]) => { const js = elenco.filter(j => SETOR[j.pos] === k); return `<h3 class="setor-titulo">${t} <span class="mudo">${js.length}</span></h3><div class="album">${js.map(j => figurinha(j, titulares.has(j.id) ? 'titular' : '')).join('')}</div>`; }).join('')}
-    <p class="mudo" style="font-size:.95rem">O ponto verde marca quem está no time titular.</p>`;
+        ${time.xi.map((j, i) => { const [x, y] = COORD[time.formacao][i], r = rende(j, slots[i]), fora = encaixe(j.pos, slots[i]) < 0.9;
+          return `<button class="botao-campo ${vaga === i ? 'sel' : ''} ${fora ? 'fora' : ''}" style="left:${x}%;top:${y}%" data-acao="vaga" data-i="${i}" type="button" aria-label="${esc(j.curto)}, ${slots[i]}, rende ${r}${fora ? ', fora de posição' : ''}"><img class="px" src="${urlBotao(clube(ci))}" width="12" height="13" alt=""><span>${esc(j.curto)}</span><b>${slots[i]} ${r}</b></button>`; }).join('')}
+      </div>
+      ${slotSel ? `<h3>Melhores opções para ${slotSel}</h3><div class="album opcoes-vaga">${opcoes.map(card).join('')}</div>` : ''}</section>
+    ${SETORES.map(([k, t]) => { const js = elenco.filter(j => SETOR[j.pos] === k); return `<h3 class="setor-titulo">${t} <span class="mudo">${js.length}</span></h3><div class="album">${js.map(card).join('')}</div>`; }).join('')}
+    <p class="mudo" style="font-size:.95rem">O ponto verde marca quem está no time titular. No campo, o número é quanto o jogador rende naquela vaga; nome em amarelo é jogador fora de posição.</p>`;
 };
 
 function abrirFicha(id) {
@@ -322,14 +336,38 @@ telas.partida = () => {
     <div class="linha-botoes"><a class="botao sec" href="#/clube">Clube</a>${app.s.rodada < 38 ? '<button class="botao" data-acao="jogar" type="button">Próxima rodada</button>' : ''}</div>`;
 };
 
+// ----- jornal da bola -----
+const TAGS = { clube: ['Seu clube', 'clube'], resultado: ['Rodada', 'resultado'], rumor: ['Rumor', 'rumor'], crise: ['Crise', 'crise'], destaque: ['Destaque', 'destaque'] };
+telas.noticias = () => {
+  const s = app.s, ci = s.tecnico.clube, d = clube(ci).div, f = app.filtroNoticias || 'tudo';
+  const FILTROS = [['tudo', 'Tudo'], ['clube', 'Meu clube'], ['rumor', 'Rumores'], ['A', 'Série A'], ['B', 'Série B'], ['C', 'Série C']];
+  const tipo = n => n.tipo || 'clube';
+  const lista = s.noticias.filter(n => f === 'tudo' || (f === 'clube' ? tipo(n) === 'clube' : f === 'rumor' ? tipo(n) === 'rumor' || n.para != null : n.div === f));
+  const porRodada = new Map(); for (const n of lista) { if (!porRodada.has(n.rodada)) porRodada.set(n.rodada, []); porRodada.get(n.rodada).push(n); }
+  const art = [...app.base.jog.values()].filter(j => clube(j.clube).div === d && s.est?.[j.id]?.[1]).sort((a, b) => s.est[b.id][1] - s.est[a.id][1] || s.est[a.id][0] - s.est[b.id][0]).slice(0, 10);
+  const sel = s.destaques?.[d];
+  const nomeJ = id => { const j = app.base.jog.get(id); return `${imgEscudo(j.clube, 18, 20)}<span>${esc(j.curto)}</span>`; };
+  return `<div class="titulo-linha"><h2 class="jornal">Jornal da Bola</h2><span class="mudo">${s.rodada ? `Após a ${s.rodada}ª rodada` : 'Pré-temporada'}</span></div>
+    <div class="chips" role="group" aria-label="Filtrar notícias">${FILTROS.map(([k, t]) => `<button type="button" class="chip" data-acao="filtro-noticias" data-f="${k}" aria-pressed="${f === k}">${t}</button>`).join('')}</div>
+    <div class="grade-clube"><div style="display:flex;flex-direction:column;gap:16px">
+      ${porRodada.size ? [...porRodada].slice(0, app.rodadasNoticias || 3).map(([rd, ns]) => `<section class="cartao"><h3>${rd ? `${rd}ª rodada` : 'Pré-temporada'}</h3><ul class="manchetes">${ns.map(n => { const [rot, cls] = TAGS[tipo(n)] || TAGS.resultado; return `<li><span class="tag ${cls}">${rot}</span><span>${esc(n.texto)}</span></li>`; }).join('')}</ul></section>`).join('')
+        : '<section class="cartao"><p class="mudo">Nada por aqui ainda. As notícias saem a cada rodada.</p></section>'}
+      ${porRodada.size > (app.rodadasNoticias || 3) ? '<button class="botao sec" data-acao="mais-noticias" type="button">Rodadas anteriores</button>' : ''}
+    </div><div style="display:flex;flex-direction:column;gap:16px">
+      <section class="cartao"><h3>Artilharia · Série ${d}</h3>${art.length ? `<table><thead><tr><th>#</th><th style="text-align:left">Jogador</th><th>G</th><th>J</th></tr></thead><tbody>${art.map((j, i) => `<tr class="${j.clube === ci ? 'meu' : ''}"><td class="pos">${i + 1}</td><td class="clube-cel"><span>${nomeJ(j.id)}</span></td><td class="p">${s.est[j.id][1]}</td><td>${s.est[j.id][0]}</td></tr>`).join('')}</tbody></table>` : '<p class="mudo">Ninguém marcou ainda.</p>'}</section>
+      ${sel ? `<section class="cartao"><h3>Seleção da ${sel.rodada}ª rodada</h3><ol class="selecao">${sel.time.slice().sort((x, y) => POS_ORDEM.indexOf(app.base.jog.get(x[0]).pos) - POS_ORDEM.indexOf(app.base.jog.get(y[0]).pos)).map(([id, n]) => `<li><span class="pos-mini">${app.base.jog.get(id).pos}</span><span class="clube-cel"><span>${nomeJ(id)}</span></span><span class="nota ${n >= 7.5 ? 'alta' : ''}">${n.toFixed(1).replace('.', ',')}</span></li>`).join('')}</ol></section>` : ''}
+    </div></div>`;
+};
+
 // ---------- navegação ----------
 async function render() {
   const rota = location.hash.replace(/^#\/?/, '') || (app.conta ? 'saves' : 'entrar');
-  const precisaJogo = ['clube', 'elenco', 'tabela', 'calendario', 'partida'].includes(rota);
+  const precisaJogo = ['clube', 'elenco', 'tabela', 'calendario', 'partida', 'noticias'].includes(rota);
   if (!app.conta && rota !== 'entrar') { location.hash = '#/entrar'; return; }
   if (precisaJogo && !app.s) { location.hash = '#/saves'; return; }
   if (rota === 'novo' && !app.novo) { location.hash = '#/saves'; return; }
   if (!telas[rota]) { location.hash = app.s ? '#/clube' : '#/saves'; return; }
+  if (app.aba !== rota) app.vaga = null;
   app.aba = rota;
   const main = $('#tela');
   try {
@@ -399,7 +437,19 @@ const acoes = {
     ir('#/partida');
     salvar();
   },
-  formacao: el => { app.s.formacao = el.dataset.f; render(); salvar(); },
+  formacao: el => { trocarFormacao(app.base, app.s, el.dataset.f); app.vaga = null; render(); salvar(); },
+  vaga: el => { const i = +el.dataset.i; app.vaga = app.vaga === i ? null : i; render(); },
+  escolher: el => { escalar(app.base, app.s, app.vaga, +el.dataset.id); app.vaga = null; render(); salvar(); },
+  auto: () => { app.s.xi = null; app.vaga = null; render(); salvar(); },
+  'filtro-noticias': el => { app.filtroNoticias = el.dataset.f; app.rodadasNoticias = 3; render(); },
+  'mais-noticias': () => { app.rodadasNoticias = (app.rodadasNoticias || 3) + 5; render(); },
+  tema: () => {
+    const novo = escuro() ? 'claro' : 'escuro';
+    document.documentElement.dataset.tema = novo;
+    try { localStorage.setItem('fig.tema', novo); } catch { }
+    $('meta[name=theme-color]').content = novo === 'escuro' ? '#090B0F' : '#1B1F2A';
+    render();
+  },
   'div-tabela': el => { app.divTabela = el.dataset.div; render(); },
 };
 

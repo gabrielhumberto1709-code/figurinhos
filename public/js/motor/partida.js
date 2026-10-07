@@ -18,17 +18,16 @@ export function encaixe(posJogador, slot) {
   return 0.72;
 }
 
-// melhor escalação gulosa: preenche cada vaga com quem rende mais nela
+// melhor escalação: cada vaga com quem rende mais nela
 export function melhorTime(jogadores, formacao = '4-3-3', indisponiveis = new Set()) {
   const slots = FORMACOES[formacao];
   const livres = jogadores.filter(j => !indisponiveis.has(j.id));
   const usados = new Set(), xi = Array(slots.length).fill(null);
-  const ordem = slots.map((s, i) => i).sort((a, b) => (slots[a] === 'GOL' ? -1 : 0) - (slots[b] === 'GOL' ? -1 : 0));
-  for (const i of ordem) {
-    let best = null, bestV = -1;
-    for (const j of livres) { if (usados.has(j.id)) continue; const v = j.ovr * encaixe(j.pos, slots[i]); if (v > bestV) { bestV = v; best = j; } }
-    if (best) { xi[i] = best; usados.add(best.id); }
-  }
+  // ponytail: guloso pelos melhores pares (jogador, vaga); Hungarian só se aparecer escalação absurda
+  const pares = [];
+  slots.forEach((sl, i) => { for (const j of livres) pares.push([j.ovr * encaixe(j.pos, sl), i, j]); });
+  pares.sort((a, b) => b[0] - a[0]);
+  for (const [, i, j] of pares) if (!xi[i] && !usados.has(j.id)) { xi[i] = j; usados.add(j.id); }
   const banco = livres.filter(j => !usados.has(j.id)).sort((a, b) => b.ovr - a.ovr).slice(0, 9);
   return { formacao, xi, banco };
 }

@@ -49,3 +49,39 @@ test('save sem cache volta igual', () => {
   assert.equal(volta._cal, undefined);
   assert.deepEqual(tabela(base, volta, 'A'), tabela(base, s, 'A'));
 });
+
+import { escalar, trocarFormacao, escalacao } from '../public/js/motor/mundo.js';
+import { interessados, media } from '../public/js/motor/noticias.js';
+
+test('escalação manual: entra quem eu escolho, titular troca de vaga e muda esquema sem perder ninguém', () => {
+  const s = novoJogo(base, cfg(8)), ci = s.tecnico.clube;
+  const auto = escalacao(base, s, ci), reserva = auto.banco[auto.banco.length - 1];
+  escalar(base, s, 9, reserva.id);
+  assert.equal(escalacao(base, s, ci).xi[9].id, reserva.id);
+  const a = s.xi[1], b = s.xi[2];
+  escalar(base, s, 1, b);
+  assert.deepEqual([s.xi[1], s.xi[2]], [b, a]);
+  const onze = new Set(s.xi);
+  trocarFormacao(base, s, '3-5-2');
+  assert.equal(s.formacao, '3-5-2');
+  assert.deepEqual(new Set(s.xi), onze);
+  avancar(base, s);
+  assert.ok(s.ultima.xi[s.ultima.casa === ci ? 0 : 1].includes(reserva.id));
+});
+
+test('jornal: estatísticas batem com os gols e rumores fazem sentido de futebol', () => {
+  const s = novoJogo(base, cfg(9));
+  for (let i = 0; i < 20; i++) avancar(base, s);
+  const golsTabela = Object.values(s.res.A).reduce((t, g) => t + g[0] + g[1], 0);
+  const golsEst = Object.entries(s.est).filter(([id]) => base.clubes[base.jog.get(+id).clube].div === 'A').reduce((t, [, e]) => t + e[1], 0);
+  assert.equal(golsEst, golsTabela);
+  const rumores = s.noticias.filter(n => n.para != null);
+  assert.ok(rumores.length >= 10, `só ${rumores.length} rumores`);
+  for (const n of rumores) {
+    const j = base.jog.get(n.jogador);
+    assert.ok(base.forca(n.para) >= base.forca(n.de) + 2, 'clube interessado tem que ser maior');
+    assert.ok(interessados(base, j).includes(n.para));
+    assert.ok(media(s.est[j.id]) > 0);
+  }
+  assert.ok(s.destaques.A.time.length === 11);
+});
