@@ -492,3 +492,21 @@ test('caixa de mensagens: boas-vindas, meta, desfalques e propostas chegam uma v
   assert.equal(s.msgs.filter(m => m.assunto === desf[0].assunto).length, 1, 'mesmo assunto não repete');
   assert.ok(s.msgs.length >= n);
 });
+
+import { fazerPrelecao, prelecaoFeita, conversar, temperamento, responderAumento } from '../public/js/motor/vestiario.js';
+test('vestiário: preleção uma por jogo, conversa com cooldown e efeito pelo temperamento, pedido de aumento', () => {
+  const s = novoJogo(base, cfg(95)), ci = s.tecnico.clube;
+  ate(s, 2);
+  assert.equal(prelecaoFeita(base, s), null);
+  assert.equal(fazerPrelecao(base, s, 'motivadora'), null);
+  assert.equal(prelecaoFeita(base, s), 'motivadora');
+  assert.ok(fazerPrelecao(base, s, 'tranquila'), 'segunda preleção no mesmo jogo é recusada');
+  const temp = base.elencos[ci].find(j => temperamento(j) === 'temperamental'), m0 = s.mor[temp.id] ?? 62;
+  const r = conversar(base, s, temp.id, 'banco');
+  assert.ok(r.d <= -8 && (s.mor[temp.id] ?? 62) < m0);
+  assert.ok(conversar(base, s, temp.id, 'elogiar').txt.includes('há pouco'));
+  const j = base.elencos[ci][2]; s.pedidosAumento = [{ jogador: j.id, valor: 99990, rodada: s.rodada }];
+  responderAumento(base, s, j.id, true);
+  assert.equal(s.salarios[j.id], 99990);
+  assert.equal(s.pedidosAumento.length, 0);
+});

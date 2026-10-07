@@ -9,6 +9,7 @@ import { rivais } from './rivais.js';
 import { registrarForma, bonusFase } from './forma.js';
 import { correio } from './correio.js';
 import { arbitroDo } from './arbitros.js';
+import { vestiarioAposRodada } from './vestiario.js';
 import { TORNEIOS, PREMIO_SUP, FASES_CONT, dataCont, dataSup, novaCont, contDevida, naCont, supDevida, jogosDaFase, decidirCont, avancarCont, timeFora, jogadorCont } from './continental.js';
 import { gerarNoticias } from './noticias.js';
 import { resolverMercado, garantirMercado } from './mercado.js';
@@ -526,7 +527,7 @@ export function concluirRodada(base, s, R, simMeu) {
   const casa = R.meu && R.meu.h === s.tecnico.clube ? { adv: R.meu.a } : null;
   for (const txt of contasDaRodada(base, s, R.rd, casa, tabs[base.clubes[s.tecnico.clube].div])) s.noticias.unshift({ rodada: R.rd + 1, tipo: 'clube', evento: true, div: base.clubes[s.tecnico.clube].div, texto: txt });
   for (const n of dmN) s.noticias.unshift({ rodada: R.rd + 1, div: base.clubes[n.clube].div, ...n });
-  for (const n of aposRodada(base, s, tabs)) s.noticias.unshift({ rodada: R.rd + 1, div: base.clubes[n.clube].div, ...n });
+  for (const n of [...aposRodada(base, s, tabs), ...vestiarioAposRodada(base, s, tabs)]) s.noticias.unshift({ rodada: R.rd + 1, div: base.clubes[n.clube].div, ...n });
   resolverMercado(base, s, R.rd);
   if (!naCopa(s, s.tecnico.clube)) copaSemVoce(base, s);
   contSemVoce(base, s);

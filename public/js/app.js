@@ -15,6 +15,7 @@ import * as Coletiva from './coletiva.js';
 import { perfil } from './motor/imprensa.js';
 import { faseDe } from './motor/forma.js';
 import { remetente, naoLidas } from './motor/correio.js';
+import { TEMPERAMENTOS, temperamento, PRELECOES, efeitoPrelecao, prelecaoFeita, fazerPrelecao, CONVERSAS, podeConversar, conversar, responderAumento } from './motor/vestiario.js';
 import { POS_NOME, ATT, ATT_NOME, cartaDe, estrelas, fmtDinheiro, PAISES } from './motor/util.js';
 import { urlRosto, urlEscudo, urlBandeira, urlBotao } from './pixel.js';
 
@@ -243,12 +244,26 @@ const ATALHOS = [
   ['halter', 'Treino', '#/treino', '#E07B39'], ['broto', 'Base', '#/base', 'var(--gramado)'], ['cruz', 'DM', '#/dm', 'var(--cartao)'], ['micro', 'Coletiva', '#/coletiva', 'var(--carimbo)'], ['camisa', 'Uniforme', null, '#2BA8A0'],
 ];
 
+// ----- vestiário -----
+function prelecaoHtml() {
+  const s = app.s, feita = prelecaoFeita(app.base, s);
+  if (feita) return `<section class="cartao prelecao"><b>Preleção feita:</b> ${PRELECOES[feita].nome} · moral dos titulares ${s.prelecao.media >= 0 ? '+' : ''}${String(s.prelecao.media).replace('.', ',')}</section>`;
+  return `<section class="cartao prelecao"><h3>Preleção</h3><div class="col-respostas">${Object.entries(PRELECOES).map(([k, p]) => { const d = efeitoPrelecao(app.base, s, k);
+    return `<button type="button" class="col-resp" data-acao="prelecao" data-t="${k}"><span class="col-tom">${p.nome}</span><span class="col-frase">${p.desc}</span><span class="col-ef"><span class="${d > 0 ? 'sobe' : d < 0 ? 'desce' : ''}">Grupo ${d > 1 ? '▲▲' : d > 0 ? '▲' : d < 0 ? '▼' : '='}</span></span></button>`; }).join('')}</div>
+    <p class="mudo" style="font-size:.92rem">Uma por jogo, antes de entrar em campo. Mexe na moral dos titulares conforme o favoritismo, o último resultado e o temperamento de cada um.</p></section>`;
+}
+function conversaHtml(j) {
+  const t = TEMPERAMENTOS[temperamento(j)], ok = podeConversar(app.s, j.id);
+  return `<section class="conversa"><p><b>Temperamento:</b> ${t.nome} <span class="mudo">· ${t.desc}</span></p>
+    ${ok ? `<div class="chips">${Object.entries(CONVERSAS).map(([k, c]) => `<button class="chip" type="button" data-acao="conversar" data-id="${j.id}" data-t="${k}" title="${c.desc}">${c.nome}</button>`).join('')}</div>` : '<p class="mudo">Vocês conversaram há pouco. Espere umas rodadas.</p>'}</section>`;
+}
+
 // ----- caixa de mensagens -----
 const ROSTO_REM = { diretor: '3220100000', presidente: '1612200000', medico: '2033100000', olheiro: '4141000000' };
 const cartaMsg = (m, curta = false) => { const r = remetente(app.s, m.de);
   return `<article class="msg ${m.lida ? '' : 'nova'}"><div class="msg-topo"><img class="px" src="${urlRosto(ROSTO_REM[m.de] || ROSTO_REM.diretor, TERNO)}" width="32" height="32" alt=""><span><b>${esc(r.nome)}</b><small>${esc(r.cargo)} · ${m.rodada ? `rodada ${m.rodada}` : 'pré-temporada'}</small></span></div>
     <h3>${esc(m.assunto)}</h3>${curta ? '' : `<p>${esc(m.texto)}</p>`}
-    ${curta ? '' : `<div class="linha-botoes">${m.jogador != null && app.base.jog.get(m.jogador) ? `<button class="botao peq sec" type="button" data-acao="ficha" data-id="${m.jogador}">Ver jogador</button>` : ''}${m.link ? `<a class="botao peq" href="${m.link}" ${m.aba ? `data-acao="msg-aba" data-a="${m.aba}"` : ''}>Resolver</a>` : ''}</div>`}</article>`; };
+    ${curta ? '' : `<div class="linha-botoes">${m.jogador != null && app.base.jog.get(m.jogador) ? `<button class="botao peq sec" type="button" data-acao="ficha" data-id="${m.jogador}">Ver jogador</button>` : ''}${m.link ? `<a class="botao peq" href="${m.link}" ${m.aba ? `data-acao="msg-aba" data-a="${m.aba}"` : ''}>Resolver</a>` : ''}${m.aumento != null && (app.s.pedidosAumento || []).some(p => p.jogador === m.aumento) ? `<button class="botao peq" type="button" data-acao="aumento" data-id="${m.aumento}" data-sim="1">Dar aumento</button><button class="botao peq sec" type="button" data-acao="aumento" data-id="${m.aumento}">Negar</button>` : ''}</div>`}</article>`; };
 function recados() {
   const novas = (app.s.msgs || []).filter(m => !m.lida);
   return novas.length ? `<a class="cartao recados" href="#/mensagens"><b>${novas.length} mensage${novas.length > 1 ? 'ns' : 'm'} do clube</b><span>${novas.slice(0, 3).map(m => esc(m.assunto)).join(' · ')}</span></a>` : '';
@@ -302,7 +317,7 @@ telas.clube = () => {
         <span class="ingresso-local">${ev.neutro ? 'Estádio neutro' : esc(clube(jogo[0]).est[0])}</span>
         ${(p => `<span class="previa" title="Chance pelo que os elencos rendem hoje"><b>V ${p.vitoria}%</b><b>E ${p.empate}%</b><b>D ${p.derrota}%</b></span>`)(previa(app.base, s, ev))}
         <button class="botao grande" data-acao="jogar" type="button">Jogar</button></div></section>`}
-    ${s.demitido ? '' : desfalques(ci, fim)}${ofertasHtml()}${recados()}
+    ${s.demitido || fim ? '' : prelecaoHtml()}${s.demitido ? '' : desfalques(ci, fim)}${ofertasHtml()}${recados()}
     ${acabando.length && !fim ? `<a class="cartao aviso-contratos" href="#/elenco"><b>${acabando.length} ${acabando.length > 1 ? 'contratos acabam' : 'contrato acaba'} no fim da temporada</b><span>${acabando.slice(0, 5).map(j => esc(j.curto)).join(', ')}${acabando.length > 5 ? '…' : ''}. Quem não renovar sai de graça, e outro clube pode assinar pré-contrato.</span></a>` : ''}
     <nav class="atalhos" aria-label="Atalhos do clube">${ATALHOS.map(([ic, t, href, cor]) => {
       const off = !href || (href === '#/partida' && !s.ultima);
@@ -413,7 +428,7 @@ function abrirFicha(id) {
       <dl style="margin-top:8px">${app.s && meu ? `<dt>Condição</dt><dd>${Math.round(app.s.cond?.[j.id] ?? 100)}%</dd><dt>Moral</dt><dd>${Elenco.carinha(app.s.mor?.[j.id])} ${Math.round(app.s.mor?.[j.id] ?? 62)}</dd>` : ''}<dt>Idade</dt><dd>${j.idade} anos</dd><dt>País</dt><dd class="pais">${bandeira(j.nat, 32)}${esc(PAISES[j.nat] || j.nat)}</dd><dt>Carta</dt><dd>${carta.nome}</dd>
       <dt>Potencial</dt><dd>${app.s ? Mercado.potencialTxt(j) : '? ? ?'}</dd></dl></div></div>
     <div class="atts">${ATT.map(k => `<div class="att" style="--c:${corAtt(j.att[k])}"><span>${ATT_NOME[k]}</span><span class="num">${j.att[k]}</span><div><b style="width:${j.att[k]}%"></b></div></div>`).join('')}</div>
-    ${app.s ? faseFicha(j) + dmFicha(j) : ''}${app.s?.evo?.[j.id] >= 1 ? `<p class="aviso-ficha evo">▲ +${Math.floor(app.s.evo[j.id])} de overall com o treino no clube.</p>` : ''}
+    ${app.s ? faseFicha(j) + dmFicha(j) : ''}${app.s && meu ? conversaHtml(j) : ''}${app.s?.evo?.[j.id] >= 1 ? `<p class="aviso-ficha evo">▲ +${Math.floor(app.s.evo[j.id])} de overall com o treino no clube.</p>` : ''}
     <dl><dt>Valor</dt><dd>${fmtDinheiro(j.valor * 1000)}</dd><dt>Contrato</dt><dd>até ${j.contrato}</dd></dl>
     ${app.s ? Mercado.blocoFicha(j) : ''}
     <form method="dialog"><button class="botao sec" style="width:100%">Fechar</button></form></div>`;
@@ -586,6 +601,9 @@ const acoes = {
     $('meta[name=theme-color]').content = novo === 'escuro' ? '#090B0F' : '#1B1F2A';
     render();
   },
+  prelecao: el => { const m = fazerPrelecao(app.base, app.s, el.dataset.t); if (m) aviso(m); render(); salvar(); },
+  conversar: el => { const r = conversar(app.base, app.s, el.dataset.id, el.dataset.t); aviso(r.txt); salvar(); abrirFicha(el.dataset.id); },
+  aumento: el => { const m = responderAumento(app.base, app.s, el.dataset.id, el.dataset.sim === '1'); if (m) aviso(m); render(); salvar(); },
   'msg-aba': el => { app.abaMercado = el.dataset.a; ir(el.getAttribute('href')); },
   'aceitar-oferta': el => { const m = aceitarOferta(app.base, app.s, +el.dataset.c); if (m) return aviso(m); aviso(`Bem-vindo ao ${clube(app.s.tecnico.clube).n}!`); salvar(); location.hash === '#/clube' ? render() : ir('#/clube'); },
   'recusar-oferta': el => { recusarOferta(app.s, +el.dataset.c); render(); salvar(); },

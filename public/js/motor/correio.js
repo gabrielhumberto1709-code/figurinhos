@@ -59,6 +59,8 @@ export function correio(base, s) {
   }
   // quem quer sair
   for (const [id, q] of Object.entries(s.querSair || {})) { const j = base.jog.get(+id); if (j) enviar(s, 'diretor', `sair-${id}-${q.rodada}`, `${j.curto} quer sair`, `${j.curto} esteve na minha sala. Ele ${q.motivo} e não engoliu a recusa da proposta do ${nome(q.de)}. Está desanimado e não quer falar de renovação. Se aparecer outra proposta, eu pensaria com carinho.`, { jogador: j.id }); }
+  // pedidos de aumento
+  for (const p of s.pedidosAumento || []) { const j = base.jog.get(p.jogador); if (j) enviar(s, 'diretor', `aum-${p.jogador}-${p.rodada}-${s.ano}`, `${j.curto} pede aumento`, `${j.curto} veio conversar: está em grande fase e quer passar a ganhar ${fmtDinheiro(p.valor)} por dia (hoje ganha bem menos). ${faseDe(s, j.id).k === 'excelente' ? 'Eu daria: ele está carregando o time.' : 'Dá pra negociar, mas cuidado com a folha.'} Ele espera resposta em até 3 rodadas.`, { aumento: p.jogador, jogador: j.id }); }
   // pré-contrato com outro clube
   for (const p of s.preContratos || []) if (p.de === ci && p.para !== ci) { const j = base.jog.get(p.jogador); if (j) enviar(s, 'diretor', `pre-${p.jogador}-${s.ano}`, `${j.curto} assinou com o ${nome(p.para)}`, `Perdemos ${j.curto}: o contrato acaba e ele já assinou pré-contrato com o ${nome(p.para)}. Sai de graça no fim da temporada.`, { jogador: j.id }); }
   // contratos acabando (no meio e na reta final)
