@@ -12,6 +12,7 @@ import * as AoVivo from './aovivo.js';
 import * as Elenco from './elenco.js';
 import * as Jornal from './jornal.js';
 import * as Coletiva from './coletiva.js';
+import * as Gala from './gala.js';
 import { perfil } from './motor/imprensa.js';
 import { faseDe } from './motor/forma.js';
 import { remetente, naoLidas } from './motor/correio.js';
@@ -309,7 +310,7 @@ telas.clube = () => {
       <span>${s.rodada ? `${pos + 1}º na Série ${d}` : `Série ${d}`}</span><span class="${janela ? 'aberta' : ''}">${janela ? 'Janela aberta' : 'Janela fechada'}</span>${cargoChip()}</div>
     ${s.demitido ? demitidoHtml() : fim ? `<section class="cartao escuro fim-temporada"><h2>Fim da temporada ${s.ano}</h2><p>${esc(c.n)} terminou em <b>${pos + 1}º</b> na Série ${d}${pos < 4 && d !== 'A' ? ' e <b>subiu</b>' : pos >= 16 && d !== 'C' ? ' e <b>caiu</b>' : ''}. Campeão: <b>${esc(clube(tab[0].clube).n)}</b>.${s.copa?.campeao != null ? ` Copa do Brasil: <b>${esc(clube(s.copa.campeao).n)}</b>.` : ''}</p>
       ${acabando.length ? `<p style="color:var(--placar)">Saem por fim de contrato: ${acabando.map(j => esc(j.curto)).join(', ')}. Ainda dá para renovar na ficha de cada um.</p>` : ''}
-      <button class="botao grande" type="button" data-acao="virar">Começar a temporada ${s.ano + 1}</button></section>`
+      <div class="linha-botoes"><a class="botao sec" href="#/gala">Premiação de gala</a><button class="botao grande" type="button" data-acao="virar">Começar a temporada ${s.ano + 1}</button></div></section>`
     : `<section class="ingresso ${ev.tipo !== 'liga' ? 'copa' : ''}" style="--cc:${c.c[0]};--cc2:${c.c[1] || '#fff'}">
       <div class="ingresso-data"><span class="dia">${String(dt.getUTCDate()).padStart(2, '0')}</span><span class="mes">${MESES[dt.getUTCMonth()]}</span><span class="sem">${SEMANA[dt.getUTCDay()]}</span><span class="ano">${dt.getUTCFullYear()}</span></div>
       <div class="ingresso-corpo"><span class="ingresso-tag">${esc(ev.titulo)} · ${ev.neutro ? 'campo neutro' : jogo[0] === ci ? 'em casa' : 'fora'}</span>
@@ -474,6 +475,7 @@ telas.partida = () => {
 // ----- jornal da bola -----
 telas.noticias = () => Jornal.tela();
 telas.coletiva = () => Coletiva.tela();
+telas.gala = () => Gala.tela();
 
 // saves antigos ganham os campos novos; a base recebe as transferências deste save
 function migrar(s) {
@@ -505,7 +507,7 @@ async function render() {
   if (rota === 'tabela') { location.hash = '#/torneios'; return; }
   if (rota === 'base' || rota === 'treino' || rota === 'dm') { app.abaElenco = rota; location.hash = '#/elenco'; return; }
   if (app.s?.demitido && ['elenco', 'mercado', 'financas', 'partida', 'calendario', 'coletiva'].includes(rota)) { location.hash = '#/clube'; return; } // sem clube: só propostas, tabelas e notícias
-  const precisaJogo = ['clube', 'elenco', 'torneios', 'calendario', 'partida', 'noticias', 'mercado', 'financas', 'carreira', 'coletiva', 'mensagens'].includes(rota);
+  const precisaJogo = ['clube', 'elenco', 'torneios', 'calendario', 'partida', 'noticias', 'mercado', 'financas', 'carreira', 'coletiva', 'mensagens', 'gala'].includes(rota);
   if (!app.conta && rota !== 'entrar') { location.hash = '#/entrar'; return; }
   if (precisaJogo && !app.s) { location.hash = '#/saves'; return; }
   if (rota === 'novo' && !app.novo) { location.hash = '#/saves'; return; }
@@ -596,6 +598,7 @@ const acoes = {
   ...Elenco.acoes,
   ...Jornal.acoes,
   ...Coletiva.acoes,
+  ...Gala.acoes,
   tema: () => {
     const novo = escuro() ? 'claro' : 'escuro';
     document.documentElement.dataset.tema = novo;
@@ -666,6 +669,7 @@ document.addEventListener('submit', async e => {
 AoVivo.configurar({ app, clube, esc, imgEscudo, $ });
 Torneios.configurar({ app, clube, esc, imgEscudo, render: () => render() });
 Coletiva.configurar({ app, clube, esc, render: () => render(), salvar: () => salvar() });
+Gala.configurar({ app, clube, esc, imgEscudo, render: () => render() });
 Jornal.configurar({ app, clube, esc, imgEscudo, render: () => render() });
 Mercado.configurar({ app, clube, esc, imgEscudo, $, aviso, render: () => render(), salvar: () => salvar() });
 Elenco.configurar({ app, clube, esc, imgEscudo, figurinha, render: () => render(), salvar: () => salvar(), aviso });

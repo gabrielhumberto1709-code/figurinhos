@@ -8,6 +8,7 @@ import { indisponivel, pendurado, LESOES, COMP_DE } from './dm.js';
 import { faseDe } from './forma.js';
 import { orcamento, metaDiretoria } from './financas.js';
 import { precoPedido } from './mercado.js';
+import { fimDeTemporada } from './temporada.js';
 
 export const REMETENTES = {
   diretor: { cargo: 'Diretor de futebol', semente: 'dir' },
@@ -70,6 +71,7 @@ export function correio(base, s) {
   const jaAberta = janelaAberta(s.ano, rd), abreLogo = !jaAberta && janelaAberta(s.ano, rd + 1), fechaLogo = jaAberta && !janelaAberta(s.ano, rd + 1);
   if (abreLogo || fechaLogo) { const o = orcamento(base, s); enviar(s, 'diretor', `jan-${s.ano}-${rd}`, abreLogo ? 'A janela abre na próxima rodada' : 'Última rodada com a janela aberta', `${abreLogo ? 'A janela abre na próxima rodada.' : 'A janela fecha depois desta rodada.'} Temos ${fmtDinheiro(o.compras)} para compras e folga de ${fmtDinheiro(o.folga)} por dia na folha. ${o.pagaAteFim ? '' : 'Cuidado: do jeito que está, o caixa não fecha a temporada.'}`, { link: '#/mercado' }); }
   // dinheiro
+  if (fimDeTemporada(s)) enviar(s, 'presidente', `gala-${s.ano}`, 'Premiação de gala', `Professor, hoje à noite é a premiação de gala do Brasileirão ${s.ano}. Bola de Ouro, Chuteira, Garçom, Luva, Revelação, Prancheta e a seleção da temporada. Vamos ver quem leva.`, { link: '#/gala' });
   if (s.fin?.atraso) enviar(s, 'presidente', `atraso-${s.ano}-${rd}`, 'Salários atrasados', `Não tivemos como pagar os salários em dia (${s.fin.atraso} rodada${s.fin.atraso > 1 ? 's' : ''}). O grupo está irritado. Precisamos vender ou cortar folha.`, { link: '#/financas' });
   // cargo (o presidente escreve)
   const C = s.cargo, P = pilares(base, s);

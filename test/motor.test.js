@@ -610,3 +610,23 @@ test('finanças: atraso escalona (pedido de saída, Justiça, fama de mau pagado
   const D = dicasFinanceiras(base, s);
   assert.ok(D.some(d => d.includes('faltam')) && D.some(d => d.includes('mau pagador')));
 });
+
+import { gala, premiado } from '../public/js/motor/gala.js';
+test('gala: 3 finalistas por prêmio, artilheiro leva a Chuteira, arquivo na virada, premiado fica mais caro', () => {
+  const s = novoJogo(base, cfg(98)); ate(s, 38);
+  while (!fimDeTemporada(s)) avancar(base, s);
+  const G = gala(base, s);
+  for (const d of ['A', 'B', 'C']) {
+    const P = G.divs[d].premios;
+    for (const k of ['bola', 'chuteira', 'garcom', 'luva', 'prancheta']) assert.equal(P[k].length, 3, `${d} ${k}`);
+    assert.equal(G.divs[d].selecao.length, 11);
+    const art = Object.entries(s.est).filter(([id]) => base.jog.get(+id) && base.clubes[base.jog.get(+id).clube].div === d).reduce((m, [, e]) => Math.max(m, e[1]), 0);
+    assert.ok(P.chuteira[0].v.startsWith(`${art} gols`));
+  }
+  const w = G.divs.A.premios.bola[0].id, j = base.jog.get(w);
+  virarTemporada(base, s);
+  assert.equal(s.galas[0].ano, s.ano - 1);
+  assert.ok(premiado(s, w) && s.noticias.some(n => n.texto.includes('Bola de Ouro')));
+  const com = precoPedido(base, s, j), g = s.galas; s.galas = []; const sem = precoPedido(base, s, j); s.galas = g;
+  assert.ok(com > sem, `${com} > ${sem}`);
+});

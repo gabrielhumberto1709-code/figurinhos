@@ -5,6 +5,7 @@
 // contraproposta e leilão nas ofertas recebidas, gigantes europeus e árabes.
 // Proposta feita numa rodada é respondida na seguinte (dá tempo de rival entrar na briga).
 import { rivais } from './rivais.js';
+import { premiado } from './gala.js';
 import { faseDe } from './forma.js';
 import { rng, clamp, pickW, shuffle, SETOR, nivelDiv, estrelas, continenteDe } from './util.js';
 import { interessados, media } from './noticias.js';
@@ -75,6 +76,7 @@ export function precoPedido(base, s, j) {
   v *= anos <= 0 ? 0.5 : anos === 1 ? 0.8 : 1;
   if (j.idade <= 21 && j.pot >= j.ovr + 8) v *= 1.4;
   if (media(s.est?.[j.id]) >= 7) v *= 1.2;
+  if (premiado(s, j.id)) v *= 1.15;                                     // premiado na última gala
   v *= 1 + faseDe(s, j.id).d * 0.05;                                   // fase excelente encarece 15%, péssima barateia
   if (base.clubes[j.clube].div === 'X') v *= 1.15;                      // clube de fora não vende barato
   if (rank < 3 && base.clubes[j.clube].div === base.clubes[s.tecnico.clube].div) v *= 1.3; // não vende craque pra rival direto

@@ -698,3 +698,15 @@ b.pos { color: var(--gramado); } b.neg { color: var(--cartao); }
 @keyframes confete { to { transform: translateY(160px) rotate(540deg); } }
 .previa { display: flex; gap: 6px; font-size: .85rem; } .previa b { padding: 1px 6px; border-radius: 3px; background: rgb(0 0 0 / .25); color: #fff; }
 .conversa { margin-top: 10px; padding-top: 8px; border-top: 2px dashed var(--linha-fraca); } .conversa .chips { margin-top: 6px; }
+
+/* premiação de gala */
+.premio .titulo-linha { align-items: baseline; flex-wrap: wrap; }
+.finalistas { list-style: none; margin: 8px 0; padding: 0; display: grid; gap: 6px; }
+.finalistas li { display: flex; align-items: center; gap: 10px; padding: 6px 8px; border: 2px solid var(--linha); border-radius: var(--raio); }
+.finalistas li span { display: flex; flex-direction: column; flex: 1; min-width: 0; }
+.finalistas li small { color: var(--texto-2); }
+.premio.aberto .finalistas li:not(.vence) { opacity: .6; }
+.finalistas li.vence { border-color: var(--placar); background: color-mix(in srgb, var(--placar) 18%, transparent); animation: vence .5s ease-out; }
+.finalistas .trofeu { color: var(--placar); flex: none; }
+@keyframes vence { from { transform: scale(.94); } to { transform: none; } }
+@media (prefers-reduced-motion: reduce) { .finalistas li.vence { animation: none; } }
