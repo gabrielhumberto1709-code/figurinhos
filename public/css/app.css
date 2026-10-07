@@ -616,3 +616,7 @@ b.pos { color: var(--gramado); } b.neg { color: var(--cartao); }
 .pilar { display: grid; grid-template-columns: 84px 1fr 34px; gap: 8px; align-items: center; margin: 6px 0; font-weight: 700; }
 .pilar .num { text-align: right; font-size: 1.2rem; }
 .lista-carreira { list-style: none; margin: 6px 0 0; padding: 0; } .lista-carreira li { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 6px; padding: 5px 0; border-top: 1px solid var(--linha-fraca); }
+
+/* copas continentais */
+.grupos-cont { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 12px; }
+.grupos-cont h3 { margin-bottom: 6px; }

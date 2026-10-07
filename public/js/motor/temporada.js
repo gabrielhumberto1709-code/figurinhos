@@ -1,11 +1,12 @@
 // Virada de temporada: histórico, acesso e rebaixamento (4 sobem, 4 caem), contratos que acabam, empréstimos que
 // voltam, pré-contratos que se cumprem, aposentadorias, garotos da base e a Copa do Brasil do ano novo.
-import { rng, pick, clamp } from './util.js';
+import { rng, pick, clamp, PERFIL } from './util.js';
 import { tabela, aplicarSave } from './mundo.js';
 import { FASES, novaCopa, campanha } from './copa.js';
 import { metaDiretoria, folhaDia, lancar, cotaTV, garantirFinancas } from './financas.js';
 import { garantirMercado } from './mercado.js';
 import { viradaDM } from './dm.js';
+import { novaCont, campanhaCont } from './continental.js';
 
 const DIVS = ['A', 'B', 'C'];
 export const fimDeTemporada = s => s.rodada >= 38 && !(s.copa && s.copa.fase < FASES.length);
@@ -13,7 +14,6 @@ export const fimDeTemporada = s => s.rodada >= 38 && !(s.copa && s.copa.fase < F
 // ---------- garotos da base ----------
 const NOMES = ['Kauã', 'Gabriel', 'Davi', 'Pedro', 'Enzo', 'Arthur', 'Miguel', 'Heitor', 'Bernardo', 'Théo', 'Ryan', 'Kaique', 'Luan', 'Vitor', 'Igor', 'Caio', 'Rafael', 'Matheus', 'João', 'Lucas', 'Wesley', 'Yuri', 'Murilo', 'Thiago', 'Samuel', 'Breno', 'Otávio', 'Gustavo', 'Diego', 'Renan', 'Erick', 'Wallace', 'Jhonatan', 'Kelvin', 'Patrick', 'Nicolas', 'Ruan', 'Felipe', 'André', 'Leandro'];
 const SOBRENOMES = ['Silva', 'Souza', 'Oliveira', 'Santos', 'Lima', 'Pereira', 'Ferreira', 'Costa', 'Rodrigues', 'Almeida', 'Nascimento', 'Carvalho', 'Araújo', 'Ribeiro', 'Gomes', 'Martins', 'Rocha', 'Barbosa', 'Moura', 'Teixeira', 'Cardoso', 'Freitas', 'Nunes', 'Mendes', 'Pinto', 'Batista', 'Correia', 'Vieira', 'Monteiro', 'Dias', 'Campos', 'Ramos', 'Farias', 'Moreira', 'Cunha', 'Lopes', 'Brito', 'Paixão', 'Sales', 'Macedo'];
-const PERFIL = { GOL: [-10, -40, -12, -25, 4, 0], ZAG: [-4, -22, -6, -10, 5, 4], LD: [5, -14, 0, -2, 1, 0], LE: [5, -14, 0, -2, 1, 0], VOL: [-3, -10, 2, -4, 4, 3], MC: [-1, -4, 5, 2, -2, 0], MEI: [1, 2, 5, 5, -14, -4], PE: [6, 2, 0, 6, -18, -3], PD: [6, 2, 0, 6, -18, -3], CA: [1, 6, -4, 1, -22, 4] };
 const IDEAL = { GOL: 3, ZAG: 4, LD: 2, LE: 2, VOL: 3, MC: 3, MEI: 2, PE: 2, PD: 2, CA: 3 };
 function rostoNovo(r) {
   const pele = pick(r, [0, 1, 1, 2, 2, 3, 3, 4, 4, 5]), cabelo = pele >= 3 ? 0 : pick(r, [0, 0, 1, 1, 2, 3]);
@@ -56,12 +56,15 @@ export function virarTemporada(base, s) {
     ano: s.ano, clube: ci, div, pos, pts: tabs[div][pos - 1].p, meta: meta.txt, bateuMeta: pos <= meta.pos,
     campeoes: Object.fromEntries(DIVS.map(d => [d, tabs[d][0].clube])), art: Object.fromEntries(DIVS.map(d => [d, artilheiro(d)])),
     copa: s.copa ? { campeao: s.copa.campeao, vice: s.copa.vice, meu: campanha(s, ci) } : null,
+    cont: s.cont ? { LIB: s.cont.LIB.campeao, SUL: s.cont.SUL.campeao, sup: s.cont.sup.jogo?.campeao ?? null, meu: ['LIB', 'SUL'].map(k => campanhaCont(s, k, ci) && `${k === 'LIB' ? 'Libertadores' : 'Sul-Americana'}: ${campanhaCont(s, k, ci).toLowerCase()}`).find(Boolean) || null } : null,
     sobem: { A: sobe.B, B: sobe.C }, caem: { B: cai.A, C: cai.B },
   });
   const f = s.fin;
   f.diretoria = clamp(f.diretoria + (pos <= meta.pos ? 10 : -12) + (s.copa?.campeao === ci ? 8 : 0), 0, 100);
   add(pos <= meta.pos ? `A diretoria comemora: meta da temporada cumprida (${meta.txt}).` : `A diretoria cobra: a meta era ${meta.txt} e o time terminou em ${pos}º.`);
 
+  // vagas da próxima temporada: tabela final da Série A e o campeão da Copa do Brasil
+  s.classif = { A: tabs.A.map(l => l.clube), copa: s.copa?.campeao ?? null };
   // acesso e rebaixamento
   s.divs ||= {};
   for (const [lista, d] of [[cai.A, 'B'], [sobe.B, 'A'], [cai.B, 'C'], [sobe.C, 'B']]) for (const c of lista) { if (base.clubes[c].divOrig === d) delete s.divs[c]; else s.divs[c] = d; }
@@ -112,6 +115,7 @@ export function virarTemporada(base, s) {
   if (f.socorro) { lancar(s, 'socorro', 'Desconto dos adiantamentos da TV', -cotaTV(base.clubes[ci]) / 8 * f.socorro, 0); f.socorro = 0; }
   Object.assign(f, { temporada: { ano: s.ano, compras: 0, vendas: 0, folha0: folhaDia(base, s) }, tvPagas: [], ultimaVerba: -99, verbasRecentes: [], atraso: 0, salarioBudget: null });
   novaCopa(base, s);
+  novaCont(base, s);
   const h = s.historico[0];
   add(`Começa a temporada ${s.ano}. Sobem para a Série A: ${h.sobem.A.map(nome).join(', ')}. Caem para a B: ${h.caem.B.map(nome).join(', ')}.`, 'resultado');
   s.noticias = [...N, ...s.noticias].slice(0, 220);

@@ -1,7 +1,7 @@
 // Aba Elenco: Jogadores, Escalação (campo, capitão, estilo, planos, banco), Números, DM, Base e Treino.
 import { FORMACOES, POSICOES, ESTILOS, encaixe, forcaSetores, fatorCond } from './motor/partida.js';
 import { escalacao, escalar, trocarFormacao, definirCapitao, liderNatural, TATICA_PADRAO, compProxima } from './motor/mundo.js';
-import { LESOES, CATEGORIA, COMP_NOME, fragilidade, indisponivel, pendurado, infilInfo, infiltrar } from './motor/dm.js';
+import { LESOES, CATEGORIA, COMP_NOME, COMP_DE, fragilidade, indisponivel, pendurado, infilInfo, infiltrar } from './motor/dm.js';
 import { POS_NOME, POS_ORDEM, SETOR, cartaDe, fmtDinheiro } from './motor/util.js';
 import { media } from './motor/noticias.js';
 import { urlBoneco, urlBandeira } from './pixel.js';
@@ -34,7 +34,7 @@ const bandeira = nat => { const u = urlBandeira(nat); return u ? `<img class="px
 export function seloDM(s, id) {
   const l = s.dm?.[id], sp = s.susp?.[id];
   return (l ? `<span class="selo-dm les" title="${LESOES[l.k]?.n || 'Lesão'}">✚ ${l.inf ? 'infiltrado' : `${l.n}j`}</span>` : '')
-    + (sp ? `<span class="selo-dm sus" title="Suspenso">${Object.entries(sp).map(([c, n]) => `${c === 'CB' ? 'Copa ' : ''}susp. ${n}`).join(' · ')}</span>` : '');
+    + (sp ? `<span class="selo-dm sus" title="Suspenso">${Object.entries(sp).map(([c, n]) => `${c === 'L' ? '' : `${COMP_NOME[c]} `}susp. ${n}`).join(' · ')}</span>` : '');
 }
 
 export function tela() {
@@ -129,7 +129,7 @@ function telaNumeros() {
 function telaDM() {
   const { app, esc } = H, s = app.s, ci = s.tecnico.clube, el = app.base.elencos[ci], comp = compProxima(app.base, s);
   const les = el.filter(j => s.dm?.[j.id]).sort((a, b) => s.dm[a.id].n - s.dm[b.id].n);
-  const sus = el.filter(j => s.susp?.[j.id]), pend = el.filter(j => pendurado(s, j.id, 'L') || pendurado(s, j.id, 'CB'));
+  const sus = el.filter(j => s.susp?.[j.id]), pend = el.filter(j => Object.keys(s.amar?.[j.id] || {}).some(c => pendurado(s, j.id, c)));
   const carga = el.map(j => [j, fragilidade(s, j)]).filter(([, f]) => f >= 1.3).sort((a, b) => b[1] - a[1]).slice(0, 5);
   const pct = x => Math.round(x * 100);
   const card = j => {
@@ -146,10 +146,10 @@ function telaDM() {
   const linha = (j, txt) => `<li><span class="pos-mini">${j.pos}</span>${boneco(j, j.pos === 'GOL')}<span class="le-nome"><b>${esc(j.curto)}</b><small>${txt}</small></span></li>`;
   return `<div class="titulo-linha"><h2>Departamento médico</h2><span class="mudo">${les.length} lesionado${les.length === 1 ? '' : 's'} · ${sus.length} suspenso${sus.length === 1 ? '' : 's'}</span></div>
     ${les.length ? les.map(card).join('') : '<section class="cartao"><p class="mudo">Ninguém no DM. Elenco inteiro à disposição.</p></section>'}
-    ${sus.length ? `<section class="cartao"><h3>Suspensos</h3><ul class="lista-banco lista-dm">${sus.map(j => linha(j, Object.entries(s.susp[j.id]).map(([c, n]) => `${n} jogo${n > 1 ? 's' : ''} ${c === 'CB' ? 'da Copa do Brasil' : 'do campeonato'}`).join(' · '))).join('')}</ul></section>` : ''}
-    ${pend.length ? `<section class="cartao"><h3>Pendurados</h3><ul class="lista-banco lista-dm">${pend.map(j => linha(j, ['L', 'CB'].filter(c => pendurado(s, j.id, c)).map(c => `2 amarelos no ${COMP_NOME[c]}`).join(' · '))).join('')}</ul><p class="mudo" style="font-size:.95rem">Mais um amarelo e fica fora do jogo seguinte daquela competição.</p></section>` : ''}
+    ${sus.length ? `<section class="cartao"><h3>Suspensos</h3><ul class="lista-banco lista-dm">${sus.map(j => linha(j, Object.entries(s.susp[j.id]).map(([c, n]) => `${n} jogo${n > 1 ? 's' : ''} ${COMP_DE[c]}`).join(' · '))).join('')}</ul></section>` : ''}
+    ${pend.length ? `<section class="cartao"><h3>Pendurados</h3><ul class="lista-banco lista-dm">${pend.map(j => linha(j, Object.keys(s.amar[j.id]).filter(c => pendurado(s, j.id, c)).map(c => `2 amarelos ${COMP_DE[c].replace(/^d/, 'n')}`).join(' · '))).join('')}</ul><p class="mudo" style="font-size:.95rem">Mais um amarelo e fica fora do jogo seguinte daquela competição.</p></section>` : ''}
     ${carga.length ? `<section class="cartao"><h3>Atenção à carga</h3><ul class="lista-banco lista-dm">${carga.map(([j, f]) => linha(j, `propensão ${f >= 1.6 ? 'muito alta' : 'alta'} a lesão · condição ${Math.round(s.cond[j.id] ?? 100)}`)).join('')}</ul></section>` : ''}
-    <section class="cartao"><h3>Como funciona</h3><p class="mudo" style="font-size:.95rem">Lesão acontece no jogo, mais em quem entra esgotado (condição abaixo de 55), nos veteranos, em quem já se machucou e com treino intenso. A recuperação conta jogos do clube. Infiltração só na reta final da recuperação e uma vez por lesão: ele joga, mas pode agravar. Cartões valem por competição: 3 amarelos = 1 jogo; vermelho direto = 2; dois amarelos no mesmo jogo = 1. ${comp === 'CB' ? 'O próximo jogo é pela Copa do Brasil.' : ''}</p></section>`;
+    <section class="cartao"><h3>Como funciona</h3><p class="mudo" style="font-size:.95rem">Lesão acontece no jogo, mais em quem entra esgotado (condição abaixo de 55), nos veteranos, em quem já se machucou e com treino intenso. A recuperação conta jogos do clube. Infiltração só na reta final da recuperação e uma vez por lesão: ele joga, mas pode agravar. Cartões valem por competição: 3 amarelos = 1 jogo; vermelho direto = 2; dois amarelos no mesmo jogo = 1. ${comp !== 'L' ? `O próximo jogo é pela ${COMP_NOME[comp]}.` : ''}</p></section>`;
 }
 
 function telaBase() {

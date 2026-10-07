@@ -360,3 +360,28 @@ test('cargo: longe da meta e sem apoio leva ultimato; sem os pontos, demissão, 
   // e o jogo segue com o clube novo
   const r0 = s.rodada; avancar(base, s); assert.ok(s.rodada >= r0);
 });
+
+import { tabelaGrupo, FASES_CONT } from '../public/js/motor/continental.js';
+test('continentais: grupos completos, mata-mata até o campeão, prêmios e vagas pela tabela no ano seguinte', () => {
+  const A = base.clubes.map((c, i) => i).filter(i => base.clubes[i].div === 'A').sort((a, b) => base.forca(b) - base.forca(a));
+  const s = novoJogo(base, { ...cfg(31), clube: A[0] }), ci = s.tecnico.clube;
+  for (const k of ['LIB', 'SUL']) { const T = s.cont[k]; assert.equal(new Set(T.grupos.flat()).size, 16); assert.equal(T.grupos.flat().filter(c => base.clubes[c].div !== 'X').length, 6); }
+  assert.ok(s.cont.LIB.grupos.flat().includes(ci), 'o mais forte da A joga a Libertadores');
+  while (!fimDeTemporada(s)) avancar(base, s);
+  for (const k of ['LIB', 'SUL']) {
+    const T = s.cont[k];
+    assert.equal(T.fase, FASES_CONT.length);
+    assert.ok(T.campeao != null && T.vice != null && T.campeao !== T.vice);
+    for (let g = 0; g < 4; g++) assert.ok(tabelaGrupo(T, g).every(l => l.j === 6));
+    assert.equal(T.jogos.length, 48 + 4 + 2 + 1);
+  }
+  assert.ok(s.cont.sup.jogo?.campeao != null);
+  assert.ok(s.fin.extrato.some(e => e.desc.includes('Libertadores: cota da fase de grupos')));
+  const tabA = tabela(base, s, 'A').map(l => l.clube), copaCamp = s.copa.campeao;
+  virarTemporada(base, s);
+  const libBR = s.cont.LIB.grupos.flat().filter(c => base.clubes[c].div !== 'X');
+  const esperado = tabA.filter(c => base.clubes[c].div === 'A' || c === copaCamp).slice(0, 6);
+  if (!esperado.includes(copaCamp)) esperado[5] = copaCamp;
+  assert.deepEqual(libBR.slice().sort(), esperado.slice().sort());
+  assert.equal(s.cont.sup.h, tabA[0]);
+});

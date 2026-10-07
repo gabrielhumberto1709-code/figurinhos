@@ -24,6 +24,8 @@ export function jogador(r) {
 
 export const POS_NOME = { GOL: 'Goleiro', ZAG: 'Zagueiro', LD: 'Lateral-direito', LE: 'Lateral-esquerdo', VOL: 'Volante', MC: 'Meio-campo', MEI: 'Meia', ME: 'Meia-esquerda', MD: 'Meia-direita', PE: 'Ponta-esquerda', PD: 'Ponta-direita', CA: 'Centroavante', SA: 'Segundo atacante' };
 export const SETOR = { GOL: 'GOL', ZAG: 'DEF', LD: 'DEF', LE: 'DEF', VOL: 'MEI', MC: 'MEI', MEI: 'MEI', ME: 'MEI', MD: 'MEI', PE: 'ATA', PD: 'ATA', CA: 'ATA', SA: 'ATA' };
+// desvio de cada atributo (vel, fin, pas, dri, def, fis) em relação ao overall, por posição (garotos gerados)
+export const PERFIL = { GOL: [-10, -40, -12, -25, 4, 0], ZAG: [-4, -22, -6, -10, 5, 4], LD: [5, -14, 0, -2, 1, 0], LE: [5, -14, 0, -2, 1, 0], VOL: [-3, -10, 2, -4, 4, 3], MC: [-1, -4, 5, 2, -2, 0], MEI: [1, 2, 5, 5, -14, -4], PE: [6, 2, 0, 6, -18, -3], PD: [6, 2, 0, 6, -18, -3], CA: [1, 6, -4, 1, -22, 4] };
 export const POS_ORDEM = ['GOL', 'ZAG', 'LD', 'LE', 'VOL', 'MC', 'MEI', 'ME', 'MD', 'PE', 'PD', 'SA', 'CA'];
 
 // cartas por overall

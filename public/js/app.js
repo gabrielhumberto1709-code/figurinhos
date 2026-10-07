@@ -1,6 +1,6 @@
 // Interface do Figurinhos: telas, navegação por hash e saves na nuvem.
-import { Base, novoJogo, iniciarRodada, concluirRodada, iniciarCopa, concluirCopa, proximoEvento, copaSemVoce, tabela, rodadasDe, escalacao, paraSalvar, resumo, REPUTACOES, DIFICULDADES, dataRodada, janelaAberta, caixaInicial, aplicarSave, compProxima } from './motor/mundo.js';
-import { LESOES, COMP_NOME, indisponivel, pendurado } from './motor/dm.js';
+import { Base, novoJogo, iniciarRodada, concluirRodada, iniciarCopa, concluirCopa, iniciarCont, concluirCont, iniciarSup, concluirSup, proximoEvento, copaSemVoce, tabela, rodadasDe, escalacao, paraSalvar, resumo, REPUTACOES, DIFICULDADES, dataRodada, janelaAberta, caixaInicial, aplicarSave, compProxima } from './motor/mundo.js';
+import { LESOES, COMP_DE, indisponivel, pendurado } from './motor/dm.js';
 import { garantirCarreira, pilares, aceitarOferta, recusarOferta, pedirDemissao } from './motor/carreira.js';
 import { virarTemporada, fimDeTemporada } from './motor/temporada.js';
 import { campanha } from './motor/copa.js';
@@ -271,11 +271,11 @@ telas.clube = () => {
     ${s.demitido ? demitidoHtml() : fim ? `<section class="cartao escuro fim-temporada"><h2>Fim da temporada ${s.ano}</h2><p>${esc(c.n)} terminou em <b>${pos + 1}º</b> na Série ${d}${pos < 4 && d !== 'A' ? ' e <b>subiu</b>' : pos >= 16 && d !== 'C' ? ' e <b>caiu</b>' : ''}. Campeão: <b>${esc(clube(tab[0].clube).n)}</b>.${s.copa?.campeao != null ? ` Copa do Brasil: <b>${esc(clube(s.copa.campeao).n)}</b>.` : ''}</p>
       ${acabando.length ? `<p style="color:var(--placar)">Saem por fim de contrato: ${acabando.map(j => esc(j.curto)).join(', ')}. Ainda dá para renovar na ficha de cada um.</p>` : ''}
       <button class="botao grande" type="button" data-acao="virar">Começar a temporada ${s.ano + 1}</button></section>`
-    : `<section class="ingresso ${ev.tipo === 'copa' ? 'copa' : ''}" style="--cc:${c.c[0]};--cc2:${c.c[1] || '#fff'}">
+    : `<section class="ingresso ${ev.tipo !== 'liga' ? 'copa' : ''}" style="--cc:${c.c[0]};--cc2:${c.c[1] || '#fff'}">
       <div class="ingresso-data"><span class="dia">${String(dt.getUTCDate()).padStart(2, '0')}</span><span class="mes">${MESES[dt.getUTCMonth()]}</span><span class="sem">${SEMANA[dt.getUTCDay()]}</span><span class="ano">${dt.getUTCFullYear()}</span></div>
-      <div class="ingresso-corpo"><span class="ingresso-tag">${esc(ev.titulo)} · ${jogo[0] === ci ? 'em casa' : 'fora'}</span>
+      <div class="ingresso-corpo"><span class="ingresso-tag">${esc(ev.titulo)} · ${ev.neutro ? 'campo neutro' : jogo[0] === ci ? 'em casa' : 'fora'}</span>
         <div class="ingresso-jogo">${lado(jogo[0])}<span class="x">×</span>${lado(jogo[1])}</div>
-        <span class="ingresso-local">${esc(clube(jogo[0]).est[0])}</span>
+        <span class="ingresso-local">${ev.neutro ? 'Estádio neutro' : esc(clube(jogo[0]).est[0])}</span>
         <button class="botao grande" data-acao="jogar" type="button">Jogar</button></div></section>`}
     ${s.demitido ? '' : desfalques(ci, fim)}${ofertasHtml()}
     ${acabando.length && !fim ? `<a class="cartao aviso-contratos" href="#/elenco"><b>${acabando.length} ${acabando.length > 1 ? 'contratos acabam' : 'contrato acaba'} no fim da temporada</b><span>${acabando.slice(0, 5).map(j => esc(j.curto)).join(', ')}${acabando.length > 5 ? '…' : ''}. Quem não renovar sai de graça, e outro clube pode assinar pré-contrato.</span></a>` : ''}
@@ -365,10 +365,10 @@ telas.carreira = () => {
 telas.elenco = () => Elenco.tela();
 
 function dmFicha(j) {
-  const s = app.s, l = s.dm?.[j.id], sp = s.susp?.[j.id], p = ['L', 'CB'].filter(c => pendurado(s, j.id, c));
+  const s = app.s, l = s.dm?.[j.id], sp = s.susp?.[j.id], p = Object.keys(s.amar?.[j.id] || {}).filter(c => pendurado(s, j.id, c));
   return [l && `✚ ${esc(LESOES[l.k]?.n || 'Lesão')}: ${l.inf ? 'vai jogar infiltrado' : `fora dos próximos ${l.n} jogo${l.n > 1 ? 's' : ''}`}.`,
-    sp && `Suspenso: ${Object.entries(sp).map(([c, n]) => `${n} jogo${n > 1 ? 's' : ''} ${c === 'CB' ? 'da Copa do Brasil' : 'do campeonato'}`).join(' e ')}.`,
-    p.length && `Pendurado (2 amarelos) no ${p.map(c => COMP_NOME[c]).join(' e na ')}.`].filter(Boolean).map(t => `<p class="aviso-ficha">${t}</p>`).join('');
+    sp && `Suspenso: ${Object.entries(sp).map(([c, n]) => `${n} jogo${n > 1 ? 's' : ''} ${COMP_DE[c]}`).join(' e ')}.`,
+    p.length && `Pendurado (2 amarelos) ${p.map(c => COMP_DE[c].replace(/^d/, 'n')).join(' e ')}.`].filter(Boolean).map(t => `<p class="aviso-ficha">${t}</p>`).join('');
 }
 function abrirFicha(id) {
   const j = app.base.jog.get(+id); if (!j) return;
@@ -442,7 +442,7 @@ telas['ao-vivo'] = () => AoVivo.tela(app.vivo);
 function concluirAoVivo() {
   const V = app.vivo; if (!V) return;
   if (!V.fim) AoVivo.pular(V);
-  (V.R.copa ? concluirCopa : concluirRodada)(app.base, app.s, V.R, AoVivo.resultadoFinal(V));
+  (V.R.copa ? concluirCopa : V.R.cont ? concluirCont : V.R.sup ? concluirSup : concluirRodada)(app.base, app.s, V.R, AoVivo.resultadoFinal(V));
   app.vivo = null;
   salvar();
 }
@@ -470,7 +470,7 @@ async function render() {
     main.innerHTML = `<section class="cartao"><h2>Ops</h2><p>${esc(e.message)}</p><button class="botao" type="button" data-acao="recarregar">Tentar de novo</button></section>`;
   }
   desenhaTopo();
-  $('.aba-sub[aria-selected=true]')?.scrollIntoView({ inline: 'nearest', block: 'nearest' }); // aba escolhida sempre visível no celular
+  $('.aba-sub[aria-selected=true], .abas-mercado [aria-pressed=true]')?.scrollIntoView({ inline: 'nearest', block: 'nearest' }); // aba escolhida sempre visível no celular
   if (rota === 'ao-vivo') AoVivo.comecar(app.vivo);
   if (render.anterior !== rota) { window.scrollTo(0, 0); main.focus({ preventScroll: true }); }
   render.anterior = rota;
@@ -529,7 +529,8 @@ const acoes = {
 
   jogar: el => {
     el.disabled = true;
-    const R = proximoEvento(app.base, app.s)?.tipo === 'copa' ? iniciarCopa(app.base, app.s) : iniciarRodada(app.base, app.s);
+    const ev = proximoEvento(app.base, app.s), b = app.base, s = app.s;
+    const R = ev?.tipo === 'copa' ? iniciarCopa(b, s) : ev?.tipo === 'cont' ? iniciarCont(b, s, ev.k) : ev?.tipo === 'sup' ? iniciarSup(b, s) : iniciarRodada(b, s);
     if (!R) return;
     if (!R.meu) { concluirRodada(app.base, app.s, R, null); salvar(); return render(); }
     app.vivo = AoVivo.novaPartidaAoVivo(R);
