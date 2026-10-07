@@ -11,6 +11,8 @@ import * as Mercado from './mercado.js';
 import * as AoVivo from './aovivo.js';
 import * as Elenco from './elenco.js';
 import * as Jornal from './jornal.js';
+import * as Coletiva from './coletiva.js';
+import { perfil } from './motor/imprensa.js';
 import { POS_NOME, ATT, ATT_NOME, cartaDe, estrelas, fmtDinheiro } from './motor/util.js';
 import { urlRosto, urlEscudo, urlBandeira, urlBotao } from './pixel.js';
 
@@ -235,7 +237,7 @@ const MESES = ['JAN', 'FEV', 'MAR', 'ABR', 'MAI', 'JUN', 'JUL', 'AGO', 'SET', 'O
 const ATALHOS = [
   ['tatica', 'Tática', '#/elenco', 'var(--gramado)'], ['calendario', 'Agenda', '#/calendario', 'var(--carimbo)'], ['apito', 'Último jogo', '#/partida', 'var(--placar)'],
   ['moeda', 'Finanças', '#/financas', '#C9A227'], ['pessoa', 'Carreira', '#/carreira', 'var(--cartao)'],
-  ['halter', 'Treino', '#/treino', '#E07B39'], ['broto', 'Base', '#/base', 'var(--gramado)'], ['cruz', 'DM', '#/dm', 'var(--cartao)'], ['micro', 'Coletiva', null, 'var(--carimbo)'], ['camisa', 'Uniforme', null, '#2BA8A0'],
+  ['halter', 'Treino', '#/treino', '#E07B39'], ['broto', 'Base', '#/base', 'var(--gramado)'], ['cruz', 'DM', '#/dm', 'var(--cartao)'], ['micro', 'Coletiva', '#/coletiva', 'var(--carimbo)'], ['camisa', 'Uniforme', null, '#2BA8A0'],
 ];
 
 // ----- vida de técnico -----
@@ -281,7 +283,8 @@ telas.clube = () => {
     ${acabando.length && !fim ? `<a class="cartao aviso-contratos" href="#/elenco"><b>${acabando.length} ${acabando.length > 1 ? 'contratos acabam' : 'contrato acaba'} no fim da temporada</b><span>${acabando.slice(0, 5).map(j => esc(j.curto)).join(', ')}${acabando.length > 5 ? '…' : ''}. Quem não renovar sai de graça, e outro clube pode assinar pré-contrato.</span></a>` : ''}
     <nav class="atalhos" aria-label="Atalhos do clube">${ATALHOS.map(([ic, t, href, cor]) => {
       const off = !href || (href === '#/partida' && !s.ultima);
-      return href && !off ? `<a class="atalho" href="${href}" style="--ac:${cor}"><svg viewBox="0 0 24 24" aria-hidden="true">${ICONES[ic]}</svg><span>${t}</span></a>`
+      const ponto = ic === 'micro' && !s.demitido && Coletiva.pendente(s) ? '<i class="ponto" aria-label="coletiva aberta"></i>' : '';
+      return href && !off ? `<a class="atalho" href="${href}" style="--ac:${cor}"><svg viewBox="0 0 24 24" aria-hidden="true">${ICONES[ic]}</svg><span>${t}</span>${ponto}</a>`
         : `<button class="atalho off" type="button" data-acao="em-breve" data-t="${t}" style="--ac:${cor}" aria-disabled="true"><svg viewBox="0 0 24 24" aria-hidden="true">${ICONES[ic]}</svg><span>${t}</span>${href ? '' : '<small>em breve</small>'}</button>`;
     }).join('')}</nav>
     <div class="grade-clube">
@@ -341,6 +344,7 @@ function cargoHtml() {
   const hist = (s.historico || []).map(h => `<li>${h.ano} · ${imgEscudo(h.clube, 18, 20)} ${esc(clube(h.clube).n)} · Série ${h.div}: <b>${h.pos}º</b> · meta ${esc(h.meta)} ${h.bateuMeta ? '✔' : '✘'}</li>`).join('');
   return `<section class="cartao"><h3>Sustentação no cargo</h3>${barra('Diretoria', P.D)}${barra('Torcida', P.T)}${barra('Grupo', P.G)}
       <p style="margin-top:8px"><b>Nota do cargo: ${P.I}</b> · ${status}</p>
+      <p><b>Perfil nas coletivas:</b> ${esc(perfil(s).nome)} <span class="mudo">· ${esc(perfil(s).desc)}</span></p>
       <p class="mudo" style="font-size:.95rem">Meta: ${esc(meta.txt)}. A nota é 60% diretoria e 40% torcida. Abaixo de 55 o cargo balança; abaixo de 40 (ou com o grupo abaixo de 20) vem o ultimato: pontos em 3 jogos do campeonato. Se o grupo estiver em 70 ou mais, os jogadores pedem uma segunda chance. Dentro da meta (ou a até 3 pontos dela) e nas 8 primeiras rodadas no clube, ninguém mexe com você. Título de copa derruba o ultimato.</p></section>
     <section class="cartao"><h3>Clubes</h3><ul class="lista-carreira">${(s.carreira || []).map(c => `<li>${imgEscudo(c.clube, 18, 20)} <b>${esc(clube(c.clube).n)}</b> · desde ${c.ano}${c.rodada ? ` (${c.rodada + 1}ª rodada)` : ''}${c.ateAno ? ` até ${c.ateAno} · ${c.saida}` : ' · atual'}</li>`).join('')}</ul>
       ${hist ? `<h3 style="margin-top:12px">Temporadas</h3><ul class="lista-carreira">${hist}</ul>` : ''}</section>
@@ -424,6 +428,7 @@ telas.partida = () => {
 
 // ----- jornal da bola -----
 telas.noticias = () => Jornal.tela();
+telas.coletiva = () => Coletiva.tela();
 
 // saves antigos ganham os campos novos; a base recebe as transferências deste save
 function migrar(s) {
@@ -454,8 +459,8 @@ async function render() {
   if (rota === 'ao-vivo' && !app.vivo) { location.hash = app.s ? '#/clube' : '#/saves'; return; }
   if (rota === 'tabela') { location.hash = '#/torneios'; return; }
   if (rota === 'base' || rota === 'treino' || rota === 'dm') { app.abaElenco = rota; location.hash = '#/elenco'; return; }
-  if (app.s?.demitido && ['elenco', 'mercado', 'financas', 'partida', 'calendario'].includes(rota)) { location.hash = '#/clube'; return; } // sem clube: só propostas, tabelas e notícias
-  const precisaJogo = ['clube', 'elenco', 'torneios', 'calendario', 'partida', 'noticias', 'mercado', 'financas', 'carreira'].includes(rota);
+  if (app.s?.demitido && ['elenco', 'mercado', 'financas', 'partida', 'calendario', 'coletiva'].includes(rota)) { location.hash = '#/clube'; return; } // sem clube: só propostas, tabelas e notícias
+  const precisaJogo = ['clube', 'elenco', 'torneios', 'calendario', 'partida', 'noticias', 'mercado', 'financas', 'carreira', 'coletiva'].includes(rota);
   if (!app.conta && rota !== 'entrar') { location.hash = '#/entrar'; return; }
   if (precisaJogo && !app.s) { location.hash = '#/saves'; return; }
   if (rota === 'novo' && !app.novo) { location.hash = '#/saves'; return; }
@@ -545,6 +550,7 @@ const acoes = {
   ...Mercado.acoes,
   ...Elenco.acoes,
   ...Jornal.acoes,
+  ...Coletiva.acoes,
   tema: () => {
     const novo = escuro() ? 'claro' : 'escuro';
     document.documentElement.dataset.tema = novo;
@@ -610,6 +616,7 @@ document.addEventListener('submit', async e => {
 
 AoVivo.configurar({ app, clube, esc, imgEscudo, $ });
 Torneios.configurar({ app, clube, esc, imgEscudo, render: () => render() });
+Coletiva.configurar({ app, clube, esc, render: () => render(), salvar: () => salvar() });
 Jornal.configurar({ app, clube, esc, imgEscudo, render: () => render() });
 Mercado.configurar({ app, clube, esc, imgEscudo, $, aviso, render: () => render(), salvar: () => salvar() });
 Elenco.configurar({ app, clube, esc, imgEscudo, figurinha, render: () => render(), salvar: () => salvar(), aviso });

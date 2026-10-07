@@ -620,3 +620,16 @@ b.pos { color: var(--gramado); } b.neg { color: var(--cartao); }
 /* copas continentais */
 .grupos-cont { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 12px; }
 .grupos-cont h3 { margin-bottom: 6px; }
+
+/* coletiva */
+.atalho { position: relative; } .atalho .ponto { position: absolute; top: 6px; right: 6px; width: 12px; height: 12px; border-radius: 50%; background: var(--cartao); border: 2px solid var(--linha); }
+.col-txt { font-size: 1.25rem; text-transform: none; margin: 6px 0 10px; line-height: 1.25; }
+.col-respostas { display: flex; flex-direction: column; gap: 8px; }
+.col-resp { display: grid; gap: 4px; text-align: left; padding: 10px 12px; border: 2px solid var(--linha); border-radius: var(--raio); background: var(--campo-bg); color: var(--texto); box-shadow: 3px 3px 0 var(--linha); cursor: pointer; font: inherit; }
+.col-resp:active { transform: translate(2px, 2px); box-shadow: 1px 1px 0 var(--linha); }
+.col-tom { font-family: var(--f-pixel); font-size: .72rem; text-transform: uppercase; color: var(--texto-2); }
+.col-frase { font-weight: 600; }
+.col-ef { display: flex; gap: 10px; flex-wrap: wrap; font-size: .85rem; font-weight: 700; }
+.col-ef .sobe { color: var(--gramado); } .col-ef .desce { color: var(--cartao); }
+.col-log { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
+.col-q { color: var(--texto-2); font-size: .95rem; } .col-r { font-weight: 700; }

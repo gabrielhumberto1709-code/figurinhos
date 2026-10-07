@@ -385,3 +385,27 @@ test('continentais: grupos completos, mata-mata até o campeão, prêmios e vaga
   assert.deepEqual(libBR.slice().sort(), esperado.slice().sort());
   assert.equal(s.cont.sup.h, tabA[0]);
 });
+
+import { abrirColetiva, responder, efeito, TONS, perfil } from '../public/js/motor/imprensa.js';
+test('coletiva: 3 perguntas do jogo, respostas mexem nas plateias e viram notícia; nova coletiva a cada jogo', () => {
+  const s = novoJogo(base, cfg(41)), ci = s.tecnico.clube;
+  assert.equal(abrirColetiva(base, s), null);
+  ate(s, 3);
+  const C = abrirColetiva(base, s);
+  assert.equal(C.perguntas.length, 3);
+  assert.equal(new Set(C.perguntas.map(p => p.tema)).size, 3);
+  for (const p of C.perguntas) { assert.ok(p.respostas.length >= 3 && p.texto.length > 5 && !p.texto.includes('{')); assert.ok(p.respostas.every(r => TONS[r.tom] && !r.texto.includes('{'))); }
+  assert.equal(abrirColetiva(base, s), C, 'mesma coletiva até o próximo jogo');
+  const d0 = s.fin.diretoria, t0 = s.torcida, n0 = s.noticias.length;
+  const tom = C.perguntas[0].respostas.find(r => TONS[r.tom].sobe === 'D' || TONS[r.tom].desce === 'D')?.tom || C.perguntas[0].respostas[0].tom, e = efeito(s, tom);
+  responder(base, s, 0, tom);
+  assert.equal(s.fin.diretoria, Math.max(0, Math.min(100, d0 + (e.D || 0))));
+  assert.equal(s.torcida, Math.max(0, Math.min(100, t0 + (e.T || 0))));
+  assert.ok(s.noticias.length > n0 && s.noticias[0].imprensa);
+  assert.equal(responder(base, s, 0, tom), null, 'não responde duas vezes');
+  responder(base, s, 1, C.perguntas[1].respostas[0].tom); responder(base, s, 2, C.perguntas[2].respostas[0].tom);
+  assert.ok(C.feita && Object.values(s.tons).reduce((a, b) => a + b, 0) === 3);
+  assert.equal(perfil(s).nome, 'Em formação');
+  rodada(s);
+  assert.notEqual(abrirColetiva(base, s), C);
+});
