@@ -122,12 +122,13 @@ function chute(cp, l, tipo, prox) {
     () => {
       if (autor) cp.forca.delete(autor.id);
       const gy = tipo === 'fora' ? 50 + (Math.random() < 0.5 ? -1 : 1) * (8 + Math.random() * 7) : 50 + (Math.random() - 0.5) * 8;
-      const gx = tipo === 'defesa' ? linha - lado(t) * 2.5 : linha + lado(t) * 2;
+      const gx = tipo === 'defesa' ? linha - lado(t) * 2.5 : linha + lado(t) * 2; // 'anulado' entra no gol como um gol
       // o goleiro voa: na defesa ele chega, no gol ele erra o canto
       if (gk) cp.forca.set(gk.id, { x: linha - lado(t) * 2.5, y: tipo === 'defesa' ? gy : gy + (gy > 50 ? -4 : 4), mult: 2.4 });
       voar(cp, gx, gy, { chute: true, fim: () => {
         if (gk) cp.forca.delete(gk.id);
-        if (tipo === 'gol') {
+        if (tipo === 'anulado') { cp.posse = o; seq(cp, () => { cp.espera = 0.6; }, () => { if (gk) voar(cp, gk.x, gk.y, { rec: gk.id, rapido: 1.4, fim: () => { cp.espera = 0.3; } }); }); }
+        else if (tipo === 'gol') {
           cp.flash = { x: linha, ate: cp.clock + 1.3 }; cp.posse = o;
           // o autor corre comemorar na bandeirinha
           if (autor) cp.forca.set(autor.id, { x: linha - lado(t) * 3, y: autor.y < 50 ? 4 : 96, mult: 1.3 });
@@ -150,6 +151,8 @@ export function lance(cp, P, l, prox) {
   const b = cp.bola, s = l.j != null ? cp.sp.get(l.j) : null;
   switch (l.tipo) {
     case 'gol': case 'defesa': case 'fora': return chute(cp, l, l.tipo, prox);
+    case 'golAnulado': return chute(cp, l, 'anulado', prox);
+    case 'var': marca(cp, { tipo: 'var', x: 50, y: 50, dur: 1.6 }); cp.espera = 1.3; return;
     case 'escanteio': {
       const x = l.t === 0 ? 99.6 : 0.4, y = b.y < 50 ? 0.6 : 99.4;
       const quem = [...cp.sp.values()].filter(q => q.t === l.t && !q.gk && !q.sai).sort((a, c) => dist(a, { x, y }) - dist(c, { x, y }))[0];
@@ -264,6 +267,8 @@ export function desenhar(cv, cp, cores) {
       const x = fx(m.x), y = fy(0);
       ctx.strokeStyle = '#1B1F2A'; ctx.lineWidth = Math.max(1, r * 0.15); ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x, y - my * 0.9 + 1); ctx.stroke();
       ctx.fillStyle = Math.sin(cp.clock * 20) > 0 ? '#F2C230' : '#D7263D'; ctx.fillRect(x, y - my * 0.9 + 1, r * 0.9, my * 0.5);
+    } else if (m.tipo === 'var') {
+      etiqueta(ctx, '📺 VAR', fx(50), fy(50), Math.round(14 * dpr), fonte.corpo, W, '#1B1F2A', '#F2B33D');
     } else if (m.tipo === 'apito') {
       ctx.globalAlpha = Math.min(1, (m.ate - cp.clock) * 2);
       etiqueta(ctx, 'PRIII!', fx(m.x), fy(m.y) - r * 2.4, Math.round(11 * dpr), fonte.corpo, W, '#F2B33D', '#1B1F2A');

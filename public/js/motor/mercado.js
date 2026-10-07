@@ -149,7 +149,7 @@ export function fazerProposta(base, s, j, o) {
   const oferta = { tipo: o.tipo || 'compra', valor: o.tipo === 'compra' ? arred(o.valor) : 0, salario: arredSal(o.salario), anos: o.tipo === 'emprestimo' ? 1 : Math.round(o.anos || 3) };
   const erro = bloqueioProposta(base, s, j, oferta);
   if (erro) return erro;
-  s.propostas.unshift({ id: `${j.id}-${s.rodada}`, jogador: j.id, de: j.clube, ...oferta, rodada: s.rodada, estado: 'aguardando' });
+  s.propostas.unshift({ id: `${j.id}-${s.rodada}`, jogador: j.id, de: j.clube, ...oferta, rodada: s.rodada, estado: 'aguardando', pedido: precoPedido(base, s, j) });
   return null;
 }
 
@@ -353,7 +353,7 @@ export function resolverMercado(base, s, rd) {
     if (preContratoDe(s, j.id)) { p.estado = 'cancelada'; p.motivo = 'assinou pré-contrato com outro clube'; continue; }
     if (tipo !== 'livre' && !p.clubeOk && rivais(base, j.clube, meu) && r() < 0.9) { falha('o clube não negocia com o rival', `O ${nome(j.clube)} nem abre conversa: não negocia ${j.curto} com o rival.`); continue; }
     if (tipo === 'compra' && !p.clubeOk && !p.aceitouContra) {
-      const pedido = precoPedido(base, s, j);
+      const pedido = Math.min(precoPedido(base, s, j), p.pedido || Infinity); // o clube honra o preço que pediu na hora da proposta
       if (p.valor < pedido) {
         if (p.valor >= pedido * 0.85) { p.estado = 'contraproposta'; p.contra = pedido; add(`O ${nome(j.clube)} pede ${fmt(pedido)} por ${j.curto}.`); }
         else falha('o clube achou pouco', `O ${nome(j.clube)} recusa a proposta por ${j.curto}.`);

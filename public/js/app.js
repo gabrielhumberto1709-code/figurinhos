@@ -1,5 +1,5 @@
 // Interface do Figurinhos: telas, navegação por hash e saves na nuvem.
-import { Base, novoJogo, iniciarRodada, concluirRodada, iniciarCopa, concluirCopa, iniciarCont, concluirCont, iniciarSup, concluirSup, proximoEvento, copaSemVoce, tabela, rodadasDe, escalacao, paraSalvar, resumo, REPUTACOES, DIFICULDADES, dataRodada, janelaAberta, caixaInicial, aplicarSave, compProxima, longevo } from './motor/mundo.js';
+import { Base, novoJogo, iniciarRodada, concluirRodada, iniciarCopa, concluirCopa, iniciarCont, concluirCont, iniciarSup, concluirSup, proximoEvento, copaSemVoce, tabela, rodadasDe, escalacao, paraSalvar, resumo, REPUTACOES, DIFICULDADES, dataRodada, janelaAberta, caixaInicial, aplicarSave, compProxima, longevo, previa } from './motor/mundo.js';
 import { LESOES, COMP_DE, indisponivel, pendurado } from './motor/dm.js';
 import { garantirCarreira, pilares, aceitarOferta, recusarOferta, pedirDemissao } from './motor/carreira.js';
 import { virarTemporada, fimDeTemporada } from './motor/temporada.js';
@@ -300,6 +300,7 @@ telas.clube = () => {
       <div class="ingresso-corpo"><span class="ingresso-tag">${esc(ev.titulo)} · ${ev.neutro ? 'campo neutro' : jogo[0] === ci ? 'em casa' : 'fora'}</span>
         <div class="ingresso-jogo">${lado(jogo[0])}<span class="x">×</span>${lado(jogo[1])}</div>
         <span class="ingresso-local">${ev.neutro ? 'Estádio neutro' : esc(clube(jogo[0]).est[0])}</span>
+        ${(p => `<span class="previa" title="Chance pelo que os elencos rendem hoje"><b>V ${p.vitoria}%</b><b>E ${p.empate}%</b><b>D ${p.derrota}%</b></span>`)(previa(app.base, s, ev))}
         <button class="botao grande" data-acao="jogar" type="button">Jogar</button></div></section>`}
     ${s.demitido ? '' : desfalques(ci, fim)}${ofertasHtml()}${recados()}
     ${acabando.length && !fim ? `<a class="cartao aviso-contratos" href="#/elenco"><b>${acabando.length} ${acabando.length > 1 ? 'contratos acabam' : 'contrato acaba'} no fim da temporada</b><span>${acabando.slice(0, 5).map(j => esc(j.curto)).join(', ')}${acabando.length > 5 ? '…' : ''}. Quem não renovar sai de graça, e outro clube pode assinar pré-contrato.</span></a>` : ''}

@@ -126,7 +126,8 @@ export function criarPartida(casa, fora, seed, opts = {}) {
     notas: [new Map(), new Map()], expulsos: [new Set(), new Set()], entrada: {}, subs: [0, 0], verm: [0, 0], disparou: [{}, {}],
     cond: { ...(opts.cond || {}) }, mor: opts.mor || {}, auto: opts.auto || [true, true],
     r: rng('jogo' + seed), rn: rng('narra' + seed), ri: rng('ia' + seed), rl: rng('les' + seed), fragil: opts.fragil || (() => 1), fase: opts.fase || null,
-    mando: opts.neutro ? 1 : 1.08, narrar: !!opts.narrar, humano: opts.humano ?? -1, bola: null,
+    mando: opts.neutro ? 1 : (opts.mando ?? 1.08), narrar: !!opts.narrar, humano: opts.humano ?? -1, bola: null,
+    arbitro: opts.arbitro || null, rigor: opts.arbitro ? 0.7 + (opts.arbitro.rigor - 1) * 0.15 : 1, rv: rng('var' + seed),
   };
   P.fim = 90 + Math.floor(P.r() * 5);
   P.emCampo = t => P.times[t].xi.filter(j => j && !P.expulsos[t].has(j.id));
@@ -192,7 +193,7 @@ export function passo(P) {
   const compensa = t === 0 ? base0 / posse0 : (1 - base0) / (1 - posse0);
   const chance = 0.084 * compensa * Math.exp((F[t].ata - F[o].def) / 50) * (1 - 0.12 * menos) * F[t].st.xgF * F[o].st.xgA / F[t].st.q;
   const gk = () => P.emCampo(o).find(j => P.slotDe(o, j) === 'GOL');
-  if (r() < 0.003) penalti(P, t, o, N);
+  if (r() < 0.003 * (0.85 + 0.15 * P.rigor)) penalti(P, t, o, N);
   else if (r() < chance) {
     const atacantes = P.emCampo(t);
     const quem = pickW(r, atacantes, j => { const s = SETOR[P.slotDe(t, j)]; return (s === 'ATA' ? 5 : s === 'MEI' ? 2.2 : s === 'DEF' ? 0.5 : 0) * (j.att.fin / 60) ** 2; });
@@ -204,7 +205,13 @@ export function passo(P) {
     if (noAlvo) P.st[t].noAlvo++;
     const goleiro = gk();
     if (N) { const ult = N.jogada(t, 0.62 + P.rn() * 0.2, 2 + Math.floor(P.rn() * 3)); if (ult !== quem) N.lance(t, pickTxt(P.rn, [`${NOME(ult)} serve ${NOME(quem)} na área`, `${NOME(ult)} cruza para ${NOME(quem)}`, `${NOME(ult)} enfia para ${NOME(quem)}`]), 0.84, quem); }
-    if (noAlvo && r() < golProb / (0.38 + xg * 0.6)) {
+    if (noAlvo && r() < golProb / (0.38 + xg * 0.6) && P.rv() < 0.05) {
+      // VAR: a bola entrou, mas o gol não vale
+      const motivo = pickTxt(P.rv, ['impedimento', 'falta no início da jogada', 'toque de mão']);
+      P.ev.push({ min, tipo: 'var', time: t, jogador: quem.id, anulado: true, motivo });
+      if (N) { N.lance(t, `${NOME(quem)} manda pra rede...`, 1, quem, 'golAnulado'); N.lance(t, `VAR chama o árbitro: gol anulado por ${motivo}`, 0.5, null, 'var'); }
+      P.bola = null;
+    } else if (noAlvo && r() < golProb / (0.38 + xg * 0.6)) {
       P.gols[t]++;
       const garcom = r() < 0.72 ? pickW(r, atacantes.filter(j => j !== quem && P.slotDe(t, j) !== 'GOL'), j => j.att.pas ** 2) : null;
       P.ev.push({ min, tipo: 'gol', time: t, jogador: quem.id, assist: garcom && garcom.id, placar: P.gols.slice() });
@@ -230,11 +237,13 @@ export function passo(P) {
   if (r() < 0.16 * F[o].st.faltas) {
     const f = o; P.st[f].faltas++;
     const autor = pickW(r, P.emCampo(f), j => P.slotDe(f, j) === 'GOL' ? 0.05 : (100 - j.att.def + 40) / 100);
-    const cartao = r() < 0.13;
+    const cartao = r() < 0.13 * P.rigor;
     if (N) N.lance(f, `Falta de ${NOME(autor)}`, 0.5 + (P.rn() - 0.5) * 0.4, autor, 'falta');
     if (cartao) {
       const jaTem = P.ev.some(e => e.tipo === 'amarelo' && e.jogador === autor.id);
-      if (jaTem || r() < 0.025) {
+      const direto = !jaTem && r() < 0.025 * P.rigor, revisto = direto && P.rv() < 0.15; // VAR transforma vermelho em amarelo
+      if (revisto && N) N.lance(f, `VAR revisa a entrada de ${NOME(autor)}: o vermelho vira amarelo`, 0.5, autor, 'var');
+      if (jaTem || (direto && !revisto)) {
         P.st[f].vermelhos++; P.expulsos[f].add(autor.id); P.verm[f]++;
         P.ev.push({ min, tipo: 'vermelho', time: f, jogador: autor.id, segundo: jaTem });
         nota(P, f, autor, -1.6);
@@ -271,6 +280,11 @@ function penalti(P, t, o, N) {
   const defensores = P.emCampo(o).filter(j => SETOR[P.slotDe(o, j)] === 'DEF');
   const autor = defensores.length ? defensores[Math.floor(r() * defensores.length)] : P.emCampo(o)[0];
   const goleiro = P.emCampo(o).find(j => P.slotDe(o, j) === 'GOL');
+  if (P.rv() < 0.06) { // VAR desmarca
+    P.ev.push({ min: P.min, tipo: 'var', time: t, jogador: autor.id, penaltiDesmarcado: true });
+    if (N) { N.lance(o, `Pênalti! ${NOME(autor)} derruba na área`, 0.12, autor, 'falta'); N.lance(t, 'VAR chama o árbitro: pênalti desmarcado', 0.5, null, 'var'); }
+    return;
+  }
   nota(P, o, autor, -0.5); P.st[o].faltas++;
   P.st[t].chutes++; P.st[t].xg += 0.76;
   const x = r(), min = P.min;
@@ -327,6 +341,9 @@ function substituicaoIA(P, t) {
   }
 }
 
+// quem terminou em campo (para a disputa de pênaltis): cobrador escolhido primeiro, depois quem finaliza melhor
+export const campoDe = P => [0, 1].map(t => P.emCampo(t).map(j => ({ id: j.id, curto: j.curto, fin: j.att.fin, ovr: j.ovr, gk: P.slotDe(t, j) === 'GOL' }))
+  .sort((a, b) => (b.id === P.times[t].cobrador) - (a.id === P.times[t].cobrador) || a.gk - b.gk || b.fin - a.fin));
 export function resultado(P) {
   const { gols } = P, st = P.st.map(x => ({ ...x }));
   const res = gols[0] > gols[1] ? [0.35, -0.35] : gols[0] < gols[1] ? [-0.35, 0.35] : [0, 0];
@@ -345,7 +362,7 @@ export function resultado(P) {
   let craque = null, melhor = -1;
   for (const t of [0, 1]) for (const [id, n] of notas[t]) if (n > melhor) { melhor = n; craque = id; }
   const cond = {}; for (const t of [0, 1]) for (const id of notas[t].keys()) cond[id] = Math.round(P.cond[id] ?? 100);
-  return { gols: gols.slice(), eventos: P.ev.slice(), stats: st, notas: notas.map(m => Object.fromEntries(m)), craque, formacoes: P.times.map(t => t.formacao), cond };
+  return { gols: gols.slice(), eventos: P.ev.slice(), stats: st, notas: notas.map(m => Object.fromEntries(m)), craque, formacoes: P.times.map(t => t.formacao), cond, campo: campoDe(P), arbitro: P.arbitro };
 }
 
 export function simular(casa, fora, seed, opts = {}) {

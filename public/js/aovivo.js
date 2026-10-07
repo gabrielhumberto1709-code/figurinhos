@@ -1,13 +1,15 @@
 // Partida ao vivo: campinho com os botões se mexendo, narração, placar, estatísticas e substituições.
-import { criarPartida, passo, acabou, resultado, substituir, trocarEsquema, trocarEstilo, FORMACOES, ESTILOS } from './motor/partida.js';
+import { criarPartida, passo, acabou, resultado, substituir, trocarEsquema, trocarEstilo, campoDe, FORMACOES, ESTILOS } from './motor/partida.js';
 import { penaltis } from './motor/copa.js';
 import * as Campinho from './campinho.js';
+import { SOM, somLigado, alternarSom } from './sons.js';
+import { RIGOR } from './motor/arbitros.js';
 
 let H; // utilidades da interface (app, clube, esc, imgEscudo, $)
 export const configurar = h => { H = h; };
 
-const NOTAVEIS = new Set(['gol', 'defesa', 'fora', 'falta', 'amarelo', 'vermelho', 'lesao', 'sub', 'impedimento', 'escanteio', 'intervalo', 'fim']);
-const ICONE = { gol: '⚽', defesa: '🧤', fora: '↗', falta: '✋', amarelo: '🟨', vermelho: '🟥', lesao: '✚', sub: '⇄', impedimento: '🚩', escanteio: '⛳', intervalo: '⏸', fim: '🏁' };
+const NOTAVEIS = new Set(['gol', 'golAnulado', 'var', 'defesa', 'fora', 'falta', 'amarelo', 'vermelho', 'lesao', 'sub', 'impedimento', 'escanteio', 'intervalo', 'fim']);
+const ICONE = { gol: '⚽', defesa: '🧤', fora: '↗', falta: '✋', amarelo: '🟨', vermelho: '🟥', lesao: '✚', var: '📺', golAnulado: '✖', sub: '⇄', impedimento: '🚩', escanteio: '⛳', intervalo: '⏸', fim: '🏁' };
 
 // cores dos dois times no campo, sem repetir
 function rgb(h) { const n = parseInt(h.slice(1), 16); return [n >> 16, n >> 8 & 255, n & 255]; }
@@ -36,7 +38,9 @@ export function tela(V) {
     <div class="vivo-barra"><span class="tag-comp">${esc(V.R.titulo || `Série ${m.d} · ${V.R.rd + 1}ª rodada`)}</span>
       <div class="chips">${[1, 2, 4].map(v => `<button class="chip" type="button" data-acao="vivo-vel" data-v="${v}" aria-pressed="${V.vel === v}">${v}×</button>`).join('')}
         <button class="chip" type="button" data-acao="vivo-pausa" id="vivo-pausa">${V.pausado ? 'Seguir' : 'Pausar'}</button>
-        <button class="chip" type="button" data-acao="vivo-pular" id="vivo-pular">Pular</button></div></div>
+        <button class="chip" type="button" data-acao="vivo-pular" id="vivo-pular">Pular</button>
+        <button class="chip" type="button" data-acao="vivo-som" aria-pressed="${somLigado()}">Som</button></div></div>
+    ${V.P.arbitro ? `<p class="arbitro">Árbitro: <b>${esc(V.P.arbitro.nome)}</b> · ${RIGOR[V.P.arbitro.rigor]}</p>` : ''}
     <section class="placar vivo-placar" id="vivo-placar">
       <div class="lado">${imgEscudo(m.h, 56, 61)}<span>${esc(clube(m.h).n)}</span></div>
       <div class="meio-placar"><span class="gols" id="vivo-gols">${V.placar[0]}:${V.placar[1]}</span><span class="minuto" id="vivo-min">${V.min}'</span></div>
@@ -50,6 +54,7 @@ export function tela(V) {
     <div class="linha-botoes"><button class="botao sec" type="button" data-acao="vivo-painel" ${V.fim ? 'disabled' : ''}>Mexer no time (${5 - V.P.subs[V.humano]} trocas)</button></div>
     <div id="vivo-painel">${V.painel ? painelHtml(V) : ''}</div>
     <section class="cartao stats" id="vivo-stats">${statsHtml(V)}</section>
+    ${outrosHtml(V) ? `<section class="cartao" id="vivo-outros">${outrosHtml(V)}</section>` : ''}
     <section class="cartao" id="vivo-esc">${escalacoesHtml(V)}</section>
     <section class="cartao"><h3>Lance a lance</h3><ol class="lances-vivo" id="vivo-lances">${V.historico.map(lanceHtml).join('')}</ol></section>
   </div>`;
@@ -59,6 +64,13 @@ function lanceHtml(l) {
   return `<li class="t${l.t} ${l.tipo}"><span class="min">${l.min}'</span><span class="ico" aria-hidden="true">${ICONE[l.tipo] || ''}</span><span>${H.esc(l.txt)}</span></li>`;
 }
 
+// placar dos outros jogos da rodada andando junto com o seu
+function outrosHtml(V) {
+  const { clube, esc } = H, jogos = (V.R.jogos || []).filter(j => j.d == null || j.d === V.R.meu.d).slice(0, 10);
+  if (!jogos.length) return '';
+  const g = j => [0, 1].map(t => j.sim.eventos.filter(e => e.tipo === 'gol' && e.time === t && (V.fim || e.min <= V.min)).length);
+  return `<h3>Outros jogos</h3><ul class="outros-jogos">${jogos.map(j => { const p = g(j); return `<li><span>${esc(clube(j.h).n)}</span><b class="num">${p[0]} × ${p[1]}</b><span>${esc(clube(j.a).n)}</span></li>`; }).join('')}</ul>`;
+}
 function statsHtml(V) {
   const st = V.P.st, tot = (st[0].posse + st[1].posse) || 1;
   const linha = (rot, a, b, fmt = x => x) => { const t = (a + b) || 1; return `<div class="stat"><span class="v">${fmt(a)}</span><div class="barra">${rot}<div><b style="width:${a / t * 100}%;background:var(--b0)"></b><b style="width:${b / t * 100}%;background:var(--b1)"></b></div></div><span class="v">${fmt(b)}</span></div>`; };
@@ -92,10 +104,12 @@ function painelHtml(V) {
 // mata-mata da copa: empate no jogo (ou no agregado da final) vai para os pênaltis, com a mesma semente da súmula
 function fimHtml(V) {
   const g = V.P.gols, eu = V.humano, m = V.R.meu, ag = m.agg || [0, 0];
-  const pen = m.mataMata && g[0] + ag[0] === g[1] + ag[1] ? penaltis(m.seed) : null;
+  const pen = m.mataMata && g[0] + ag[0] === g[1] + ag[1] ? penaltis(m.seed, campoDe(V.P)) : null;
   const res = pen ? (pen[eu] > pen[1 - eu] ? 'Vitória' : 'Derrota') : g[0] === g[1] ? 'Empate' : (g[eu] > g[1 - eu] ? 'Vitória' : 'Derrota');
   const sub = pen ? `<small>Pênaltis: ${pen[0]} a ${pen[1]}</small>` : m.mataMata && (ag[0] || ag[1]) ? `<small>Agregado: ${g[0] + ag[0]} a ${g[1] + ag[1]}</small>` : '';
-  return `<section class="resultado-vivo ${res.toLowerCase()}"><strong>${res}</strong>${sub}<button class="botao" type="button" data-acao="vivo-fim">Continuar</button></section>`;
+  const serie = pen ? `<div class="penaltis">${[0, 1].map(t => `<p><b>${H.esc(H.clube(t ? m.a : m.h).s || '')}</b> ${pen.seq.filter(x => x.t === t).map(x => `<span class="${x.gol ? 'ok' : 'erro'}" title="${H.esc(x.nome)}">${x.gol ? '●' : '✕'} ${H.esc(x.nome)}</span>`).join('')}</p>`).join('')}</div>` : '';
+  const titulo = m.final && res === 'Vitória' ? `<div class="campeao-vivo" role="status"><strong>CAMPEÃO!</strong>${'<i></i>'.repeat(24)}</div>` : '';
+  return `${titulo}<section class="resultado-vivo ${res.toLowerCase()}"><strong>${res}</strong>${sub}<button class="botao" type="button" data-acao="vivo-fim">Continuar</button></section>${serie}`;
 }
 
 // ---------- atualização sem redesenhar a tela ----------
@@ -116,7 +130,9 @@ function mostrar(V, l) {
     $('#vivo-lances').insertAdjacentHTML('afterbegin', lanceHtml(l));
     if (['gol', 'amarelo', 'vermelho', 'lesao', 'sub'].includes(l.tipo)) $('#vivo-esc').innerHTML = escalacoesHtml(V);
   }
-  if (l.min !== V.minStats) { V.minStats = l.min; $('#vivo-stats').innerHTML = statsHtml(V); }
+  if (l.min !== V.minStats) { V.minStats = l.min; $('#vivo-stats').innerHTML = statsHtml(V); const o = $('#vivo-outros'); if (o) o.innerHTML = outrosHtml(V); }
+  if (V.k === 1) SOM.inicio();
+  ({ gol: SOM.gol, defesa: SOM.chance, fora: SOM.chance, golAnulado: SOM.chance, falta: SOM.falta, amarelo: SOM.cartao, vermelho: SOM.cartao, intervalo: SOM.intervalo, fim: SOM.fim }[l.tipo] || (() => { }))();
 }
 
 // o campinho anima sem parar; quando o lance atual termina, entra o próximo
@@ -150,7 +166,7 @@ function encerrar(V) {
   if ($('#vivo-gols')) {
     $('#vivo-gols').textContent = `${V.placar[0]}:${V.placar[1]}`; $('#vivo-min').textContent = 'Fim'; $('#vivo-prog').style.width = '100%';
     const tk = $('#vivo-ticker'); tk.textContent = 'Fim de jogo!'; tk.className = 'ticker fim';
-    $('#vivo-fim').innerHTML = fimHtml(V); $('#vivo-stats').innerHTML = statsHtml(V); $('#vivo-esc').innerHTML = escalacoesHtml(V);
+    $('#vivo-fim').innerHTML = fimHtml(V); $('#vivo-stats').innerHTML = statsHtml(V); $('#vivo-esc').innerHTML = escalacoesHtml(V); const o = $('#vivo-outros'); if (o) o.innerHTML = outrosHtml(V);
     $('[data-acao=vivo-painel]')?.setAttribute('disabled', '');
   }
 }
@@ -167,6 +183,7 @@ export const acoes = {
   'vivo-vel': el => { const V = H.app.vivo; V.vel = +el.dataset.v; try { localStorage.setItem('fig.vel', V.vel); } catch { } for (const b of document.querySelectorAll('[data-acao=vivo-vel]')) b.setAttribute('aria-pressed', b === el); },
   'vivo-pausa': el => { const V = H.app.vivo; V.pausado = !V.pausado; el.textContent = V.pausado ? 'Seguir' : 'Pausar'; },
   'vivo-pular': () => pular(H.app.vivo),
+  'vivo-som': el => el.setAttribute('aria-pressed', alternarSom()),
   'vivo-painel': () => { const V = H.app.vivo; V.painel = !V.painel; V.sel = null; H.$('#vivo-painel').innerHTML = V.painel ? painelHtml(V) : ''; if (V.painel) H.$('#vivo-painel').scrollIntoView({ block: 'nearest' }); },
   'vivo-sai': el => { const V = H.app.vivo; V.sel = +el.dataset.id; H.$('#vivo-painel').innerHTML = painelHtml(V); },
   'vivo-entra': el => {

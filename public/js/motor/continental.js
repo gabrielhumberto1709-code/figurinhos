@@ -116,11 +116,11 @@ export function tabelaGrupo(T, g) {
 const pontosGrupo = (T, c) => { for (let g = 0; g < 4; g++) { const l = tabelaGrupo(T, g).find(x => x.clube === c); if (l) return l.p * 100 + l.sg; } return 0; };
 
 // mata-mata: empate vai para os pênaltis (mesma semente da súmula ao vivo)
-export function decidirCont(T, fase, h, a, gols, seed) {
+export function decidirCont(T, fase, h, a, gols, seed, campo) {
   if (fase < 6) return {};
   if (gols[0] !== gols[1]) return { vencedor: gols[0] > gols[1] ? h : a, perdedor: gols[0] > gols[1] ? a : h };
-  const pen = penaltis(seed);
-  return { vencedor: pen[0] > pen[1] ? h : a, perdedor: pen[0] > pen[1] ? a : h, pen };
+  const pen = penaltis(seed, campo);
+  return { vencedor: pen[0] > pen[1] ? h : a, perdedor: pen[0] > pen[1] ? a : h, pen: [pen[0], pen[1]], seq: pen.seq };
 }
 // fecha a fase: grupos viram quartas (1º de um × 2º do outro); depois os vencedores se cruzam; final define o campeão
 export function avancarCont(T, vencedores) {

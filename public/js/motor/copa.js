@@ -32,11 +32,18 @@ export const naCopa = (s, ci) => !!s.copa && s.copa.fase < FASES.length && s.cop
 // mando do jogo da fase: na volta da final inverte
 export const mandoDe = (fase, [x, y]) => FASES[fase].k === 'f2' ? [y, x] : [x, y];
 
-// disputa de pênaltis: cinco cobranças e depois alternadas
-export function penaltis(seed) {
-  const r = rng('pen' + seed), p = [0, 0];
-  for (let i = 0; i < 5; i++) for (const t of [0, 1]) if (r() < 0.76) p[t]++;
-  while (p[0] === p[1]) { const a = r() < 0.76, b = r() < 0.76; p[0] += a; p[1] += b; }
+// disputa de pênaltis: cinco cobranças e depois alternadas. Com quem estava em campo, cada um bate na sua vez
+// (o cobrador oficial abre) e a chance depende da finalização dele e do goleiro do outro lado.
+export function penaltis(seed, campo) {
+  const r = rng('pen' + seed), p = [0, 0], seq = [];
+  const gk = t => campo?.[t]?.find(j => j.gk)?.ovr ?? 70;
+  const chance = (t, j) => j ? Math.min(0.9, Math.max(0.55, 0.74 + (j.fin - 70) / 250 - (gk(1 - t) - 70) / 300)) : 0.76;
+  const bate = (t, n) => { const l = campo?.[t]; const j = l?.length ? l[n % l.length] : null, gol = r() < chance(t, j); p[t] += gol; seq.push({ t, id: j?.id ?? null, nome: j?.curto ?? '', gol }); };
+  // série de 5 alternadas; para quando um lado não alcança mais o outro
+  const feitas = [0, 0], acabou = () => p[0] > p[1] + (5 - feitas[1]) || p[1] > p[0] + (5 - feitas[0]);
+  for (let i = 0; i < 5 && !acabou(); i++) for (const t of [0, 1]) { if (acabou()) break; bate(t, i); feitas[t]++; }
+  for (let i = 5; p[0] === p[1]; i++) { bate(0, i); bate(1, i); }
+  p.seq = seq;
   return p;
 }
 // gols da ida vistos pelo mando do jogo de volta (para somar o agregado)
@@ -45,12 +52,12 @@ export function agregadoIda(s, h, a) {
   return ida ? [ida.gols[1], ida.gols[0]] : [0, 0];
 }
 // quem passa: jogo único ou agregado da final; empate vai para os pênaltis (mesma semente do jogo)
-export function decidir(s, fase, h, a, gols, seed) {
+export function decidir(s, fase, h, a, gols, seed, campo) {
   if (FASES[fase].k === 'f1') return { vencedor: null };
   const ag = FASES[fase].k === 'f2' ? agregadoIda(s, h, a) : [0, 0], t = [gols[0] + ag[0], gols[1] + ag[1]];
   if (t[0] !== t[1]) return { vencedor: t[0] > t[1] ? h : a, perdedor: t[0] > t[1] ? a : h };
-  const pen = penaltis(seed);
-  return { vencedor: pen[0] > pen[1] ? h : a, perdedor: pen[0] > pen[1] ? a : h, pen };
+  const pen = penaltis(seed, campo);
+  return { vencedor: pen[0] > pen[1] ? h : a, perdedor: pen[0] > pen[1] ? a : h, pen: [pen[0], pen[1]], seq: pen.seq };
 }
 // próxima fase: sorteio livre entre os classificados (a final mantém o par)
 export function avancarFase(s, vencedores) {
