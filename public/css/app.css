@@ -640,3 +640,4 @@ b.pos { color: var(--gramado); } b.neg { color: var(--cartao); }
 .selo-fase.excelente, .selo-fase.boa { color: var(--gramado); } .selo-fase.ruim, .selo-fase.pessima { color: var(--cartao); }
 .jc-nome .selo-fase { color: #fff; text-shadow: 1px 1px 0 #000; }
 .aviso-ficha.fase-excelente, .aviso-ficha.fase-boa { border-left-color: var(--gramado); }
+.quer-ir { font-weight: 700; color: var(--cartao); }

@@ -82,6 +82,8 @@ test('jornal: estatísticas batem com os gols e rumores fazem sentido de futebol
       if (n.para == null || rumores.includes(n)) continue;
       rumores.push(n);
       const j = base.jog.get(n.jogador);
+      // negócio fechado na mesma rodada, depois do rumor, muda as forças: aí não dá pra conferir
+      if (s.historicoTransf.some(t => t.rodada >= n.rodada - 1 && [t.de, t.para].some(c => c === n.para || c === n.de))) continue;
       assert.ok(base.forca(n.para) >= base.forca(n.de) + 2, 'clube interessado tem que ser maior');
       assert.ok(interessados(base, j).includes(n.para));
       assert.ok(media(s.est[j.id]) > 0);
@@ -456,4 +458,21 @@ test('fases: sequência de notas altas leva à fase excelente (+3 em campo), not
   for (let i = 0; i < 6; i++) registrarForma(s, { [j.id]: 4.6 });
   assert.equal(faseDe(s, j.id).k, 'pessima');
   assert.ok(precoPedido(base, s, j) < p0);
+});
+
+import { recusarRecebida, querIr } from '../public/js/motor/mercado.js';
+test('mercado agressivo: jogador em fase excelente num clube da B recebe propostas, quer ir pro maior e fica chateado se for barrado', () => {
+  const B = base.clubes.map((c, i) => i).filter(i => base.clubes[i].div === 'B').sort((a, b) => base.forca(b) - base.forca(a));
+  const s = novoJogo(base, { ...cfg(81), clube: B[3] }), ci = s.tecnico.clube;
+  const tops = base.elencos[ci].slice().sort((a, b) => b.ovr - a.ovr).slice(0, 4);
+  let ofertas = [];
+  for (let k = 0; k < 6; k++) { for (const j of tops) (s.forma ||= {})[j.id] = 7.6; rodada(s); ofertas.push(...s.recebidas.filter(x => tops.some(j => j.id === x.jogador) && !ofertas.some(o => o.id === x.id))); }
+  assert.ok(ofertas.length >= 2, `só ${ofertas.length} propostas`);
+  const q = ofertas.find(o => o.quer && s.recebidas.includes(o));
+  if (q) {
+    const m0 = s.mor[q.jogador] ?? 62;
+    assert.ok(recusarRecebida(base, s, q.id));
+    assert.ok((s.mor[q.jogador] ?? 62) < m0 && s.querSair[q.jogador]);
+  }
+  assert.ok(ofertas.some(o => o.quer) || ofertas.every(o => !querIr(base, s, base.jog.get(o.jogador), o.de)));
 });

@@ -161,7 +161,7 @@ function abaPropostas() {
     ${p.estado === 'contraproposta' ? `<p><b>${p.contra != null ? `O clube pede ${fmtDinheiro(p.contra)}.` : ''} ${p.contraSal != null ? `Ele pede ${euro(p.contraSal)}/dia.` : ''}</b></p><div class="linha-botoes"><button class="botao peq" type="button" data-acao="aceitar-contra" data-id="${p.id}">Aceitar</button><button class="botao peq sec" type="button" data-acao="desistir" data-id="${p.id}">Desistir</button></div>`
       : p.estado === 'aguardando' ? `<div class="linha-botoes"><button class="botao peq sec" type="button" data-acao="desistir" data-id="${p.id}">Cancelar proposta</button></div>` : ''}</li>`; }).join('');
   const rec = s.recebidas.map(x => { const j = J(x.jogador); return `<li class="cartao"><div class="titulo-linha"><button type="button" class="link" data-acao="ficha" data-id="${j.id}">${H.esc(j.curto)}</button><span class="nota ${cartaDe(j.ovr).k}">${j.ovr}</span></div>
-    <p class="mudo">${H.imgEscudo(x.de, 16, 17)} ${H.esc(H.clube(x.de).n)} ${x.tipo === 'emprestimo' ? 'pede emprestado até o fim da temporada' : `oferece <b>${fmtDinheiro(x.valor)}</b> · vale ${fmtDinheiro(j.valor * 1000)}`}</p>
+    <p class="mudo">${H.imgEscudo(x.de, 16, 17)} ${H.esc(H.clube(x.de).n)} ${x.tipo === 'emprestimo' ? 'pede emprestado até o fim da temporada' : `oferece <b>${fmtDinheiro(x.valor)}</b> · vale ${fmtDinheiro(j.valor * 1000)}`}</p>${x.quer ? `<p class="quer-ir">${H.esc(j.curto)} ${H.esc(x.quer)} e quer ir. Se você recusar, ele fica chateado.</p>` : ''}
     <div class="linha-botoes"><button class="botao peq" type="button" data-acao="aceitar-recebida" data-id="${x.id}">${x.tipo === 'emprestimo' ? 'Emprestar' : 'Vender'}</button><button class="botao peq sec" type="button" data-acao="recusar-recebida" data-id="${x.id}">Recusar</button></div></li>`; }).join('');
   return `<h3>Pelos seus jogadores</h3>${rec ? `<ul class="lista-propostas">${rec}</ul>` : '<section class="cartao"><p class="mudo">Nenhuma proposta agora. Quem joga bem, ou está listado, chama atenção.</p></section>'}
     <h3>Feitas por você</h3>${env ? `<ul class="lista-propostas">${env}</ul>` : '<section class="cartao"><p class="mudo">Você ainda não fez propostas. Busque um jogador e toque nele.</p></section>'}`;
@@ -280,7 +280,7 @@ export const acoes = {
   'aceitar-contra': re(el => { H.aviso(M.aceitarContraproposta(B(), S(), el.dataset.id) || 'Topou. A resposta final sai na próxima rodada.'); }, true),
   desistir: re(el => { M.desistir(S(), el.dataset.id); }, true),
   'aceitar-recebida': re(el => { H.aviso(M.aceitarRecebida(B(), S(), el.dataset.id) || 'Negócio fechado.'); if (H.$('#ficha').open) H.$('#ficha').close(); }, true),
-  'recusar-recebida': re(el => { M.recusarRecebida(S(), el.dataset.id); if (H.$('#ficha').open) H.$('#ficha').close(); }, true),
+  'recusar-recebida': re(el => { const m = M.recusarRecebida(B(), S(), el.dataset.id); if (m) H.aviso(m); if (H.$('#ficha').open) H.$('#ficha').close(); }, true),
 };
 
 // digitação e sliders: atualiza sem redesenhar a tela inteira (não perde o foco)

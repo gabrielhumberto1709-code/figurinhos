@@ -3,7 +3,7 @@
 // Proposta feita numa rodada é respondida na seguinte (dá tempo de rival entrar na briga).
 import { rivais } from './rivais.js';
 import { faseDe } from './forma.js';
-import { rng, clamp, pickW, SETOR, nivelDiv, estrelas, continenteDe } from './util.js';
+import { rng, clamp, pickW, shuffle, SETOR, nivelDiv, estrelas, continenteDe } from './util.js';
 import { interessados, media } from './noticias.js';
 import { janelaAberta, caixaInicial, aplicarSave } from './mundo.js';
 import { orcamento, lancar, garantirFinancas, salarioDia, salarioBase } from './financas.js';
@@ -211,7 +211,28 @@ export function aceitarRecebida(base, s, id) {
   s.noticias.unshift({ rodada: s.rodada, tipo: 'clube', mercado: true, div: base.clubes[s.tecnico.clube].div, texto: p.tipo === 'emprestimo' ? `Emprestado: ${j.curto} vai jogar no ${base.clubes[p.de].n} até o fim da temporada.` : `Vendido: ${j.curto} acerta com o ${base.clubes[p.de].n} por ${fmt(p.valor)}.` });
   return null;
 }
-export function recusarRecebida(s, id) { s.recebidas = s.recebidas.filter(x => x.id !== id); }
+export function recusarRecebida(base, s, id) {
+  const p = s.recebidas.find(x => x.id === id); if (!p) return null;
+  s.recebidas = s.recebidas.filter(x => x.id !== id);
+  return p.quer ? barrarSaida(base, s, p) : null;
+}
+// ele queria ir e o clube segurou: fica chateado, pode pedir pra sair e não quer renovar por um tempo
+function barrarSaida(base, s, p) {
+  const j = base.jog.get(p.jogador); if (!j) return null;
+  s.mor[j.id] = Math.max(0, (s.mor[j.id] ?? 62) - (faseDe(s, j.id).d > 0 ? 15 : 10));
+  (s.querSair ||= {})[j.id] = { de: p.de, rodada: s.rodada, motivo: p.quer };
+  s.noticias.unshift({ rodada: s.rodada, tipo: 'clube', imprensa: true, jogador: j.id, div: base.clubes[s.tecnico.clube].div, texto: `${j.curto} fica chateado por não ser liberado para o ${base.clubes[p.de].n}.` });
+  return `${j.curto} queria ir e ficou chateado (moral em baixa).`;
+}
+// a proposta é de um clube maior? (divisão acima, copa continental que o seu não joga, ou bem mais forte)
+const naContinental = (s, ci) => ['LIB', 'SUL'].some(k => s.cont?.[k]?.grupos.some(g => g.includes(ci)));
+export function querIr(base, s, j, de) {
+  const meu = s.tecnico.clube, a = base.clubes[de], b = base.clubes[meu];
+  if (nivelDiv(a) < nivelDiv(b)) return a.div === 'X' ? 'sonha em jogar fora do país' : `é a chance de jogar a Série ${a.div}`;
+  if (naContinental(s, de) && !naContinental(s, meu)) return `quer disputar a ${s.cont.LIB.grupos.some(g => g.includes(de)) ? 'Libertadores' : 'Sul-Americana'}`;
+  if (base.forca(de) >= base.forca(meu) + 5) return 'quer jogar num clube maior';
+  return null;
+}
 
 export function alternarLista(base, s, lista, id) {
   const j = base.jog.get(id);
@@ -230,7 +251,7 @@ export function alternarFavorito(s, id) { const i = s.favoritos.indexOf(id); if 
 export function renovacaoPossivel(s, j) { return j.contrato <= s.ano + 1 && !preContratoDe(s, j.id) && !s.emprestimos[j.id]; }
 export function pedidoRenovacao(base, s, j, anos = 3) {
   const el = base.elencos[s.tecnico.clube].slice().sort((a, b) => b.ovr - a.ovr), rank = el.indexOf(j);
-  const ficar = clamp(55 + ((s.mor?.[j.id] ?? 62) - 62) + (rank < 11 ? 10 : rank >= 18 ? -10 : 0) + (j.idade >= 31 ? 10 : 0), 0, 100);
+  const ficar = clamp(55 + ((s.mor?.[j.id] ?? 62) - 62) + (rank < 11 ? 10 : rank >= 18 ? -10 : 0) + (j.idade >= 31 ? 10 : 0) - (s.querSair?.[j.id] ? 30 : 0), 0, 100);
   let pede = Math.max(salarioDia(base, s, j), salarioBase(base.clubes[j.clube].div, j.valor)) * (1.05 + clamp((60 - ficar) / 100, -0.1, 0.5));
   if (j.idade >= 30) pede *= 1 + 0.06 * Math.max(0, 3 - anos);
   return { ficar, pede: arredSal(pede) };
@@ -285,7 +306,7 @@ function negociosIA(base, s, rd, r, add) {
     return de;
   };
   for (const ci of base.clubes.map((c, i) => i).filter(i => BR.includes(base.clubes[i].div) && i !== meu)) {
-    if (r() > 0.06 || base.elencos[ci].length >= 38) continue;
+    if (r() > 0.09 || base.elencos[ci].length >= 38) continue;
     const el = base.elencos[ci], f = base.forca(ci), melhorNa = p => el.filter(x => x.pos === p).reduce((m, x) => Math.max(m, x.ovr), 0);
     const pos = POS_CHAVE.slice().sort((a, b) => melhorNa(a) - melhorNa(b))[0], min = melhorNa(pos) + 2, caixa = caixaInicial(base, ci) * 0.5;
     const cands = [...base.jog.values()].filter(j => j.pos === pos && j.clube !== ci && j.ovr >= min && j.ovr <= f + 5 && !s.emprestimos[j.id] && !preContratoDe(s, j.id)
@@ -294,7 +315,19 @@ function negociosIA(base, s, rd, r, add) {
     const j = pickW(r, cands, x => x.ovr - min + 1), valor = precoPedido(base, s, j), de = mover(j, ci, valor);
     add(ehLivre(base, de) ? `Mercado: ${nome(ci)} contrata ${j.curto}, que estava sem clube.` : `Mercado: ${j.curto} deixa o ${nome(de)} e acerta com o ${nome(ci)} por ${fmt(valor)}.`, 'mercado', base.clubes[ci].div, { jogador: j.id });
   }
-  if (r() < 0.25) {
+  // quem está em fase boa num clube menor é disputado pelos maiores
+  let quentes = 0;
+  for (const j of shuffle(r, [...base.jog.values()].filter(j => BR.includes(base.clubes[j.clube].div) && j.clube !== meu && faseDe(s, j.id).d > 0 && vendedorAguenta(base, s, j) && !preContratoDe(s, j.id) && !s.emprestimos[j.id]))) {
+    if (quentes >= 2) break;
+    if (r() > (faseDe(s, j.id).k === 'excelente' ? 0.12 : 0.05)) continue;
+    const ops = interessados(base, j).filter(ci => ci !== meu && base.elencos[ci].length < 38 && vontade(base, s, j, ci) >= 45);
+    if (!ops.length) continue;
+    const para = pickW(r, ops, ci => base.clubes[ci].fan), valor = arred(precoPedido(base, s, j) * (1 + r() * 0.2));
+    if (caixaDe(base, s, para) * (base.clubes[para].div === 'X' ? 3 : 0.6) < valor) continue;
+    const de = mover(j, para, valor); quentes++;
+    add(`Mercado: em grande fase, ${j.curto} deixa o ${nome(de)} e acerta com o ${nome(para)} por ${fmt(valor)}.`, 'mercado', base.clubes[de].div, { jogador: j.id });
+  }
+  if (r() < 0.35) {
     const destaques = [...base.jog.values()].filter(j => base.clubes[j.clube].div === 'A' && j.clube !== meu && j.idade <= 27 && (j.ovr >= 78 || (j.ovr >= 75 && media(s.est[j.id]) >= 6.9)) && vendedorAguenta(base, s, j) && !preContratoDe(s, j.id) && !s.emprestimos[j.id]);
     const j = destaques.length && pickW(r, destaques, x => x.ovr - 72);
     const fora = j && interessados(base, j).filter(ci => base.clubes[ci].div === 'X');
@@ -360,10 +393,13 @@ export function resolverMercado(base, s, rd) {
     else { transferir(base, s, j, meu, p.valor, { salario: p.salario, anos: p.anos }); add(tipo === 'livre' ? `Reforço: ${j.curto}, que estava sem clube, assina até ${s.ano + p.anos}.` : `Reforço: ${j.curto} chega do ${nome(de)} por ${fmt(p.valor)}.`); }
   }
 
-  // propostas pelos seus jogadores (só com a janela aberta); vencem em 2 rodadas. Listado à venda chama mais atenção.
+  // propostas pelos seus jogadores (só com a janela aberta); vencem em 2 rodadas. Fase boa e lista de venda chamam atenção.
+  for (const x of s.recebidas.filter(x => x.rodada < rd - 1 && x.quer && base.jog.get(x.jogador).clube === meu)) barrarSaida(base, s, x); // deixou vencer = segurou
   s.recebidas = s.recebidas.filter(x => x.rodada >= rd - 1 && base.jog.get(x.jogador).clube === meu);
   if (janelaAberta(s.ano, rd + 1)) {
-    for (const j of base.elencos[meu]) {
+    let novas = 0;
+    for (const j of base.elencos[meu].slice().sort((a, b) => faseDe(s, b.id).d - faseDe(s, a.id).d || b.ovr - a.ovr)) {
+      if (novas >= 3) break;
       if (s.emprestimos[j.id] || preContratoDe(s, j.id) || s.recebidas.some(x => x.jogador === j.id)) continue;
       const listado = s.listas.venda.includes(j.id);
       if (s.listas.emprestimo.includes(j.id)) {
@@ -375,15 +411,18 @@ export function resolverMercado(base, s, rd) {
         add(`O ${nome(de)} pede ${j.curto} emprestado até o fim da temporada. Responda no Mercado.`);
         continue;
       }
-      const e = s.est?.[j.id], emAlta = e && e[0] >= 3 && (media(e) >= 6.9 || e[1] >= e[0] * 0.4);
-      if (!(listado || emAlta || j.ovr >= 78) || r() > (listado ? 0.35 : 0.12)) continue;
+      const e = s.est?.[j.id], emAlta = e && e[0] >= 3 && (media(e) >= 6.9 || e[1] >= e[0] * 0.4), f = faseDe(s, j.id);
+      const chance = listado ? 0.35 : f.k === 'excelente' ? 0.45 : f.k === 'boa' ? 0.28 : emAlta || j.ovr >= 78 || j.ovr >= base.forca(meu) + 4 ? 0.12 : 0;
+      if (r() >= chance) continue;
       let opcoes = interessados(base, j);
-      if (listado && !opcoes.length) opcoes = base.clubes.map((c, i) => i).filter(ci => BR.includes(base.clubes[ci].div) && ci !== meu && Math.abs(base.forca(ci) - j.ovr) <= 5);
+      if (listado && !opcoes.length) opcoes = base.clubes.map((c, i) => i).filter(ci => BR.includes(base.clubes[ci].div) && ci !== meu && !rivais(base, ci, meu) && Math.abs(base.forca(ci) - j.ovr) <= 5);
       if (!opcoes.length) continue;
-      const de = pickW(r, opcoes, ci => base.clubes[ci].fan), valor = arred(precoPedido(base, s, j) * (listado ? 0.7 + r() * 0.25 : 0.8 + r() * 0.3));
+      const de = pickW(r, opcoes, ci => base.clubes[ci].fan + (naContinental(s, ci) ? 4 : 0)), valor = arred(precoPedido(base, s, j) * (listado ? 0.7 + r() * 0.25 : 0.85 + r() * 0.3 + f.d * 0.04));
       if (caixaDe(base, s, de) < valor) continue;
-      s.recebidas.push({ id: `${j.id}-${de}-${rd}`, tipo: 'compra', jogador: j.id, de, valor, rodada: rd });
-      add(`O ${nome(de)} oferece ${fmt(valor)} por ${j.curto}. Responda no Mercado.`);
+      const motivo = querIr(base, s, j, de), quer = motivo && r() < 0.8 ? motivo : null;
+      s.recebidas.push({ id: `${j.id}-${de}-${rd}`, tipo: 'compra', jogador: j.id, de, valor, rodada: rd, quer });
+      add(`O ${nome(de)} oferece ${fmt(valor)} por ${j.curto}.${quer ? ` Ele ${quer} e quer ir.` : ''} Responda no Mercado.`, 'clube', base.clubes[meu].div, { jogador: j.id });
+      novas++;
     }
   }
 
@@ -396,6 +435,13 @@ export function resolverMercado(base, s, rd) {
     add(`${j.curto} assina pré-contrato com o ${nome(para)} e sai no fim da temporada. Renove os contratos que estão acabando.`);
   }
 
+  // chateado por não ter sido liberado: moral não sobe e, de vez em quando, ele cobra em público
+  for (const [id, q] of Object.entries(s.querSair || {})) {
+    const j = base.jog.get(+id);
+    if (!j || j.clube !== meu || rd - q.rodada >= 8) { delete s.querSair[id]; continue; }
+    s.mor[id] = Math.min(s.mor[id] ?? 62, 45);
+    if (r() < 0.15) add(`${j.curto} cobra a diretoria: "Eu ${q.motivo.replace(/^é /, 'tinha ')}. Quero ser negociado."`, 'clube', base.clubes[meu].div, { jogador: j.id, imprensa: true });
+  }
   if (janelaAberta(s.ano, rd)) negociosIA(base, s, rd, r, add);
   trabalhoDoOlheiro(base, s, rd, r);
   if (s.historicoTransf.length > 400) s.historicoTransf.length = 400;
