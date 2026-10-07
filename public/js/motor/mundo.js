@@ -48,15 +48,21 @@ export function caixaInicial(base, ci, dificuldade = 'normal') {
   return Math.round(Math.max(minimo, elenco * 0.12 + c.fan * c.fan * 150000 * PESO_DIV[c.div]) * (PESO_DIF[dificuldade] || 1) / 10000) * 10000;
 }
 
+// alguns têm físico de atleta: caem bem devagar e jogam em alto nível até parar (mais comum entre os craques)
+export const longevo = j => rng(`long${j.id}`)() < (j.ovrOrig >= 80 ? 0.25 : j.ovrOrig >= 75 ? 0.15 : 0.06);
+// queda por idade: suave aos 31-33, pesada dos 35 em diante
+const QUEDA = { 31: [0, 1.5], 32: [0.5, 2], 33: [1, 2.5], 34: [1.5, 3.5], 35: [2, 4.5] };
 // evolução até o ano: jovem cresce rumo ao potencial, veterano cai; perto dos 38 pendura as chuteiras
 export function evolucao(j, anos) {
   let ovr = j.ovrOrig, idade = j.idadeOrig, fora = false;
+  const lg = longevo(j);
   for (let k = 0; k < anos && !fora; k++) {
-    const r = rng(`evo${j.id}-${j.anoBase + k}`);
-    const d = idade <= 20 ? 2 + r() * 5 : idade <= 23 ? 1 + r() * 4 : idade <= 27 ? r() * 2.5 - 0.5 : idade <= 30 ? r() * 1.5 - 1 : idade <= 33 ? -1 - r() * 2 : -2 - r() * 3;
+    const r = rng(`evo${j.id}-${j.anoBase + k}`), q = QUEDA[idade] || (idade > 35 ? [3, 6] : null);
+    let d = idade <= 20 ? 2 + r() * 5 : idade <= 23 ? 1 + r() * 4 : idade <= 27 ? r() * 2.5 - 0.5 : idade <= 30 ? r() * 1.5 - 0.5 : -(q[0] + r() * (q[1] - q[0]));
+    if (d < 0 && lg) d *= 0.3;
     ovr = Math.round(Math.max(30, d > 0 ? Math.min(ovr + d, Math.max(j.pot, ovr)) : ovr + d));
     idade++;
-    fora = idade >= 40 || (idade >= 36 && r() < (idade - 34) * 0.18) || (idade >= 33 && ovr < 58 && r() < 0.35);
+    fora = idade >= (lg ? 42 : 40) || (idade >= (lg ? 38 : 36) && r() < (idade - (lg ? 36 : 34)) * 0.18) || (idade >= 33 && ovr < 58 && r() < 0.35);
   }
   return { ovr, idade, fora };
 }

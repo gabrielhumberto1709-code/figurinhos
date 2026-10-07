@@ -1,5 +1,5 @@
 // Interface do Figurinhos: telas, navegação por hash e saves na nuvem.
-import { Base, novoJogo, iniciarRodada, concluirRodada, iniciarCopa, concluirCopa, iniciarCont, concluirCont, iniciarSup, concluirSup, proximoEvento, copaSemVoce, tabela, rodadasDe, escalacao, paraSalvar, resumo, REPUTACOES, DIFICULDADES, dataRodada, janelaAberta, caixaInicial, aplicarSave, compProxima } from './motor/mundo.js';
+import { Base, novoJogo, iniciarRodada, concluirRodada, iniciarCopa, concluirCopa, iniciarCont, concluirCont, iniciarSup, concluirSup, proximoEvento, copaSemVoce, tabela, rodadasDe, escalacao, paraSalvar, resumo, REPUTACOES, DIFICULDADES, dataRodada, janelaAberta, caixaInicial, aplicarSave, compProxima, longevo } from './motor/mundo.js';
 import { LESOES, COMP_DE, indisponivel, pendurado } from './motor/dm.js';
 import { garantirCarreira, pilares, aceitarOferta, recusarOferta, pedirDemissao } from './motor/carreira.js';
 import { virarTemporada, fimDeTemporada } from './motor/temporada.js';
@@ -392,7 +392,8 @@ telas.elenco = () => Elenco.tela();
 
 function faseFicha(j) {
   const f = faseDe(app.s, j.id), m = app.s.forma?.[j.id];
-  return f.d ? `<p class="aviso-ficha fase-${f.k}">${f.seta} ${f.nome}: rende como ${j.ovr + f.d} em campo · média recente ${m.toFixed(1).replace('.', ',')}.</p>` : '';
+  return (f.d ? `<p class="aviso-ficha fase-${f.k}">${f.seta} ${f.nome}: rende como ${j.ovr + f.d} em campo · média recente ${m.toFixed(1).replace('.', ',')}.</p>` : '')
+    + (j.idade >= 29 && j.ovrOrig != null && longevo(j) ? '<p class="aviso-ficha fase-boa">Físico de atleta: deve manter o nível por mais tempo que a maioria.</p>' : '');
 }
 function dmFicha(j) {
   const s = app.s, l = s.dm?.[j.id], sp = s.susp?.[j.id], p = Object.keys(s.amar?.[j.id] || {}).filter(c => pendurado(s, j.id, c));

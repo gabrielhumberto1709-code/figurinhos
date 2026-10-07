@@ -1,0 +1,4 @@
+{
+  "_como": "Ajustes manuais de overall/potencial. Chave: id do jogador, ou 'Nome' (nome curto ou completo), ou 'Nome|Clube'. Valores: ovr e/ou pot. Rode: node tools/ajustar.js",
+  "jogadores": {}
+}
