@@ -125,7 +125,7 @@ test('mercado: proposta boa por jogador que quer vir fecha na rodada seguinte; d
   }
 });
 
-test('mercado: proposta baixa é recusada, janela fechada bloqueia compra mas não jogador livre', () => {
+test('mercado: proposta baixa é recusada, janela fechada não bloqueia jogador livre', () => {
   const s = novoJogo(base, cfg(22));
   const alvo = base.elencos[5][0];
   assert.equal(fazerProposta(base, s, alvo, proposta(base, s, alvo, { valor: precoPedido(base, s, alvo) * 0.5 })), null);
@@ -133,7 +133,6 @@ test('mercado: proposta baixa é recusada, janela fechada bloqueia compra mas n�
   assert.equal(s.propostas[0].estado, 'recusada');
   s.rodada = 10; s.fin.salarioBudget = 1e9;
   const outro = base.elencos[6][0];
-  assert.match(fazerProposta(base, s, outro, proposta(base, s, outro)), /janela/);
   const livre = base.elencos[base.clubes.findIndex(c => c.div === 'L')].sort((a, b) => b.ovr - a.ovr).find(j => vontade(base, s, j, s.tecnico.clube) >= 60);
   assert.ok(livre, 'precisa de um livre');
   assert.equal(precoPedido(base, s, livre), 0);
@@ -525,4 +524,73 @@ test('eventos: afastado sai da escalação e cumpre os jogos; julgamento de dopi
   assert.ok(N.some(n => n.texto.includes('doping')) && !s.julgamentos.length);
   let ev = 0; for (let k = 0; k < 30; k++) { s.rodada = 100 + k; ev += eventosAposRodada(base, s).filter(n => n.evento).length; }
   assert.ok(ev >= 4 && ev <= 18, `eventos em 30 rodadas: ${ev}`);
+});
+
+import { valorNaTroca, travado, podeSair, conversaFechada, rescindir, multaRescisao, exercerOpcao, chamarDeVolta, emprestar, pedirMais, abrirLeilao, resolverMercado, alternarLista } from '../public/js/motor/mercado.js';
+import { janelaAberta } from '../public/js/motor/mundo.js';
+test('mercado extras: troca, trava de 14 jogos, acordo com janela fechada, 3 recusas, rescisão, opção, volta, contraproposta, leilão e gigantes', () => {
+  const ci = base.clubes.findIndex(c => c.n === 'Palmeiras'), s = novoJogo(base, { ...cfg(23), clube: ci });
+  s.caixa = 5e8; s.fin.salarioBudget = folhaDia(base, s) * 3;
+  const fechadaEm = r0 => { let r = r0; while (janelaAberta(s.ano, r) || janelaAberta(s.ano, r + 1)) r++; return r; };
+  const cands = [...base.jog.values()].filter(j => j.clube !== ci && base.clubes[j.clube].div === 'B' && vontade(base, s, j, ci) >= 75 && !interessadosR(base, j).some(c => c !== ci)).sort((a, b) => b.ovr - a.ovr);
+  // troca: dinheiro + jogador cobrem o preço
+  const vai = c => base.elencos[ci].slice().sort((a, b) => a.ovr - b.ovr).find(x => x.pos !== 'GOL' && vontade(base, s, x, c) >= 45);
+  const alvo = [...base.jog.values()].filter(j => j.clube !== ci && base.clubes[j.clube].div === 'A' && vontade(base, s, j, ci) >= 70 && vai(j.clube) && !interessadosR(base, j).some(c => c !== ci)).sort((a, b) => b.ovr - a.ovr)[0];
+  const de = alvo.clube, t = vai(de);
+  const vt = valorNaTroca(base, s, t, de), valor = Math.max(50000, precoPedido(base, s, alvo) - vt);
+  assert.equal(fazerProposta(base, s, alvo, proposta(base, s, alvo, { valor, troca: t.id })), null);
+  rodada(s);
+  const p = s.propostas[0];
+  assert.equal(p.estado, 'concluida', p.motivo);
+  assert.equal(alvo.clube, ci); assert.equal(t.clube, de);
+  assert.ok(s.fin.extrato.some(e => e.tipo === 'compra' && e.valor === -p.valor) && !s.fin.extrato.some(e => e.tipo === 'venda'), 'paga só a parte em dinheiro');
+  // trava: quem chegou não sai nem vai à lista
+  assert.ok(travado(s, alvo.id) > 10);
+  assert.match(podeSair(base, s, alvo), /chegou há pouco/);
+  assert.match(alternarLista(base, s, 'venda', alvo.id), /chegou há pouco/);
+  // acordo com a janela fechada: fecha agora, chega quando abrir
+  s.rodada = fechadaEm(s.rodada + 1);
+  const b2 = cands.find(j => j.clube !== ci && j.clube !== de);
+  assert.equal(fazerProposta(base, s, b2, proposta(base, s, b2, { valor: precoPedido(base, s, b2) * 1.1 })), null);
+  rodada(s);
+  assert.equal(s.propostas[0].estado, 'concluida', s.propostas[0].motivo);
+  assert.equal(s.acordos.length, 1); assert.notEqual(b2.clube, ci);
+  let r = s.rodada; while (!janelaAberta(s.ano, r + 1)) r++;
+  s.rodada = r; rodada(s);
+  assert.equal(b2.clube, ci); assert.equal(s.acordos.length, 0);
+  // 3 recusas fecham a conversa por 2 rodadas
+  const c3 = cands.find(j => j.clube !== ci && ![de, b2.clube].includes(j.clube) && !s.acordos.length);
+  for (let k = 0; k < 3; k++) { assert.equal(fazerProposta(base, s, c3, proposta(base, s, c3, { valor: precoPedido(base, s, c3) * 0.4 })), null); rodada(s); }
+  assert.equal(conversaFechada(s, c3.id), 2);
+  assert.match(bloqueioProposta(base, s, c3, proposta(base, s, c3)), /fechou as conversas/);
+  // rescisão: paga metade do que falta e ele fica livre
+  const res = base.elencos[ci].slice().sort((a, b) => a.ovr - b.ovr).find(x => x.pos !== 'GOL' && !travado(s, x.id)), m = multaRescisao(base, s, res), cx1 = s.caixa;
+  assert.ok(m > 0);
+  assert.equal(rescindir(base, s, res.id), null);
+  assert.equal(base.clubes[res.clube].div, 'L'); assert.equal(cx1 - s.caixa, m);
+  // empréstimo com opção de compra e chamar de volta quem você emprestou
+  const emp = base.elencos[5].find(x => !travado(s, x.id)); emprestar(base, s, emp, ci); s.emprestimos[emp.id].opcao = 1e6;
+  const cx2 = s.caixa; assert.equal(exercerOpcao(base, s, emp.id), null);
+  assert.equal(emp.clube, ci); assert.ok(!s.emprestimos[emp.id]); assert.equal(cx2 - s.caixa, 1e6);
+  r = s.rodada; while (!janelaAberta(s.ano, r) || !janelaAberta(s.ano, r + 1)) r++; s.rodada = r;
+  const meu = base.elencos[ci].slice().sort((a, b) => a.ovr - b.ovr).find(x => !travado(s, x.id) && x.pos !== 'GOL'); emprestar(base, s, meu, 7);
+  assert.equal(meu.clube, 7); assert.equal(chamarDeVolta(base, s, meu.id), null); assert.equal(meu.clube, ci);
+  // contraproposta numa oferta recebida: pedir 5% a mais sempre passa e o negócio sai
+  const vend = base.elencos[ci].slice().sort((a, b) => b.ovr - a.ovr).find(x => !travado(s, x.id) && x.pos !== 'GOL');
+  s.recebidas = [{ id: 'x1', tipo: 'compra', jogador: vend.id, de: 3, valor: 2e6, rodada: s.rodada }];
+  assert.equal(pedirMais(base, s, 'x1', 1.05), null);
+  assert.ok(pedirMais(base, s, 'x1', 1.3), 'só uma contraproposta');
+  resolverMercado(base, s, s.rodada);
+  assert.equal(vend.clube, 3);
+  // leilão: no fim sobra uma oferta só, pelo menos do tamanho da original
+  const lei = base.elencos[ci].slice().sort((a, b) => b.ovr - a.ovr).find(x => !travado(s, x.id) && x.pos !== 'GOL');
+  s.recebidas = [{ id: 'x2', tipo: 'compra', jogador: lei.id, de: 3, valor: 1e6, rodada: s.rodada }];
+  assert.equal(abrirLeilao(base, s, 'x2'), null);
+  resolverMercado(base, s, s.rodada);
+  const L = s.recebidas.filter(x => x.jogador === lei.id);
+  assert.equal(L.length, 1); assert.equal(L[0].leilao, 'fim'); assert.ok(L[0].valor >= 1e6);
+  // gigantes de fora aparecem pelos craques de vez em quando
+  let g = 0;
+  for (let k = 0; k < 120; k++) { s.seed = 1000 + k; s.recebidas = []; resolverMercado(base, s, s.rodada); g += s.recebidas.filter(x => x.gigante && base.clubes[x.de].div === 'X').length; }
+  assert.ok(g >= 2 && g <= 20, `gigantes: ${g}`);
 });

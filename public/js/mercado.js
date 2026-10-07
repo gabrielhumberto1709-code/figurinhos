@@ -83,7 +83,7 @@ const ddmm = d => `${String(d.getUTCDate()).padStart(2, '0')}/${String(d.getUTCM
 function faixaJanela(s) {
   const J = janelaInfo(s);
   const txt = J.aberta ? (J.dias != null ? `Janela aberta · fecha em ${J.dias} dias (${ddmm(J.data)})` : 'Janela aberta') : J.dias != null ? `Janela fechada · abre em ${J.dias} dias (${ddmm(J.data)})` : 'Janela fechada até a próxima temporada';
-  return `<p class="janela ${J.aberta ? 'aberta' : ''}"><b>${txt}</b><small>Livres e pré-contratos não dependem da janela. Propostas são respondidas na rodada seguinte.</small></p>`;
+  return `<p class="janela ${J.aberta ? 'aberta' : ''}"><b>${txt}</b><small>Livres e pré-contratos não dependem da janela. Com ela fechada, compra vira acordo e o jogador chega quando abrir. Propostas são respondidas na rodada seguinte.</small></p>`;
 }
 
 function abaBuscar() {
@@ -154,23 +154,34 @@ function abaOlheiros() {
     ${fila.length ? `<section class="cartao"><h3>Vai observar nesta rodada</h3><p>${fila.map(j => H.esc(j.curto)).join(', ')}</p></section>` : ''}
     <h3>Relatórios</h3>${lista(rel.map(([j]) => j), 'Nenhum relatório ainda. Jogue uma rodada.', j => { const r = s.relatorios[j.id]; return `<i class="sit pot" aria-label="Potencial ${r.e} de 5">${'★'.repeat(r.e)}${'☆'.repeat(5 - r.e)}${r.exato ? '' : ' ~'}</i>`; })}`;
 }
+// botões de uma oferta recebida: vender, pedir mais (uma vez), leilão, recusar
+function acoesRecebida(x) {
+  if (x.leilao === 'aberto') return '<p class="mudo">Leilão aberto: os lances saem na próxima rodada.</p>';
+  if (x.pedido) return `<p class="mudo">Você pediu ${fmtDinheiro(x.pedido)}. Resposta na próxima rodada.</p>`;
+  const compra = x.tipo !== 'emprestimo', livre = compra && !x.contraFeita && !x.leilao;
+  return `<div class="linha-botoes"><button class="botao peq" type="button" data-acao="aceitar-recebida" data-id="${x.id}">${compra ? 'Vender' : 'Emprestar'}</button>
+    ${livre ? `<button class="botao peq sec" type="button" data-acao="pedir-mais" data-id="${x.id}" data-f="1.15">Pedir +15%</button><button class="botao peq sec" type="button" data-acao="pedir-mais" data-id="${x.id}" data-f="1.3">Pedir +30%</button><button class="botao peq sec" type="button" data-acao="leilao" data-id="${x.id}">Leilão</button>` : ''}
+    <button class="botao peq sec" type="button" data-acao="recusar-recebida" data-id="${x.id}">Recusar</button></div>`;
+}
+const TIPO_HIST = { emprestimo: 'empréstimo', troca: 'na troca', volta: 'volta de empréstimo' };
 function abaPropostas() {
   const s = S(), b = B(), J = id => b.jog.get(id);
   const env = s.propostas.slice(0, 40).map(p => { const j = J(p.jogador), tipo = p.tipo || 'compra'; return `<li class="cartao"><div class="titulo-linha"><button type="button" class="link" data-acao="ficha" data-id="${j.id}">${H.esc(j.curto)}</button><span class="tag ${p.estado === 'concluida' ? 'resultado' : ['recusada', 'perdida'].includes(p.estado) ? 'crise' : 'rumor'}">${ROTULO[p.estado]}</span></div>
-    <p class="mudo">${H.imgEscudo(p.de, 16, 17)} ${tipo === 'livre' ? 'Sem clube' : `${H.esc(H.clube(p.de).n)} · ${NOME_TIPO[tipo]}`}${tipo === 'compra' ? ` · ${fmtDinheiro(p.valor)}` : ''}${p.salario ? ` · ${euro(p.salario)}/dia` : ''}${p.anos && tipo !== 'emprestimo' ? ` · ${p.anos} anos` : ''}${p.motivo ? ` · ${H.esc(p.motivo)}` : ''}</p>
+    <p class="mudo">${H.imgEscudo(p.de, 16, 17)} ${tipo === 'livre' ? 'Sem clube' : `${H.esc(H.clube(p.de).n)} · ${NOME_TIPO[tipo]}`}${tipo === 'compra' ? ` · ${fmtDinheiro(p.valor)}` : ''}${p.troca && J(p.troca) ? ` + ${H.esc(J(p.troca).curto)}` : ''}${p.salario ? ` · ${euro(p.salario)}/dia` : ''}${p.anos && tipo !== 'emprestimo' ? ` · ${p.anos} anos` : ''}${p.motivo ? ` · ${H.esc(p.motivo)}` : ''}</p>
     ${p.estado === 'contraproposta' ? `<p><b>${p.contra != null ? `O clube pede ${fmtDinheiro(p.contra)}.` : ''} ${p.contraSal != null ? `Ele pede ${euro(p.contraSal)}/dia.` : ''}</b></p><div class="linha-botoes"><button class="botao peq" type="button" data-acao="aceitar-contra" data-id="${p.id}">Aceitar</button><button class="botao peq sec" type="button" data-acao="desistir" data-id="${p.id}">Desistir</button></div>`
       : p.estado === 'aguardando' ? `<div class="linha-botoes"><button class="botao peq sec" type="button" data-acao="desistir" data-id="${p.id}">Cancelar proposta</button></div>` : ''}</li>`; }).join('');
-  const rec = s.recebidas.map(x => { const j = J(x.jogador); return `<li class="cartao"><div class="titulo-linha"><button type="button" class="link" data-acao="ficha" data-id="${j.id}">${H.esc(j.curto)}</button><span class="nota ${cartaDe(j.ovr).k}">${j.ovr}</span></div>
+  const rec = s.recebidas.map(x => { const j = J(x.jogador); return `<li class="cartao"><div class="titulo-linha"><button type="button" class="link" data-acao="ficha" data-id="${j.id}">${H.esc(j.curto)}</button>${x.gigante ? '<span class="tag destaque">Gigante</span>' : ''}<span class="nota ${cartaDe(j.ovr).k}">${j.ovr}</span></div>
     <p class="mudo">${H.imgEscudo(x.de, 16, 17)} ${H.esc(H.clube(x.de).n)} ${x.tipo === 'emprestimo' ? 'pede emprestado até o fim da temporada' : `oferece <b>${fmtDinheiro(x.valor)}</b> · vale ${fmtDinheiro(j.valor * 1000)}`}</p>${x.quer ? `<p class="quer-ir">${H.esc(j.curto)} ${H.esc(x.quer)} e quer ir. Se você recusar, ele fica chateado.</p>` : ''}
-    <div class="linha-botoes"><button class="botao peq" type="button" data-acao="aceitar-recebida" data-id="${x.id}">${x.tipo === 'emprestimo' ? 'Emprestar' : 'Vender'}</button><button class="botao peq sec" type="button" data-acao="recusar-recebida" data-id="${x.id}">Recusar</button></div></li>`; }).join('');
-  return `<h3>Pelos seus jogadores</h3>${rec ? `<ul class="lista-propostas">${rec}</ul>` : '<section class="cartao"><p class="mudo">Nenhuma proposta agora. Quem joga bem, ou está listado, chama atenção.</p></section>'}
+    ${acoesRecebida(x)}</li>`; }).join('');
+  const acordos = (s.acordos || []).map(a => `<li><span>${H.imgEscudo(a.de, 14, 15)}</span><span><b>${H.esc(J(a.jogador).curto)}</b> · ${a.valor ? fmtDinheiro(a.valor) : ''}${a.troca ? ` + ${H.esc(J(a.troca).curto)}` : ''}</span></li>`).join('');
+  return `${acordos ? `<section class="cartao"><h3>Acertados: chegam quando a janela abrir</h3><ul class="noticias">${acordos}</ul></section>` : ''}<h3>Pelos seus jogadores</h3>${rec ? `<ul class="lista-propostas">${rec}</ul>` : '<section class="cartao"><p class="mudo">Nenhuma proposta agora. Quem joga bem, ou está listado, chama atenção.</p></section>'}
     <h3>Feitas por você</h3>${env ? `<ul class="lista-propostas">${env}</ul>` : '<section class="cartao"><p class="mudo">Você ainda não fez propostas. Busque um jogador e toque nele.</p></section>'}`;
 }
 function abaHistorico() {
   const s = S(), meu = s.tecnico.clube, sub = H.app.abaHist || 'meu';
   const l = s.historicoTransf.filter(x => sub === 'todas' || x.de === meu || x.para === meu).slice(0, 150);
   return `${chips('Histórico', [['meu', 'Meu clube'], ['todas', 'Todas']], 'aba-hist', k => sub === k)}
-    ${l.length ? `<section class="cartao"><ul class="noticias">${l.map(x => `<li><span class="rd">R${x.rodada + 1}</span><span><b>${H.esc(x.nome)}</b>: ${H.esc(H.clube(x.de).n)} → ${H.esc(H.clube(x.para).n)} · ${x.tipo === 'emprestimo' ? 'empréstimo' : x.valor ? fmtDinheiro(x.valor) : 'sem custo'}</span></li>`).join('')}</ul></section>` : '<section class="cartao"><p class="mudo">Nenhuma transferência ainda.</p></section>'}`;
+    ${l.length ? `<section class="cartao"><ul class="noticias">${l.map(x => `<li><span class="rd">R${x.rodada + 1}</span><span><b>${H.esc(x.nome)}</b>: ${H.esc(H.clube(x.de).n)} → ${H.esc(H.clube(x.para).n)} · ${x.tipo === 'rescisao' ? `rescisão (${fmtDinheiro(x.valor)})` : TIPO_HIST[x.tipo] || (x.valor ? fmtDinheiro(x.valor) : 'sem custo')}</span></li>`).join('')}</ul></section>` : '<section class="cartao"><p class="mudo">Nenhuma transferência ainda.</p></section>'}`;
 }
 
 export function tela() {
@@ -206,17 +217,23 @@ export function blocoFicha(j) {
   const fav = `<button type="button" class="chip fav" data-acao="favorito" data-id="${j.id}" aria-pressed="${s.favoritos.includes(j.id)}">★ Favorito</button>`;
   if (meu) {
     const ofertas = s.recebidas.filter(x => x.jogador === j.id), pre = M.preContratoDe(s, j.id), emp = s.emprestimos[j.id];
-    const ren = M.renovacaoPossivel(s, j) && M.pedidoRenovacao(b, s, j);
+    const ren = M.renovacaoPossivel(s, j) && M.pedidoRenovacao(b, s, j), tr = M.travado(s, j.id);
     return `<section class="ficha-mercado"><div class="titulo-linha"><h3>Contrato</h3>${fav}</div>${tags}
       <dl><dt>Salário</dt><dd>${euro(salarioDia(b, s, j))}/dia</dd><dt>Contrato</dt><dd>até ${j.contrato}</dd></dl>
       ${pre ? `<p><b>Assinou pré-contrato com o ${H.esc(H.clube(pre.para).n)} e sai no fim da temporada.</b></p>` : ''}
-      ${emp ? `<p><b>Emprestado pelo ${H.esc(H.clube(emp.de).n)} até o fim da temporada.</b></p>` : ''}
+      ${emp ? `<p><b>Emprestado pelo ${H.esc(H.clube(emp.de).n)} até o fim da temporada.</b></p>${emp.opcao ? `<button class="botao peq" type="button" data-acao="opcao" data-id="${j.id}">Exercer opção de compra (${fmtDinheiro(emp.opcao)})</button>` : ''}` : ''}
+      ${tr ? `<p class="mudo">Chegou há pouco: só pode ser negociado daqui a ${tr} jogo${tr > 1 ? 's' : ''}.</p>` : ''}
       ${ren ? `<form class="proposta" data-form="renovar" data-id="${j.id}"><p class="mudo">${ren.ficar < 30 ? 'Ele anda insatisfeito e não quer conversa.' : `Ele deve pedir cerca de <b>${euro(ren.pede)}/dia</b>. Folga na folha: ${euro(orcamento(b, s).folga)}/dia.`}</p>
         <div class="campos-2"><label>Salário por dia (€) <input type="number" name="salario" inputmode="numeric" min="10" step="10" value="${ren.pede}"></label>${anosSelect('anos')}</div>
         <p class="erro" role="alert"></p><button class="botao" type="submit">Renovar contrato</button></form>` : ''}
       ${emp ? '' : `<div class="chips"><button type="button" class="chip" data-acao="lista" data-l="venda" data-id="${j.id}" aria-pressed="${s.listas.venda.includes(j.id)}">À venda</button><button type="button" class="chip" data-acao="lista" data-l="emprestimo" data-id="${j.id}" aria-pressed="${s.listas.emprestimo.includes(j.id)}">Para empréstimo</button></div>`}
-      ${ofertas.map(x => `<div class="oferta"><span>${H.imgEscudo(x.de, 18, 20)} ${H.esc(H.clube(x.de).n)} · <b>${x.tipo === 'emprestimo' ? 'empréstimo' : fmtDinheiro(x.valor)}</b></span><span class="linha-botoes"><button class="botao peq" type="button" data-acao="aceitar-recebida" data-id="${x.id}">${x.tipo === 'emprestimo' ? 'Emprestar' : 'Vender'}</button><button class="botao peq sec" type="button" data-acao="recusar-recebida" data-id="${x.id}">Recusar</button></span></div>`).join('')}</section>`;
+      ${ofertas.map(x => `<div class="oferta"><span>${H.imgEscudo(x.de, 18, 20)} ${H.esc(H.clube(x.de).n)} · <b>${x.tipo === 'emprestimo' ? 'empréstimo' : fmtDinheiro(x.valor)}</b></span>${acoesRecebida(x)}</div>`).join('')}
+      ${emp ? '' : `<button class="botao peq sec" type="button" data-acao="rescindir" data-id="${j.id}">Rescindir contrato (multa de ${fmtDinheiro(M.multaRescisao(b, s, j))})</button>`}</section>`;
   }
+  const fora = s.emprestimos[j.id];
+  if (fora?.de === s.tecnico.clube) return `<section class="ficha-mercado"><div class="titulo-linha"><h3>Mercado</h3>${fav}</div>
+    <p><b>Emprestado por você ao ${H.esc(H.clube(fora.para).n)} até o fim da temporada.</b></p>
+    <button class="botao peq sec" type="button" data-acao="chamar-volta" data-id="${j.id}">Chamar de volta (reembolso de ${fmtDinheiro(M.reembolso(j))})</button></section>`;
   const livre = b.clubes[j.clube].div === 'L', pedido = M.precoPedido(b, s, j), tipos = M.tiposPossiveis(b, s, j);
   const ja = s.propostas.find(p => p.jogador === j.id && ['aguardando', 'contraproposta'].includes(p.estado));
   const tipo0 = tipos.includes(H.app.tipoProposta) ? H.app.tipoProposta : tipos[0];
@@ -229,12 +246,13 @@ export function blocoFicha(j) {
     <p class="mudo">${M.pistaVontade(M.vontade(b, s, j, s.tecnico.clube))}</p>
     ${ja ? `<p><b>${ja.estado === 'contraproposta' ? 'Tem contraproposta esperando. Veja em Mercado › Propostas.' : 'Proposta enviada. Resposta na próxima rodada.'}</b></p>`
       : fixo ? `<p class="erro">${H.esc(geral)}</p>`
-      : `<form class="proposta" data-form="proposta" data-id="${j.id}">
+      : `<form class="proposta" data-form="proposta" data-id="${j.id}" data-pedido="${pedido}">
         ${tipos.length > 1 ? `<div class="chips tipos" role="radiogroup" aria-label="Tipo de proposta">${tipos.map(t => `<label class="chip"><input class="vh" type="radio" name="tipo" value="${t}" ${t === tipo0 ? 'checked' : ''}>${NOME_TIPO[t]}</label>`).join('')}</div>` : `<input type="hidden" name="tipo" value="${tipos[0]}">`}
         ${tipos.includes('compra') ? `<div class="so-compra"><label>Valor da transferência (€ milhões) <input type="number" name="valor" inputmode="decimal" step="0.01" min="0.05" value="${(pedido / 1e6).toFixed(2)}"></label>
-          <div class="chips">${[0.85, 1, 1.15].map(f => `<button type="button" class="chip" data-acao="sugerir" data-v="${(pedido * f / 1e6).toFixed(2)}">${fmtDinheiro(Math.round(pedido * f / 1e4) * 1e4)}</button>`).join('')}</div></div>` : ''}
+          <div class="chips">${[0.85, 1, 1.15].map(f => `<button type="button" class="chip" data-acao="sugerir" data-v="${(pedido * f / 1e6).toFixed(2)}">${fmtDinheiro(Math.round(pedido * f / 1e4) * 1e4)}</button>`).join('')}</div>
+          <label>Jogador na troca <select name="troca"><option value="">Sem troca</option>${b.elencos[s.tecnico.clube].filter(t => !s.emprestimos[t.id] && !M.travado(s, t.id) && !M.preContratoDe(s, t.id)).sort((x, y) => y.ovr - x.ovr).map(t => `<option value="${t.id}" data-v="${M.valorNaTroca(b, s, t, j.clube)}">${H.esc(t.curto)} · ${t.pos} ${t.ovr} · abate ~${fmtDinheiro(M.valorNaTroca(b, s, t, j.clube))}</option>`).join('')}</select></label></div>` : ''}
         <div class="campos-2 nao-emprestimo"><label>Salário por dia (€) <input type="number" name="salario" inputmode="numeric" min="10" step="10" value="${pede}"></label>${anosSelect('anos')}</div>
-        ${tipos.includes('emprestimo') ? `<p class="so-emprestimo mudo">Empréstimo até o fim da temporada, sem custo. Você paga o salário dele: ${euro(salarioDia(b, s, j))}/dia.</p>` : ''}
+        ${tipos.includes('emprestimo') ? `<p class="so-emprestimo mudo">Empréstimo até o fim da temporada, sem custo. Você paga o salário dele: ${euro(salarioDia(b, s, j))}/dia. Opção de compra por ${fmtDinheiro(M.opcaoCompra(b, s, j))}.</p>` : ''}
         <p class="mudo" style="font-size:.95rem">Ele deve pedir perto de ${euro(pede)}/dia. Folga na sua folha: ${euro(M.folgaPara(b, s, j))}/dia.${tipos.includes('pre') ? ` Pré-contrato: chega em janeiro de ${s.ano + 1}, sem pagar nada ao clube.` : ''}</p>
         <p class="erro" role="alert">${geral ? H.esc(geral) : ''}</p><button class="botao" type="submit">Enviar proposta</button></form>`}
     ${rel ? `<p>Relatório do olheiro: ${potencialTxt(j)}</p>` : ''}${olheiro}</section>`;
@@ -250,7 +268,7 @@ export function enviar(form) {
     H.$('#ficha').close(); H.aviso(r.txt); H.render(); H.salvar(); return;
   }
   const tipo = form.querySelector('[name=tipo]:checked, [name=tipo][type=hidden]')?.value || 'compra';
-  const e = M.fazerProposta(b, s, j, { tipo, valor: Math.round(num('valor') * 1e6), salario: tipo === 'emprestimo' ? salarioDia(b, s, j) : Math.round(num('salario')), anos: Math.round(num('anos')) });
+  const e = M.fazerProposta(b, s, j, { tipo, valor: Math.round((num('valor') || 0) * 1e6), salario: tipo === 'emprestimo' ? salarioDia(b, s, j) : Math.round(num('salario')), anos: Math.round(num('anos')), troca: tipo === 'compra' ? +form.troca?.value || 0 : 0 });
   if (e) { erro.textContent = e; return; }
   H.$('#ficha').close(); H.aviso('Proposta enviada. A resposta sai na próxima rodada.'); H.render(); H.salvar();
 }
@@ -280,6 +298,14 @@ export const acoes = {
   'aceitar-contra': re(el => { H.aviso(M.aceitarContraproposta(B(), S(), el.dataset.id) || 'Topou. A resposta final sai na próxima rodada.'); }, true),
   desistir: re(el => { M.desistir(S(), el.dataset.id); }, true),
   'aceitar-recebida': re(el => { H.aviso(M.aceitarRecebida(B(), S(), el.dataset.id) || 'Negócio fechado.'); if (H.$('#ficha').open) H.$('#ficha').close(); }, true),
+  'pedir-mais': re(el => { H.aviso(M.pedirMais(B(), S(), el.dataset.id, +el.dataset.f) || 'Contraproposta enviada. Resposta na próxima rodada.'); }, true),
+  leilao: re(el => { H.aviso(M.abrirLeilao(B(), S(), el.dataset.id) || 'Leilão aberto: os clubes dão os lances até a próxima rodada.'); }, true),
+  opcao: re(el => { H.aviso(M.exercerOpcao(B(), S(), +el.dataset.id) || 'Opção exercida: ele é seu em definitivo.'); if (H.$('#ficha').open) H.$('#ficha').close(); }, true),
+  'chamar-volta': re(el => { H.aviso(M.chamarDeVolta(B(), S(), +el.dataset.id) || 'Ele está de volta ao elenco.'); if (H.$('#ficha').open) H.$('#ficha').close(); }, true),
+  rescindir: el => { // dois toques: o primeiro pede confirmação
+    if (!el.dataset.ok) { el.dataset.ok = 1; el.textContent = 'Toque de novo para confirmar a rescisão'; el.classList.add('perigo'); return; }
+    const e = M.rescindir(B(), S(), +el.dataset.id); H.aviso(e || 'Contrato rescindido.'); if (!e && H.$('#ficha').open) H.$('#ficha').close(); H.render(); H.salvar();
+  },
   'recusar-recebida': re(el => { const m = M.recusarRecebida(B(), S(), el.dataset.id); if (m) H.aviso(m); if (H.$('#ficha').open) H.$('#ficha').close(); }, true),
 };
 
@@ -300,6 +326,7 @@ export function aoDigitar(el) {
     return true;
   }
   if (el.name === 'tipo' && el.closest('[data-form=proposta]')) { H.app.tipoProposta = el.value; return true; }
+  if (el.name === 'troca') { const f = el.form; f.valor.value = (Math.max(0, f.dataset.pedido - (+el.selectedOptions[0]?.dataset.v || 0)) / 1e6).toFixed(2); return true; }
   return false;
 }
 // filtros fechados (botão ou toque fora): redesenha a lista

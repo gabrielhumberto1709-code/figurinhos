@@ -4,7 +4,7 @@ import { rng, pick, clamp, PERFIL } from './util.js';
 import { tabela, aplicarSave } from './mundo.js';
 import { FASES, novaCopa, campanha } from './copa.js';
 import { metaDiretoria, folhaDia, lancar, cotaTV, garantirFinancas } from './financas.js';
-import { garantirMercado } from './mercado.js';
+import { garantirMercado, cumprirAcordos } from './mercado.js';
 import { viradaDM } from './dm.js';
 import { novaCont, campanhaCont } from './continental.js';
 
@@ -81,10 +81,11 @@ export function virarTemporada(base, s) {
   s.emprestimos = {};
   for (const p of s.preContratos) {
     const j = base.jog.get(p.jogador); if (!j) continue;
-    s.transf[j.id] = p.para; s.contratos[j.id] = s.ano + (p.anos || 3);
+    s.transf[j.id] = p.para; s.contratos[j.id] = s.ano + (p.anos || 3); (s.chegou ||= {})[j.id] = (s.ano + 1) * 40;
     if (p.para === ci) { s.salarios[j.id] = p.salario; add(`Chegou: ${j.curto}, do pré-contrato com o ${nome(p.de)}.`); } else delete s.salarios[j.id];
     s.historicoTransf.unshift({ rodada: 37, jogador: j.id, nome: j.curto, de: p.de, para: p.para, valor: 0, tipo: 'pre', ia: p.para !== ci && p.de !== ci });
   }
+  if (s.acordos?.length) cumprirAcordos(base, s, t => add(t));
   aplicarSave(base, s);
   // contrato acabou e não renovou: vira jogador livre
   const livres = base.clubes.findIndex(c => c.div === 'L');
