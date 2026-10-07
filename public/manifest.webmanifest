@@ -1,0 +1,15 @@
+{
+  "name": "Figurinhos",
+  "short_name": "Figurinhos",
+  "description": "Manager de futebol de botão: monte o álbum, escale o time, brigue pelo título.",
+  "lang": "pt-BR",
+  "start_url": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#F3EBDD",
+  "theme_color": "#1B1F2A",
+  "icons": [
+    { "src": "/img/icone-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable" },
+    { "src": "/img/icone-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ]
+}

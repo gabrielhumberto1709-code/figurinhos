@@ -1,0 +1,12 @@
+{
+  "name": "figurinhos",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dados": "node tools/build-dados.js",
+    "test": "node --test test/*.test.js"
+  },
+  "devDependencies": {
+    "wrangler": "^4.40.0"
+  }
+}

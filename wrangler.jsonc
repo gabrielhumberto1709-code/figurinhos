@@ -1,0 +1,15 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "figurinhos",
+  "main": "src/worker.js",
+  "compatibility_date": "2026-09-01",
+  "assets": {
+    "directory": "public",
+    "binding": "ASSETS",
+    "run_worker_first": ["/api/*"]
+  },
+  "d1_databases": [
+    { "binding": "DB", "database_name": "figurinhos", "database_id": "4e1dc2d2-e906-4f6e-8615-0fc802e842e9", "migrations_dir": "migrations" }
+  ],
+  "observability": { "enabled": true }
+}
