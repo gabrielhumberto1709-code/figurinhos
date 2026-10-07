@@ -1,0 +1,306 @@
+// Aba Mercado: Buscar (atalhos, séries, posições e filtros), Favoritos, Listas, Livres, Pré-contrato, Olheiros,
+// Propostas e Histórico. Também o bloco de mercado e contrato da ficha do jogador.
+import { janelaAberta, dataRodada } from './motor/mundo.js';
+import * as M from './motor/mercado.js';
+import { orcamento, salarioDia, salarioBase } from './motor/financas.js';
+import { POS_NOME, POS_ORDEM, SETOR, cartaDe, estrelas, fmtDinheiro, CONTINENTES, continenteDe } from './motor/util.js';
+import { urlRosto } from './pixel.js';
+
+let H; // { app, clube, esc, imgEscudo, render, salvar, aviso, $ }
+export const configurar = h => { H = h; };
+const S = () => H.app.s, B = () => H.app.base;
+
+const ABAS = [['buscar', 'Buscar'], ['favoritos', 'Favoritos'], ['listas', 'Listas'], ['livres', 'Livres'], ['pre', 'Pré-contrato'], ['olheiros', 'Olheiros'], ['propostas', 'Propostas'], ['historico', 'Histórico']];
+const RAPIDOS = [['bolso', 'Cabem no bolso'], ['barganha', 'Barganhas'], ['jovem', 'Jovens promessas'], ['contrato', 'Contrato acabando']];
+const DIVS = [['A', 'Série A'], ['B', 'Série B'], ['C', 'Série C'], ['X', 'Exterior']];
+const GRUPOS = [['', 'Todos'], ['GOL', 'GOL'], ['DEF', 'DEF'], ['MEI', 'MEI'], ['ATA', 'ATA']];
+const SITUACOES = [['todos', 'Todos'], ['favoritos', 'Favoritos'], ['livres', 'Livres'], ['pre', 'Pré-contrato'], ['venda', 'Lista de transferências'], ['emprestimo', 'Lista de empréstimo'], ['fim', 'Contrato no fim']];
+const ORDENS = [['ovr', 'Overall'], ['valor-', 'Mais caros'], ['valor+', 'Mais baratos'], ['idade', 'Mais jovens'], ['sal', 'Maior salário'], ['nome', 'Nome']];
+const FAIXAS = {
+  ovr: { rot: 'Overall', min: 40, max: 99 },
+  idade: { rot: 'Idade', min: 16, max: 42 },
+  valor: { rot: 'Valor de mercado', passos: [0, 50e3, 100e3, 250e3, 500e3, 1e6, 2e6, 5e6, 10e6, 20e6, 50e6, 100e6, Infinity] },
+  sal: { rot: 'Salário por dia', passos: [0, 200, 500, 1e3, 2e3, 5e3, 1e4, 2e4, 5e4, Infinity] },
+};
+const TAG_SIT = { livre: 'Livre', venda: 'À venda', emprestimo: 'Empréstimo', fim: 'Fim de contrato', pre: 'Pré-contrato', emprestado: 'Emprestado' };
+const ROTULO = { aguardando: 'Aguardando resposta', contraproposta: 'Contraproposta', recusada: 'Recusada', perdida: 'Perdida para rival', concluida: 'Fechado', cancelada: 'Cancelada' };
+const NOME_TIPO = { compra: 'Compra', livre: 'Livre', pre: 'Pré-contrato', emprestimo: 'Empréstimo' };
+
+const filtroPadrao = () => ({ q: '', rapido: '', divs: ['A', 'B', 'C', 'X'], grupo: '', pos: [], sit: 'todos', cont: '', ovr: [40, 99], idade: [16, 42], valor: [0, 12], sal: [0, 9], ord: 'ovr', n: 50 });
+const filtro = () => H.app.fMercado || (H.app.fMercado = filtroPadrao());
+const norm = t => t.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+const passo = (k, i) => FAIXAS[k].passos[i];
+const rotFaixa = (k, [a, b]) => FAIXAS[k].passos ? `${fmtPasso(k, a)} – ${fmtPasso(k, b)}` : `${a} – ${b}`;
+const fmtPasso = (k, i) => { const v = passo(k, i); return v === Infinity ? 'sem limite' : k === 'sal' ? `€ ${v.toLocaleString('pt-BR')}` : fmtDinheiro(v); };
+const euro = v => `€ ${Math.round(v).toLocaleString('pt-BR')}`;
+const filtrosAtivos = f => (f.sit !== 'todos') + (f.pos.length > 0) + !!f.cont + ['ovr', 'idade', 'valor', 'sal'].filter(k => { const d = filtroPadrao()[k]; return f[k][0] !== d[0] || f[k][1] !== d[1]; }).length;
+
+// ---------- busca ----------
+function filtrar(f = filtro()) {
+  const s = S(), b = B(), meu = s.tecnico.clube, L = M.listasIA(b, s), o = orcamento(b, s), divMeu = b.clubes[meu].div, q = norm(f.q);
+  const out = [];
+  for (const j of b.jog.values()) {
+    if (j.clube === meu) continue;
+    const c = b.clubes[j.clube], livre = c.div === 'L';
+    if (!livre && !f.divs.includes(c.div)) continue;
+    if (f.grupo && SETOR[j.pos] !== f.grupo) continue;
+    if (f.pos.length && !f.pos.includes(j.pos)) continue;
+    if (j.ovr < f.ovr[0] || j.ovr > f.ovr[1] || j.idade < f.idade[0] || j.idade > f.idade[1]) continue;
+    const valor = j.valor * 1000;
+    if (valor < passo('valor', f.valor[0]) || valor > passo('valor', f.valor[1])) continue;
+    if (f.cont && continenteDe(j.nat) !== f.cont) continue;
+    const fim = !livre && M.contratoNoFim(s, j);
+    if (f.sit === 'favoritos' && !s.favoritos.includes(j.id) || f.sit === 'livres' && !livre || f.sit === 'venda' && !L.venda.has(j.id) || f.sit === 'emprestimo' && !L.emprestimo.has(j.id)
+      || (f.sit === 'fim' || f.rapido === 'contrato') && !fim || f.sit === 'pre' && !(fim && s.rodada >= M.ABRE_PRE)) continue;
+    if (f.rapido === 'jovem' && !(j.idade <= 21 && (j.ovr >= 64 || s.relatorios[j.id]?.e >= 4))) continue;
+    const sal = salarioDia(b, s, j);
+    if (sal < passo('sal', f.sal[0]) || sal > passo('sal', f.sal[1])) continue;
+    if (q && !norm(j.nome + ' ' + c.n).includes(q)) continue;
+    if (f.rapido === 'bolso' && (M.precoPedido(b, s, j) > o.compras || Math.max(sal, salarioBase(divMeu, j.valor)) > o.folga)) continue;
+    if (f.rapido === 'barganha' && !(livre || M.precoPedido(b, s, j) <= valor * 0.75)) continue;
+    out.push(j);
+  }
+  const ord = { ovr: (a, b2) => b2.ovr - a.ovr, 'valor-': (a, b2) => b2.valor - a.valor, 'valor+': (a, b2) => a.valor - b2.valor || b2.ovr - a.ovr, idade: (a, b2) => a.idade - b2.idade || b2.ovr - a.ovr, sal: (a, b2) => salarioDia(b, s, b2) - salarioDia(b, s, a), nome: (a, b2) => a.curto.localeCompare(b2.curto) }[f.ord] || ((a, b2) => b2.ovr - a.ovr);
+  return out.sort(ord);
+}
+
+function linha(j, extra = '') {
+  const s = S(), b = B(), c = H.clube(j.clube), sit = M.situacao(b, s, j).filter(t => t !== 'pre' || j.clube === s.tecnico.clube);
+  return `<li><button type="button" class="linha-mercado" data-acao="ficha" data-id="${j.id}"><img class="px" src="${urlRosto(j.rosto, c)}" width="32" height="32" alt="" loading="lazy">
+    <span class="lm-nome"><b>${s.favoritos.includes(j.id) ? '<span class="fav-mini" aria-label="Favorito">★</span> ' : ''}${H.esc(j.curto)}</b><small>${H.imgEscudo(j.clube, 14, 15)} ${H.esc(c.n)} · ${j.idade} anos</small>
+    ${sit.length || extra ? `<span class="lm-tags">${sit.map(t => `<i class="sit ${t}">${TAG_SIT[t]}</i>`).join('')}${extra}</span>` : ''}</span>
+    <span class="pos-mini">${j.pos}</span><span class="nota ${cartaDe(j.ovr).k}">${j.ovr}</span><span class="lm-valor">${fmtDinheiro(j.valor * 1000)}</span></button></li>`;
+}
+const lista = (js, vazio, extra) => js.length ? `<ul class="lista-mercado">${js.map(j => linha(j, extra?.(j))).join('')}</ul>` : `<section class="cartao"><p class="mudo">${vazio}</p></section>`;
+const chips = (rot, itens, acao, ativo, extra = '') => `<div class="chips" role="group" aria-label="${rot}">${itens.map(([k, t]) => `<button type="button" class="chip" data-acao="${acao}" data-v="${k}" aria-pressed="${ativo(k)}" ${extra}>${t}</button>`).join('')}</div>`;
+
+function janelaInfo(s) {
+  const aberta = janelaAberta(s.ano, s.rodada), hoje = dataRodada(s.ano, Math.min(s.rodada, 37));
+  for (let r = s.rodada + 1; r <= 37; r++) if (janelaAberta(s.ano, r) !== aberta) { const d = dataRodada(s.ano, r); return { aberta, dias: Math.round((d - hoje) / 864e5), data: d }; }
+  return { aberta, dias: null };
+}
+const ddmm = d => `${String(d.getUTCDate()).padStart(2, '0')}/${String(d.getUTCMonth() + 1).padStart(2, '0')}`;
+function faixaJanela(s) {
+  const J = janelaInfo(s);
+  const txt = J.aberta ? (J.dias != null ? `Janela aberta · fecha em ${J.dias} dias (${ddmm(J.data)})` : 'Janela aberta') : J.dias != null ? `Janela fechada · abre em ${J.dias} dias (${ddmm(J.data)})` : 'Janela fechada até a próxima temporada';
+  return `<p class="janela ${J.aberta ? 'aberta' : ''}"><b>${txt}</b><small>Livres e pré-contratos não dependem da janela. Propostas são respondidas na rodada seguinte.</small></p>`;
+}
+
+function abaBuscar() {
+  const f = filtro(), res = filtrar(f), n = filtrosAtivos(f);
+  return `${faixaJanela(S())}
+    <section class="cartao filtros-mercado">
+      <label class="vh" for="busca-mercado">Buscar jogador ou clube</label><input type="search" id="busca-mercado" data-filtro="q" placeholder="Nome do jogador ou clube" value="${H.esc(f.q)}" autocomplete="off">
+      ${chips('Atalhos', RAPIDOS, 'm-rapido', k => f.rapido === k)}
+      ${chips('Séries', DIVS, 'm-div', k => f.divs.includes(k))}
+      ${chips('Setor', GRUPOS, 'm-grupo', k => f.grupo === k)}
+      <div class="busca-rodape"><span class="mudo" id="conta-mercado">${res.length.toLocaleString('pt-BR')} jogadores</span>
+        <button type="button" class="chip" data-acao="m-filtros" aria-haspopup="dialog">Filtros${n ? ` (${n})` : ''}</button>
+        <label class="vh" for="ordem-mercado">Ordenar</label><select id="ordem-mercado" data-filtro="ord">${ORDENS.map(([k, t]) => `<option value="${k}" ${f.ord === k ? 'selected' : ''}>${t}</option>`).join('')}</select></div>
+    </section>
+    <div id="lista-mercado">${listaBusca(res, f)}</div>`;
+}
+const listaBusca = (res, f) => lista(res.slice(0, f.n), 'Ninguém com esses filtros. Tente afrouxar alguma coisa.') + (res.length > f.n ? `<button class="botao sec" type="button" data-acao="m-mais">Mostrar mais (${(res.length - f.n).toLocaleString('pt-BR')})</button>` : '');
+
+// ---------- filtros (no mesmo dialog da ficha) ----------
+function faixa(k) {
+  const f = filtro(), F = FAIXAS[k], max = F.passos ? F.passos.length - 1 : F.max, min = F.passos ? 0 : F.min;
+  return `<div class="faixa"><div class="faixa-topo"><span>${F.rot}</span><output id="out-${k}">${rotFaixa(k, f[k])}</output></div>
+    <div class="faixa-trilho" style="--a:${(f[k][0] - min) / (max - min) * 100}%;--b:${(f[k][1] - min) / (max - min) * 100}%">
+      <input type="range" min="${min}" max="${max}" step="1" value="${f[k][0]}" data-faixa="${k}" data-ponta="0" aria-label="${F.rot}: mínimo">
+      <input type="range" min="${min}" max="${max}" step="1" value="${f[k][1]}" data-faixa="${k}" data-ponta="1" aria-label="${F.rot}: máximo"></div></div>`;
+}
+function abrirFiltros() {
+  const f = filtro(), d = H.$('#ficha');
+  d.innerHTML = `<div class="ficha filtros-dialog"><div class="titulo-linha"><h2>Filtros</h2><button class="botao peq sec" type="button" data-acao="f-limpar">Limpar</button></div>
+    <section><h3>Situação</h3>${chips('Situação', SITUACOES, 'f-sit', k => f.sit === k)}</section>
+    <section><h3>Posição</h3>${chips('Posição', POS_ORDEM.map(p => [p, p]), 'f-pos', k => f.pos.includes(k))}</section>
+    <section><h3>Continente</h3>${chips('Continente', [['', 'Todos'], ...Object.entries(CONTINENTES)], 'f-cont', k => f.cont === k)}</section>
+    ${['ovr', 'idade', 'valor', 'sal'].map(faixa).join('')}
+    <button class="botao grande" type="button" data-acao="f-ver" id="f-ver">Ver ${filtrar().length.toLocaleString('pt-BR')} jogadores</button></div>`;
+  H.app.filtrosAbertos = true;
+  if (!d.open) d.showModal();
+}
+const atualizarContagem = () => { const b = H.$('#f-ver'); if (b) b.textContent = `Ver ${filtrar().length.toLocaleString('pt-BR')} jogadores`; };
+
+// ---------- outras abas ----------
+function abaListas() {
+  const s = S(), b = B(), L = M.listasIA(b, s), sub = H.app.abaListas || 'venda';
+  const mine = [...s.listas.venda, ...s.listas.emprestimo].map(id => b.jog.get(id)).filter(j => j?.clube === s.tecnico.clube);
+  const corpo = sub === 'meus' ? lista(mine, 'Você não listou ninguém. Na ficha de um jogador seu, coloque-o à venda ou para empréstimo: chovem propostas.')
+    : lista([...(sub === 'venda' ? L.venda : L.emprestimo)].map(id => b.jog.get(id)).sort((x, y) => y.ovr - x.ovr).slice(0, 120), 'Nenhum jogador nesta lista agora.');
+  return `${chips('Listas', [['venda', 'À venda'], ['emprestimo', 'Para empréstimo'], ['meus', `Meus listados${mine.length ? ` (${mine.length})` : ''}`]], 'aba-listas', k => sub === k)}
+    <p class="mudo">${sub === 'venda' ? 'Os clubes querem se livrar desses: o preço pedido cai bastante.' : sub === 'emprestimo' ? 'Garotos sem espaço em clube grande. Vêm sem custo até o fim da temporada; você paga o salário.' : 'Seus jogadores listados recebem mais propostas a cada rodada com a janela aberta.'}</p>${corpo}`;
+}
+function abaPre() {
+  const s = S(), b = B(), meu = s.tecnico.clube;
+  const meus = s.preContratos.filter(p => p.para === meu), saem = s.preContratos.filter(p => p.de === meu);
+  const cands = [...b.jog.values()].filter(j => j.clube !== meu && b.clubes[j.clube].div !== 'L' && M.contratoNoFim(s, j) && !M.preContratoDe(s, j.id)).sort((x, y) => y.ovr - x.ovr).slice(0, 100);
+  const pj = p => b.jog.get(p.jogador);
+  return `<p class="janela ${s.rodada >= M.ABRE_PRE ? 'aberta' : ''}"><b>${s.rodada >= M.ABRE_PRE ? 'Pré-contratos liberados' : `Pré-contratos abrem na ${M.ABRE_PRE + 1}ª rodada`}</b><small>Quem está no último ano de contrato pode assinar agora e chegar em janeiro, sem custo de transferência.</small></p>
+    ${meus.length ? `<section class="cartao"><h3>Chegam em ${s.ano + 1}</h3><ul class="noticias">${meus.map(p => `<li><span class="rd">R${p.rodada + 1}</span><span><b>${H.esc(pj(p).curto)}</b> · do ${H.esc(H.clube(p.de).n)} · ${euro(p.salario)}/dia por ${p.anos} anos</span></li>`).join('')}</ul></section>` : ''}
+    ${saem.length ? `<section class="cartao"><h3>Saem no fim da temporada</h3><ul class="noticias">${saem.map(p => `<li><span class="rd">R${p.rodada + 1}</span><span><b>${H.esc(pj(p).curto)}</b> assinou com o ${H.esc(H.clube(p.para).n)}</span></li>`).join('')}</ul></section>` : ''}
+    <h3>Contrato terminando em ${s.ano}</h3>${lista(cands, 'Ninguém com contrato no fim.')}`;
+}
+function abaOlheiros() {
+  const s = S(), b = B(), o = s.olheiro;
+  const rel = Object.entries(s.relatorios).map(([id, r]) => [b.jog.get(+id), r]).filter(([j]) => j && j.clube !== s.tecnico.clube).sort((x, y) => y[1].rd - x[1].rd || y[1].e - x[1].e).slice(0, 60);
+  const fila = s.observar.map(id => b.jog.get(id)).filter(Boolean);
+  return `<section class="cartao"><h3>Para onde o olheiro vai</h3>
+      ${chips('Região', Object.entries(M.REGIOES), 'olheiro', k => o.regiao === k, 'data-k="regiao"')}
+      ${chips('Setor', GRUPOS, 'olheiro', k => o.setor === k, 'data-k="setor"')}
+      ${chips('Idade', [['1', 'Só jovens (até 21)'], ['0', 'Qualquer idade']], 'olheiro', k => String(+o.jovens) === k, 'data-k="jovens"')}
+      <p class="mudo" style="font-size:.95rem">A cada rodada ele traz dois nomes com o potencial estimado (pode errar por uma estrela). Na ficha de qualquer jogador dá para pedir uma observação exata.</p></section>
+    ${fila.length ? `<section class="cartao"><h3>Vai observar nesta rodada</h3><p>${fila.map(j => H.esc(j.curto)).join(', ')}</p></section>` : ''}
+    <h3>Relatórios</h3>${lista(rel.map(([j]) => j), 'Nenhum relatório ainda. Jogue uma rodada.', j => { const r = s.relatorios[j.id]; return `<i class="sit pot" aria-label="Potencial ${r.e} de 5">${'★'.repeat(r.e)}${'☆'.repeat(5 - r.e)}${r.exato ? '' : ' ~'}</i>`; })}`;
+}
+function abaPropostas() {
+  const s = S(), b = B(), J = id => b.jog.get(id);
+  const env = s.propostas.slice(0, 40).map(p => { const j = J(p.jogador), tipo = p.tipo || 'compra'; return `<li class="cartao"><div class="titulo-linha"><button type="button" class="link" data-acao="ficha" data-id="${j.id}">${H.esc(j.curto)}</button><span class="tag ${p.estado === 'concluida' ? 'resultado' : ['recusada', 'perdida'].includes(p.estado) ? 'crise' : 'rumor'}">${ROTULO[p.estado]}</span></div>
+    <p class="mudo">${H.imgEscudo(p.de, 16, 17)} ${tipo === 'livre' ? 'Sem clube' : `${H.esc(H.clube(p.de).n)} · ${NOME_TIPO[tipo]}`}${tipo === 'compra' ? ` · ${fmtDinheiro(p.valor)}` : ''}${p.salario ? ` · ${euro(p.salario)}/dia` : ''}${p.anos && tipo !== 'emprestimo' ? ` · ${p.anos} anos` : ''}${p.motivo ? ` · ${H.esc(p.motivo)}` : ''}</p>
+    ${p.estado === 'contraproposta' ? `<p><b>${p.contra != null ? `O clube pede ${fmtDinheiro(p.contra)}.` : ''} ${p.contraSal != null ? `Ele pede ${euro(p.contraSal)}/dia.` : ''}</b></p><div class="linha-botoes"><button class="botao peq" type="button" data-acao="aceitar-contra" data-id="${p.id}">Aceitar</button><button class="botao peq sec" type="button" data-acao="desistir" data-id="${p.id}">Desistir</button></div>`
+      : p.estado === 'aguardando' ? `<div class="linha-botoes"><button class="botao peq sec" type="button" data-acao="desistir" data-id="${p.id}">Cancelar proposta</button></div>` : ''}</li>`; }).join('');
+  const rec = s.recebidas.map(x => { const j = J(x.jogador); return `<li class="cartao"><div class="titulo-linha"><button type="button" class="link" data-acao="ficha" data-id="${j.id}">${H.esc(j.curto)}</button><span class="nota ${cartaDe(j.ovr).k}">${j.ovr}</span></div>
+    <p class="mudo">${H.imgEscudo(x.de, 16, 17)} ${H.esc(H.clube(x.de).n)} ${x.tipo === 'emprestimo' ? 'pede emprestado até o fim da temporada' : `oferece <b>${fmtDinheiro(x.valor)}</b> · vale ${fmtDinheiro(j.valor * 1000)}`}</p>
+    <div class="linha-botoes"><button class="botao peq" type="button" data-acao="aceitar-recebida" data-id="${x.id}">${x.tipo === 'emprestimo' ? 'Emprestar' : 'Vender'}</button><button class="botao peq sec" type="button" data-acao="recusar-recebida" data-id="${x.id}">Recusar</button></div></li>`; }).join('');
+  return `<h3>Pelos seus jogadores</h3>${rec ? `<ul class="lista-propostas">${rec}</ul>` : '<section class="cartao"><p class="mudo">Nenhuma proposta agora. Quem joga bem, ou está listado, chama atenção.</p></section>'}
+    <h3>Feitas por você</h3>${env ? `<ul class="lista-propostas">${env}</ul>` : '<section class="cartao"><p class="mudo">Você ainda não fez propostas. Busque um jogador e toque nele.</p></section>'}`;
+}
+function abaHistorico() {
+  const s = S(), meu = s.tecnico.clube, sub = H.app.abaHist || 'meu';
+  const l = s.historicoTransf.filter(x => sub === 'todas' || x.de === meu || x.para === meu).slice(0, 150);
+  return `${chips('Histórico', [['meu', 'Meu clube'], ['todas', 'Todas']], 'aba-hist', k => sub === k)}
+    ${l.length ? `<section class="cartao"><ul class="noticias">${l.map(x => `<li><span class="rd">R${x.rodada + 1}</span><span><b>${H.esc(x.nome)}</b>: ${H.esc(H.clube(x.de).n)} → ${H.esc(H.clube(x.para).n)} · ${x.tipo === 'emprestimo' ? 'empréstimo' : x.valor ? fmtDinheiro(x.valor) : 'sem custo'}</span></li>`).join('')}</ul></section>` : '<section class="cartao"><p class="mudo">Nenhuma transferência ainda.</p></section>'}`;
+}
+
+export function tela() {
+  const s = S(), b = B(), aba = H.app.abaMercado || 'buscar';
+  M.garantirMercado(s);
+  const abertas = s.propostas.filter(p => ['aguardando', 'contraproposta'].includes(p.estado)).length + s.recebidas.length;
+  const corpo = {
+    buscar: abaBuscar,
+    favoritos: () => lista(s.favoritos.map(id => b.jog.get(id)).filter(Boolean), 'Nenhum favorito. Toque na estrela da ficha de um jogador para acompanhar.'),
+    listas: abaListas,
+    livres: () => `<p class="mudo">Sem clube: assinam a qualquer momento, sem custo de transferência. Só o salário.</p>${lista(b.elencos.find((e, ci) => b.clubes[ci].div === 'L').slice().sort((x, y) => y.ovr - x.ovr), 'Ninguém sem clube agora.')}`,
+    pre: abaPre, olheiros: abaOlheiros, propostas: abaPropostas, historico: abaHistorico,
+  }[aba]();
+  const o = orcamento(b, s);
+  return `<div class="titulo-linha"><h2>Mercado</h2><span class="mudo">${fmtDinheiro(s.caixa)} em caixa</span></div>
+    <div class="chips" style="gap:8px"><span class="chip-info">Compras ${fmtDinheiro(o.compras)}</span><span class="chip-info">Folga ${euro(o.folga)}/dia</span></div>
+    <nav class="abas-mercado" aria-label="Seções do mercado">${ABAS.map(([k, t]) => `<button type="button" class="chip" data-acao="aba-mercado" data-a="${k}" aria-pressed="${aba === k}">${t}${k === 'propostas' && abertas ? ` (${abertas})` : ''}</button>`).join('')}</nav>
+    ${corpo}`;
+}
+
+// ---------- ficha ----------
+export function potencialTxt(j) {
+  const s = S(), r = s?.relatorios?.[j.id], meu = s && j.clube === s.tecnico.clube;
+  const n = meu ? estrelas(j.pot) : r?.e;
+  return n ? `<span class="estrelas" aria-label="${n} de 5">${'★'.repeat(n)}${'☆'.repeat(5 - n)}</span>${meu || r.exato ? '' : ' <small class="mudo">olheiro</small>'}` : '<span class="estrelas" aria-label="desconhecido">? ? ?</span>';
+}
+const anosSelect = (nome, v = 3) => `<label>Contrato <select name="${nome}">${[1, 2, 3, 4, 5].map(n => `<option value="${n}" ${n === v ? 'selected' : ''}>${n} ${n > 1 ? 'anos' : 'ano'}</option>`).join('')}</select></label>`;
+
+export function blocoFicha(j) {
+  const s = S(), b = B(), meu = j.clube === s.tecnico.clube, sit = M.situacao(b, s, j);
+  M.garantirMercado(s);
+  const tags = sit.length ? `<p class="lm-tags">${sit.map(t => `<i class="sit ${t}">${TAG_SIT[t]}</i>`).join('')}</p>` : '';
+  const fav = `<button type="button" class="chip fav" data-acao="favorito" data-id="${j.id}" aria-pressed="${s.favoritos.includes(j.id)}">★ Favorito</button>`;
+  if (meu) {
+    const ofertas = s.recebidas.filter(x => x.jogador === j.id), pre = M.preContratoDe(s, j.id), emp = s.emprestimos[j.id];
+    const ren = M.renovacaoPossivel(s, j) && M.pedidoRenovacao(b, s, j);
+    return `<section class="ficha-mercado"><div class="titulo-linha"><h3>Contrato</h3>${fav}</div>${tags}
+      <dl><dt>Salário</dt><dd>${euro(salarioDia(b, s, j))}/dia</dd><dt>Contrato</dt><dd>até ${j.contrato}</dd></dl>
+      ${pre ? `<p><b>Assinou pré-contrato com o ${H.esc(H.clube(pre.para).n)} e sai no fim da temporada.</b></p>` : ''}
+      ${emp ? `<p><b>Emprestado pelo ${H.esc(H.clube(emp.de).n)} até o fim da temporada.</b></p>` : ''}
+      ${ren ? `<form class="proposta" data-form="renovar" data-id="${j.id}"><p class="mudo">${ren.ficar < 30 ? 'Ele anda insatisfeito e não quer conversa.' : `Ele deve pedir cerca de <b>${euro(ren.pede)}/dia</b>. Folga na folha: ${euro(orcamento(b, s).folga)}/dia.`}</p>
+        <div class="campos-2"><label>Salário por dia (€) <input type="number" name="salario" inputmode="numeric" min="10" step="10" value="${ren.pede}"></label>${anosSelect('anos')}</div>
+        <p class="erro" role="alert"></p><button class="botao" type="submit">Renovar contrato</button></form>` : ''}
+      ${emp ? '' : `<div class="chips"><button type="button" class="chip" data-acao="lista" data-l="venda" data-id="${j.id}" aria-pressed="${s.listas.venda.includes(j.id)}">À venda</button><button type="button" class="chip" data-acao="lista" data-l="emprestimo" data-id="${j.id}" aria-pressed="${s.listas.emprestimo.includes(j.id)}">Para empréstimo</button></div>`}
+      ${ofertas.map(x => `<div class="oferta"><span>${H.imgEscudo(x.de, 18, 20)} ${H.esc(H.clube(x.de).n)} · <b>${x.tipo === 'emprestimo' ? 'empréstimo' : fmtDinheiro(x.valor)}</b></span><span class="linha-botoes"><button class="botao peq" type="button" data-acao="aceitar-recebida" data-id="${x.id}">${x.tipo === 'emprestimo' ? 'Emprestar' : 'Vender'}</button><button class="botao peq sec" type="button" data-acao="recusar-recebida" data-id="${x.id}">Recusar</button></span></div>`).join('')}</section>`;
+  }
+  const livre = b.clubes[j.clube].div === 'L', pedido = M.precoPedido(b, s, j), tipos = M.tiposPossiveis(b, s, j);
+  const ja = s.propostas.find(p => p.jogador === j.id && ['aguardando', 'contraproposta'].includes(p.estado));
+  const tipo0 = tipos.includes(H.app.tipoProposta) ? H.app.tipoProposta : tipos[0];
+  const geral = tipos.length ? M.bloqueioProposta(b, s, j, { tipo: tipo0, valor: 1, salario: 1, anos: 3 }) : 'Sem negócio possível agora.';
+  const pede = M.salarioPedido(b, s, j, 3), rel = s.relatorios[j.id];
+  const olheiro = rel?.exato ? '' : s.observar.includes(j.id) ? '<p class="mudo">O olheiro vai observá-lo na próxima rodada.</p>' : `<button type="button" class="botao sec peq" data-acao="observar" data-id="${j.id}">Mandar o olheiro observar</button>`;
+  const fixo = geral && !/dinheiro|orçamento|salário|folga|janela|Elenco cheio|Limite/.test(geral); // erro que nenhum valor resolve
+  return `<section class="ficha-mercado"><div class="titulo-linha"><h3>Mercado</h3>${fav}</div>${tags}
+    <dl>${livre ? '' : `<dt>Preço pedido</dt><dd>${fmtDinheiro(pedido)}</dd>`}<dt>Salário hoje</dt><dd>${livre ? '—' : `${euro(salarioDia(b, s, j))}/dia`}</dd><dt>Seu caixa</dt><dd>${fmtDinheiro(s.caixa)}</dd></dl>
+    <p class="mudo">${M.pistaVontade(M.vontade(b, s, j, s.tecnico.clube))}</p>
+    ${ja ? `<p><b>${ja.estado === 'contraproposta' ? 'Tem contraproposta esperando. Veja em Mercado › Propostas.' : 'Proposta enviada. Resposta na próxima rodada.'}</b></p>`
+      : fixo ? `<p class="erro">${H.esc(geral)}</p>`
+      : `<form class="proposta" data-form="proposta" data-id="${j.id}">
+        ${tipos.length > 1 ? `<div class="chips tipos" role="radiogroup" aria-label="Tipo de proposta">${tipos.map(t => `<label class="chip"><input class="vh" type="radio" name="tipo" value="${t}" ${t === tipo0 ? 'checked' : ''}>${NOME_TIPO[t]}</label>`).join('')}</div>` : `<input type="hidden" name="tipo" value="${tipos[0]}">`}
+        ${tipos.includes('compra') ? `<div class="so-compra"><label>Valor da transferência (€ milhões) <input type="number" name="valor" inputmode="decimal" step="0.01" min="0.05" value="${(pedido / 1e6).toFixed(2)}"></label>
+          <div class="chips">${[0.85, 1, 1.15].map(f => `<button type="button" class="chip" data-acao="sugerir" data-v="${(pedido * f / 1e6).toFixed(2)}">${fmtDinheiro(Math.round(pedido * f / 1e4) * 1e4)}</button>`).join('')}</div></div>` : ''}
+        <div class="campos-2 nao-emprestimo"><label>Salário por dia (€) <input type="number" name="salario" inputmode="numeric" min="10" step="10" value="${pede}"></label>${anosSelect('anos')}</div>
+        ${tipos.includes('emprestimo') ? `<p class="so-emprestimo mudo">Empréstimo até o fim da temporada, sem custo. Você paga o salário dele: ${euro(salarioDia(b, s, j))}/dia.</p>` : ''}
+        <p class="mudo" style="font-size:.95rem">Ele deve pedir perto de ${euro(pede)}/dia. Folga na sua folha: ${euro(M.folgaPara(b, s, j))}/dia.${tipos.includes('pre') ? ` Pré-contrato: chega em janeiro de ${s.ano + 1}, sem pagar nada ao clube.` : ''}</p>
+        <p class="erro" role="alert">${geral ? H.esc(geral) : ''}</p><button class="botao" type="submit">Enviar proposta</button></form>`}
+    ${rel ? `<p>Relatório do olheiro: ${potencialTxt(j)}</p>` : ''}${olheiro}</section>`;
+}
+
+// ---------- formulários ----------
+export function enviar(form) {
+  const s = S(), b = B(), j = b.jog.get(+form.dataset.id), num = n => parseFloat(String(form[n]?.value ?? '').replace(',', '.'));
+  const erro = form.querySelector('.erro');
+  if (form.dataset.form === 'renovar') {
+    const r = M.renovar(b, s, j, Math.round(num('salario')), Math.round(num('anos')));
+    if (!r.ok) { erro.textContent = r.txt; if (r.pede) form.salario.value = r.pede; return; }
+    H.$('#ficha').close(); H.aviso(r.txt); H.render(); H.salvar(); return;
+  }
+  const tipo = form.querySelector('[name=tipo]:checked, [name=tipo][type=hidden]')?.value || 'compra';
+  const e = M.fazerProposta(b, s, j, { tipo, valor: Math.round(num('valor') * 1e6), salario: tipo === 'emprestimo' ? salarioDia(b, s, j) : Math.round(num('salario')), anos: Math.round(num('anos')) });
+  if (e) { erro.textContent = e; return; }
+  H.$('#ficha').close(); H.aviso('Proposta enviada. A resposta sai na próxima rodada.'); H.render(); H.salvar();
+}
+
+// ---------- eventos ----------
+const refazerLista = () => { const f = filtro(), res = filtrar(f), l = H.$('#lista-mercado'); if (l) l.innerHTML = listaBusca(res, f); const c = H.$('#conta-mercado'); if (c) c.textContent = `${res.length.toLocaleString('pt-BR')} jogadores`; };
+const re = (fn, salva) => el => { fn(el); H.render(); if (salva) H.salvar(); };
+export const acoes = {
+  'aba-mercado': re(el => { H.app.abaMercado = el.dataset.a; }),
+  'aba-listas': re(el => { H.app.abaListas = el.dataset.v; }),
+  'aba-hist': re(el => { H.app.abaHist = el.dataset.v; }),
+  'm-rapido': re(el => { const f = filtro(); f.rapido = f.rapido === el.dataset.v ? '' : el.dataset.v; f.n = 50; }),
+  'm-div': re(el => { const f = filtro(), v = el.dataset.v; f.divs = f.divs.includes(v) ? f.divs.filter(x => x !== v) : [...f.divs, v]; f.n = 50; }),
+  'm-grupo': re(el => { filtro().grupo = el.dataset.v; filtro().n = 50; }),
+  'm-mais': () => { filtro().n += 50; refazerLista(); },
+  'm-filtros': () => abrirFiltros(),
+  'f-sit': el => { filtro().sit = el.dataset.v; abrirFiltros(); },
+  'f-pos': el => { const f = filtro(), v = el.dataset.v; f.pos = f.pos.includes(v) ? f.pos.filter(x => x !== v) : [...f.pos, v]; abrirFiltros(); },
+  'f-cont': el => { filtro().cont = el.dataset.v; abrirFiltros(); },
+  'f-limpar': () => { const f = filtro(), q = f.q, ord = f.ord; H.app.fMercado = { ...filtroPadrao(), q, ord, divs: f.divs, grupo: f.grupo, rapido: f.rapido }; abrirFiltros(); },
+  'f-ver': () => H.$('#ficha').close(),
+  favorito: el => { M.alternarFavorito(S(), +el.dataset.id); el.setAttribute('aria-pressed', S().favoritos.includes(+el.dataset.id)); H.salvar(); },
+  lista: el => { const e = M.alternarLista(B(), S(), el.dataset.l, +el.dataset.id); if (e) return H.aviso(e); for (const c of el.parentElement.children) c.setAttribute('aria-pressed', S().listas[c.dataset.l].includes(+el.dataset.id)); H.salvar(); },
+  observar: el => { const e = M.observar(S(), +el.dataset.id); H.aviso(e || 'O olheiro vai observá-lo na próxima rodada.'); if (!e) el.outerHTML = '<p class="mudo">O olheiro vai observá-lo na próxima rodada.</p>'; H.salvar(); },
+  olheiro: re(el => { const o = S().olheiro, k = el.dataset.k; o[k] = k === 'jovens' ? el.dataset.v === '1' : el.dataset.v; }, true),
+  sugerir: el => { el.closest('form').valor.value = el.dataset.v; },
+  'aceitar-contra': re(el => { H.aviso(M.aceitarContraproposta(B(), S(), el.dataset.id) || 'Topou. A resposta final sai na próxima rodada.'); }, true),
+  desistir: re(el => { M.desistir(S(), el.dataset.id); }, true),
+  'aceitar-recebida': re(el => { H.aviso(M.aceitarRecebida(B(), S(), el.dataset.id) || 'Negócio fechado.'); if (H.$('#ficha').open) H.$('#ficha').close(); }, true),
+  'recusar-recebida': re(el => { M.recusarRecebida(S(), el.dataset.id); if (H.$('#ficha').open) H.$('#ficha').close(); }, true),
+};
+
+// digitação e sliders: atualiza sem redesenhar a tela inteira (não perde o foco)
+export function aoDigitar(el) {
+  if (!H?.app.s) return false;
+  const k = el.dataset?.filtro;
+  if (k) { filtro()[k] = el.value; filtro().n = 50; refazerLista(); return true; }
+  const fx = el.dataset?.faixa;
+  if (fx) {
+    const f = filtro(), p = +el.dataset.ponta, v = +el.value, par = f[fx].slice();
+    par[p] = v; if (par[0] > par[1]) { par[1 - p] = v; el.parentElement.children[1 - p].value = v; }
+    f[fx] = par; f.n = 50;
+    const tr = el.parentElement, F = FAIXAS[fx], min = F.passos ? 0 : F.min, max = F.passos ? F.passos.length - 1 : F.max;
+    tr.style.setProperty('--a', `${(par[0] - min) / (max - min) * 100}%`); tr.style.setProperty('--b', `${(par[1] - min) / (max - min) * 100}%`);
+    H.$(`#out-${fx}`).textContent = rotFaixa(fx, par);
+    clearTimeout(aoDigitar.t); aoDigitar.t = setTimeout(atualizarContagem, 120);
+    return true;
+  }
+  if (el.name === 'tipo' && el.closest('[data-form=proposta]')) { H.app.tipoProposta = el.value; return true; }
+  return false;
+}
+// filtros fechados (botão ou toque fora): redesenha a lista
+export function aoFecharDialog() { if (H.app.filtrosAbertos) { H.app.filtrosAbertos = false; if (H.app.aba === 'mercado') H.render(); } }

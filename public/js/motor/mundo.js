@@ -3,7 +3,7 @@ import { rng, pick, jogador } from './util.js';
 import { pontosCorridos } from './calendario.js';
 import { simular, melhorTime, bancoAuto } from './partida.js';
 import { gerarNoticias } from './noticias.js';
-import { resolverMercado } from './mercado.js';
+import { resolverMercado, garantirMercado } from './mercado.js';
 import { contasDaRodada, financasIniciais } from './financas.js';
 
 const DIVS = ['A', 'B', 'C'];
@@ -31,7 +31,10 @@ export function janelaAberta(ano, r) {
 // caixa inicial: parte do valor do elenco + tamanho da torcida, pesado pela divisão
 const PESO_DIV = { A: 1, B: 0.4, C: 0.15 }, PESO_DIF = { facil: 1.5, normal: 1, dificil: 0.6 };
 export function caixaInicial(base, ci, dificuldade = 'normal') {
-  const c = base.clubes[ci], elenco = base.elencos[ci].reduce((t, j) => t + j.valor, 0) * 1000;
+  const c = base.clubes[ci];
+  if (c.div === 'L') return 0;
+  if (c.div === 'X') return Math.round(4e6 * c.tier ** 2 * c.fan / 6 / 10000) * 10000;
+  const elenco = base.elencos[ci].reduce((t, j) => t + j.valor, 0) * 1000;
   const minimo = { A: 3e6, B: 1e6, C: 3e5 }[c.div];
   return Math.round(Math.max(minimo, elenco * 0.12 + c.fan * c.fan * 150000 * PESO_DIV[c.div]) * (PESO_DIF[dificuldade] || 1) / 10000) * 10000;
 }
@@ -40,15 +43,16 @@ export class Base {
   constructor(dados) {
     this.dados = dados;
     this.clubes = dados.clubes;
-    this.jog = new Map(dados.jogadores.map(r => { const j = jogador(r); j.clubeOrig = j.clube; return [j.id, j]; }));
+    this.jog = new Map(dados.jogadores.map(r => { const j = jogador(r); j.clubeOrig = j.clube; j.contratoOrig = j.contrato; return [j.id, j]; }));
     this.aplicarTransferencias({});
   }
-  // cada save carrega as próprias transferências por cima da base original
-  aplicarTransferencias(transf) {
-    for (const j of this.jog.values()) j.clube = transf[j.id] ?? j.clubeOrig;
+  // cada save carrega as próprias transferências (e contratos renovados) por cima da base original
+  aplicarTransferencias(transf, contratos = {}) {
+    for (const j of this.jog.values()) { j.clube = transf[j.id] ?? j.clubeOrig; j.contrato = contratos[j.id] ?? j.contratoOrig; }
     this.elencos = this.clubes.map(() => []);
     for (const j of this.jog.values()) this.elencos[j.clube].push(j);
     this._forca = null;
+    this._versao = (this._versao || 0) + 1;
   }
   // força do clube: média dos 16 melhores (cacheada; o mercado vai precisar invalidar)
   forca(ci) {
@@ -56,8 +60,9 @@ export class Base {
     if (this._forca[ci] == null) { const t = this.elencos[ci].map(j => j.ovr).sort((a, b) => b - a).slice(0, 16); this._forca[ci] = t.reduce((a, b) => a + b, 0) / t.length; }
     return this._forca[ci];
   }
-  ranking() { return this.clubes.map((c, i) => i).sort((a, b) => this.forca(b) - this.forca(a)); }
+  ranking() { return this.clubes.map((c, i) => i).filter(i => DIVS.includes(this.clubes[i].div)).sort((a, b) => this.forca(b) - this.forca(a)); }
 }
+export const aplicarSave = (base, s) => base.aplicarTransferencias(s.transf || {}, s.contratos || {});
 
 export function clubeParaReputacao(base, rep, seed) {
   const r = rng('rep' + seed), ord = base.ranking(), f = REPUTACOES[rep].faixa;
@@ -67,6 +72,7 @@ export function clubeParaReputacao(base, rep, seed) {
 }
 
 export function novoJogo(base, cfg) {
+  base.aplicarTransferencias({}); // carreira nova começa da base original
   const seed = cfg.seed ?? Math.floor(Math.random() * 1e9);
   let clube = cfg.clube;
   if (cfg.modo === 'sorteio') { const r = rng('sorteio' + seed), lista = base.clubes.map((c, i) => i).filter(i => base.clubes[i].div === cfg.divisao); clube = pick(r, lista); }
@@ -78,6 +84,7 @@ export function novoJogo(base, cfg) {
     formacao: '4-3-3', xi: null, ultima: null, est: {}, ...TATICA_PADRAO(), caixa: caixaInicial(base, clube, cfg.dificuldade), transf: {}, propostas: [], historicoTransf: [], noticias: [{ rodada: 0, tipo: 'clube', div: base.clubes[clube].div, texto: `${cfg.tecnico.nome} é o novo técnico do ${base.clubes[clube].n}.` }],
   };
   s.fin = financasIniciais(base, s);
+  garantirMercado(s);
   return s;
 }
 

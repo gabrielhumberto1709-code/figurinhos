@@ -1,9 +1,8 @@
 // Jornal da rodada: resultados, sequências, artilharia, crises e rumores de mercado.
 // Rumor só sai quando faz sentido de futebol: clube maior, carência na posição e reforço de verdade.
-import { rng, pick, pickW, SETOR } from './util.js';
+import { rng, pick, pickW, SETOR, nivelDiv } from './util.js';
 
 const DIVS = ['A', 'B', 'C'];
-const NIVEL_DIV = { A: 0, B: 1, C: 2 };
 export const media = e => e && e[0] ? e[3] / e[0] / 10 : 0;
 
 // quem faria sentido ir atrás do jogador: clube maior, que precisa da posição e onde ele teria espaço.
@@ -11,7 +10,9 @@ export const media = e => e && e[0] ? e[3] / e[0] / 10 : 0;
 export function interessados(base, j) {
   const daqui = base.clubes[j.clube], forcaAqui = base.forca(j.clube);
   return base.clubes.map((c, ci) => ci).filter(ci => {
-    if (ci === j.clube || NIVEL_DIV[base.clubes[ci].div] > NIVEL_DIV[daqui.div]) return false;
+    const c = base.clubes[ci];
+    if (ci === j.clube || c.div === 'L' || nivelDiv(c) > nivelDiv(daqui)) return false;
+    if (c.div === 'X' && (j.idade > 29 || c.tier < 2)) return false;   // de fora só vem quem compra jovem, e de liga forte
     const f = base.forca(ci);
     if (f < forcaAqui + 2 || j.ovr < f - 6) return false;           // clube maior, e o jogador tem nível pra ele
     const naPos = base.elencos[ci].filter(x => x.pos === j.pos), acima = naPos.filter(x => x.ovr >= j.ovr);

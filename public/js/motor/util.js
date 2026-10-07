@@ -35,4 +35,16 @@ export const CARTAS = [
 ];
 export const cartaDe = ovr => CARTAS.find(c => ovr >= c.min);
 export function estrelas(pot) { return pot >= 88 ? 5 : pot >= 82 ? 4 : pot >= 75 ? 3 : pot >= 68 ? 2 : 1; }
+// nível para comparar clubes: exterior forte fica acima da Série A; 'L' é a lista de jogadores sem clube
+export const nivelDiv = c => c.div === 'X' ? (c.tier >= 3 ? -1 : c.tier >= 2 ? 0 : 1) : ({ A: 0, B: 1, C: 2 }[c.div] ?? 3);
+const CONT = {
+  AMS: 'BRA ARG URU COL PAR CHI EQU PER BOL VEN SUR',
+  EUR: 'POR ESP FRA ITA ALE ING HOL BEL SUI AUT DIN SUE NOR POL ESC GAL IRL SER TUR GRE RUS UCR CRO TCH ROM ESL ESQ ISL ICE FIN HUN BUL BOS ALB KOS MNE GEO ARM LIT LAT EST LUX MON FAR NIR CYP MOL MAL ISR KAZ',
+  AFR: 'GAN CPV CAM DRC GUI ANG MAR SEN NGA EGI EGY CIV TUN SIE BUR ZAM MLI GBS TOG ZIM BEN GAB MAU MOZ CEN NIG TAN CON CHA RSA COM LIB ARL',
+  AMN: 'MEX EUA CAN PAN CUR JAM HAI DOM GLP GUA ELS TRI CRC HON',
+  ASI: 'JAP COR IRA QAT IND UZB TAJ JOR SYR PAL BAN ARA KSA AUS NEW NZL',
+};
+export const CONTINENTES = { AMS: 'América do Sul', EUR: 'Europa', AFR: 'África', AMN: 'América do Norte e Central', ASI: 'Ásia e Oceania' };
+const CONT_DE = {}; for (const [k, l] of Object.entries(CONT)) for (const n of l.split(' ')) CONT_DE[n] = k;
+export const continenteDe = nat => CONT_DE[nat] || '';
 export const fmtDinheiro = v => v >= 1e6 ? `€ ${(v / 1e6).toFixed(v >= 1e7 ? 0 : 1).replace('.', ',')} mi` : v >= 1e3 ? `€ ${Math.round(v / 1e3)} mil` : `€ ${v}`;

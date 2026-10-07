@@ -1,7 +1,8 @@
 // Interface do Figurinhos: telas, navegação por hash e saves na nuvem.
-import { Base, novoJogo, iniciarRodada, concluirRodada, tabela, rodadasDe, escalacao, paraSalvar, resumo, REPUTACOES, DIFICULDADES, dataRodada, janelaAberta, caixaInicial } from './motor/mundo.js';
+import { Base, novoJogo, iniciarRodada, concluirRodada, tabela, rodadasDe, escalacao, paraSalvar, resumo, REPUTACOES, DIFICULDADES, dataRodada, janelaAberta, caixaInicial, aplicarSave } from './motor/mundo.js';
 import { garantirFinancas, orcamento, socorro, metaDiretoria, balanco, bilheteria, pedirVerba, PRECOS, NOME_PRECO } from './motor/financas.js';
-import { precoPedido, vontade, pistaVontade, fazerProposta, aceitarContraproposta, desistir, aceitarRecebida, recusarRecebida, bloqueioProposta } from './motor/mercado.js';
+import { garantirMercado } from './motor/mercado.js';
+import * as Mercado from './mercado.js';
 import * as AoVivo from './aovivo.js';
 import * as Elenco from './elenco.js';
 import { media } from './motor/noticias.js';
@@ -326,70 +327,16 @@ function abrirFicha(id) {
     <div class="ficha-topo">${figurinha(j, '', true)}
       <div><h2 style="font-size:1.4rem">${esc(j.nome)}</h2><p class="mudo">${POS_NOME[j.pos]} · ${esc(clube(j.clube).n)}</p>
       <dl style="margin-top:8px">${app.s && meu ? `<dt>Condição</dt><dd>${Math.round(app.s.cond?.[j.id] ?? 100)}%</dd><dt>Moral</dt><dd>${Elenco.carinha(app.s.mor?.[j.id])} ${Math.round(app.s.mor?.[j.id] ?? 62)}</dd>` : ''}<dt>Idade</dt><dd>${j.idade} anos</dd><dt>País</dt><dd>${bandeira(j.nat)}${esc(j.nat)}</dd><dt>Carta</dt><dd>${carta.nome}</dd>
-      <dt>Potencial</dt><dd><span class="estrelas" aria-label="${meu ? estrelas(j.pot) + ' de 5' : 'desconhecido'}">${meu ? estrelasTxt(estrelas(j.pot)) : '? ? ?'}</span></dd></dl></div></div>
+      <dt>Potencial</dt><dd>${app.s ? Mercado.potencialTxt(j) : '? ? ?'}</dd></dl></div></div>
     <div class="atts">${ATT.map(k => `<div class="att" style="--c:${corAtt(j.att[k])}"><span>${ATT_NOME[k]}</span><span class="num">${j.att[k]}</span><div><b style="width:${j.att[k]}%"></b></div></div>`).join('')}</div>
     <dl><dt>Valor</dt><dd>${fmtDinheiro(j.valor * 1000)}</dd><dt>Contrato</dt><dd>até ${j.contrato}</dd></dl>
-    ${app.s ? blocoMercado(j, meu) : ''}
+    ${app.s ? Mercado.blocoFicha(j) : ''}
     <form method="dialog"><button class="botao sec" style="width:100%">Fechar</button></form></div>`;
   if (!d.open) d.showModal();
 }
 
-function blocoMercado(j, meu) {
-  const s = app.s;
-  if (meu) {
-    const ofertas = (s.recebidas || []).filter(x => x.jogador === j.id);
-    return ofertas.length ? `<section class="ficha-mercado"><h3>Propostas por ele</h3>${ofertas.map(x => `<div class="oferta"><span>${imgEscudo(x.de, 18, 20)} ${esc(clube(x.de).n)} · <b>${fmtDinheiro(x.valor)}</b></span><span class="linha-botoes"><button class="botao peq" type="button" data-acao="aceitar-recebida" data-id="${x.id}">Vender</button><button class="botao peq sec" type="button" data-acao="recusar-recebida" data-id="${x.id}">Recusar</button></span></div>`).join('')}</section>` : '';
-  }
-  const pedido = precoPedido(app.base, s, j), ja = (s.propostas || []).find(p => p.jogador === j.id && ['aguardando', 'contraproposta'].includes(p.estado));
-  const bloq = bloqueioProposta(app.base, s, j, pedido);
-  return `<section class="ficha-mercado"><h3>Mercado</h3><dl><dt>Preço pedido</dt><dd>${fmtDinheiro(pedido)}</dd><dt>Seu caixa</dt><dd>${fmtDinheiro(s.caixa)}</dd></dl>
-    <p class="mudo">${pistaVontade(vontade(app.base, s, j, s.tecnico.clube))}</p>
-    ${ja ? `<p><b>${ja.estado === 'contraproposta' ? `Contraproposta: ${fmtDinheiro(ja.contra)}. Veja em Mercado › Propostas.` : `Proposta de ${fmtDinheiro(ja.valor)} enviada. Resposta na próxima rodada.`}</b></p>`
-      : bloq && !/dinheiro/.test(bloq) ? `<p class="erro">${esc(bloq)}</p>`
-      : `<form class="proposta" data-form="proposta" data-id="${j.id}"><label>Sua proposta (€ milhões) <input type="number" name="valor" inputmode="decimal" step="0.01" min="0.05" value="${(pedido / 1e6).toFixed(2)}"></label>
-        <div class="chips">${[0.85, 1, 1.15].map(f => `<button type="button" class="chip" data-acao="sugerir" data-v="${(pedido * f / 1e6).toFixed(2)}">${fmtDinheiro(Math.round(pedido * f / 1e4) * 1e4)}</button>`).join('')}</div>
-        <p class="erro" role="alert"></p><button class="botao" type="submit">Enviar proposta</button></form>`}</section>`;
-}
-
-// ----- mercado -----
-const ROTULO = { aguardando: 'Aguardando resposta', contraproposta: 'Contraproposta', recusada: 'Recusada', perdida: 'Perdida para rival', concluida: 'Contratado', cancelada: 'Cancelada' };
-function filtrarMercado() {
-  const s = app.s, f = app.fMercado || (app.fMercado = { q: '', pos: '', div: '', ord: 'ovr' });
-  const q = f.q.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
-  let l = [...app.base.jog.values()].filter(j => j.clube !== s.tecnico.clube && (!f.pos || j.pos === f.pos) && (!f.div || clube(j.clube).div === f.div)
-    && (!q || (j.nome + ' ' + clube(j.clube).n).normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().includes(q)));
-  l.sort(f.ord === 'barato' ? (a, b) => a.valor - b.valor || b.ovr - a.ovr : f.ord === 'jovem' ? (a, b) => a.idade - b.idade || b.ovr - a.ovr : (a, b) => b.ovr - a.ovr);
-  return l.slice(0, 60);
-}
-const linhaMercado = j => `<li><button type="button" class="linha-mercado" data-acao="ficha" data-id="${j.id}"><img class="px" src="${urlRosto(j.rosto, clube(j.clube))}" width="32" height="32" alt="" loading="lazy">
-  <span class="lm-nome"><b>${esc(j.curto)}</b><small>${imgEscudo(j.clube, 14, 15)} ${esc(clube(j.clube).n)} · ${j.idade} anos</small></span><span class="pos-mini">${j.pos}</span><span class="nota ${cartaDe(j.ovr).k}">${j.ovr}</span><span class="lm-valor">${fmtDinheiro(j.valor * 1000)}</span></button></li>`;
-
-telas.mercado = () => {
-  const s = app.s, aba = app.abaMercado || 'buscar', f = app.fMercado || (app.fMercado = { q: '', pos: '', div: '', ord: 'ovr' });
-  const janela = janelaAberta(s.ano, s.rodada), abertas = s.propostas.filter(p => ['aguardando', 'contraproposta'].includes(p.estado)).length;
-  const ABAS = [['buscar', 'Buscar'], ['propostas', `Propostas${abertas ? ` (${abertas})` : ''}`], ['recebidas', `Recebidas${s.recebidas?.length ? ` (${s.recebidas.length})` : ''}`], ['historico', 'Histórico']];
-  let corpo = '';
-  if (aba === 'buscar') corpo = `<section class="cartao filtros-mercado">
-      <label class="vh" for="busca-mercado">Buscar jogador ou clube</label><input type="text" id="busca-mercado" data-filtro="q" placeholder="Nome do jogador ou clube" value="${esc(f.q)}" autocomplete="off">
-      <div class="filtros-linha"><select data-filtro="pos" aria-label="Posição"><option value="">Todas as posições</option>${POS_ORDEM.map(p => `<option value="${p}" ${f.pos === p ? 'selected' : ''}>${POS_NOME[p]}</option>`).join('')}</select>
-        <select data-filtro="div" aria-label="Série"><option value="">Todas as séries</option>${['A', 'B', 'C'].map(x => `<option value="${x}" ${f.div === x ? 'selected' : ''}>Série ${x}</option>`).join('')}</select>
-        <select data-filtro="ord" aria-label="Ordenar"><option value="ovr" ${f.ord === 'ovr' ? 'selected' : ''}>Melhores</option><option value="barato" ${f.ord === 'barato' ? 'selected' : ''}>Mais baratos</option><option value="jovem" ${f.ord === 'jovem' ? 'selected' : ''}>Mais jovens</option></select></div></section>
-    <ul class="lista-mercado" id="lista-mercado">${filtrarMercado().map(linhaMercado).join('')}</ul>`;
-  else if (aba === 'propostas') corpo = s.propostas.length ? `<ul class="lista-propostas">${s.propostas.map(p => { const j = app.base.jog.get(p.jogador); return `<li class="cartao"><div class="titulo-linha"><b>${esc(j.curto)}</b><span class="tag ${p.estado === 'concluida' ? 'resultado' : ['recusada', 'perdida'].includes(p.estado) ? 'crise' : 'rumor'}">${ROTULO[p.estado]}</span></div>
-      <p class="mudo">${imgEscudo(p.de, 16, 17)} ${esc(clube(p.de).n)} · sua oferta ${fmtDinheiro(p.valor)}${p.motivo ? ` · ${esc(p.motivo)}` : ''}</p>
-      ${p.estado === 'contraproposta' ? `<div class="linha-botoes"><button class="botao peq" type="button" data-acao="aceitar-contra" data-id="${p.id}">Pagar ${fmtDinheiro(p.contra)}</button><button class="botao peq sec" type="button" data-acao="desistir" data-id="${p.id}">Desistir</button></div>`
-        : p.estado === 'aguardando' ? `<div class="linha-botoes"><button class="botao peq sec" type="button" data-acao="desistir" data-id="${p.id}">Cancelar proposta</button></div>` : ''}</li>`; }).join('')}</ul>` : '<section class="cartao"><p class="mudo">Você ainda não fez propostas. Busque um jogador e toque nele.</p></section>';
-  else if (aba === 'recebidas') corpo = s.recebidas?.length ? `<ul class="lista-propostas">${s.recebidas.map(x => { const j = app.base.jog.get(x.jogador); return `<li class="cartao"><div class="titulo-linha"><b>${esc(j.curto)}</b><span class="nota ${cartaDe(j.ovr).k}">${j.ovr}</span></div>
-      <p class="mudo">${imgEscudo(x.de, 16, 17)} ${esc(clube(x.de).n)} oferece <b>${fmtDinheiro(x.valor)}</b> · vale ${fmtDinheiro(j.valor * 1000)}</p>
-      <div class="linha-botoes"><button class="botao peq" type="button" data-acao="aceitar-recebida" data-id="${x.id}">Vender</button><button class="botao peq sec" type="button" data-acao="recusar-recebida" data-id="${x.id}">Recusar</button></div></li>`; }).join('')}</ul>` : '<section class="cartao"><p class="mudo">Nenhuma proposta pelos seus jogadores. Quem joga bem chama atenção dos clubes maiores.</p></section>';
-  else corpo = s.historicoTransf?.length ? `<section class="cartao"><ul class="noticias">${s.historicoTransf.map(x => `<li><span class="rd">R${x.rodada + 1}</span><span><b>${esc(x.nome)}</b>: ${esc(clube(x.de).n)} → ${esc(clube(x.para).n)} · ${fmtDinheiro(x.valor)}</span></li>`).join('')}</ul></section>` : '<section class="cartao"><p class="mudo">Nenhuma transferência ainda.</p></section>';
-  return `<div class="titulo-linha"><h2>Mercado</h2><span class="mudo">${fmtDinheiro(s.caixa)} em caixa</span></div>
-    <p class="janela ${janela ? 'aberta' : ''}">${janela ? 'Janela aberta: propostas respondidas na próxima rodada.' : `Janela fechada. Você pode olhar e planejar; propostas voltam quando ela abrir.`}</p>
-    <div class="chips" role="group" aria-label="Seções do mercado">${ABAS.map(([k, t]) => `<button type="button" class="chip" data-acao="aba-mercado" data-a="${k}" aria-pressed="${aba === k}">${t}</button>`).join('')}</div>
-    ${corpo}`;
-};
-
-
+// ----- mercado (módulo próprio) -----
+telas.mercado = () => Mercado.tela();
 
 // ----- tabela -----
 const ZONAS = {
@@ -454,12 +401,12 @@ telas.partida = () => {
 };
 
 // ----- jornal da bola -----
-const TAGS = { clube: ['Seu clube', 'clube'], resultado: ['Rodada', 'resultado'], rumor: ['Rumor', 'rumor'], crise: ['Crise', 'crise'], destaque: ['Destaque', 'destaque'] };
+const TAGS = { clube: ['Seu clube', 'clube'], resultado: ['Rodada', 'resultado'], rumor: ['Rumor', 'rumor'], mercado: ['Mercado', 'rumor'], crise: ['Crise', 'crise'], destaque: ['Destaque', 'destaque'] };
 telas.noticias = () => {
   const s = app.s, ci = s.tecnico.clube, d = clube(ci).div, f = app.filtroNoticias || 'tudo';
   const FILTROS = [['tudo', 'Tudo'], ['clube', 'Meu clube'], ['rumor', 'Rumores'], ['A', 'Série A'], ['B', 'Série B'], ['C', 'Série C']];
   const tipo = n => n.tipo || 'clube';
-  const lista = s.noticias.filter(n => f === 'tudo' || (f === 'clube' ? tipo(n) === 'clube' : f === 'rumor' ? tipo(n) === 'rumor' || n.para != null : n.div === f));
+  const lista = s.noticias.filter(n => f === 'tudo' || (f === 'clube' ? tipo(n) === 'clube' : f === 'rumor' ? ['rumor', 'mercado'].includes(tipo(n)) || n.para != null : n.div === f));
   const porRodada = new Map(); for (const n of lista) { if (!porRodada.has(n.rodada)) porRodada.set(n.rodada, []); porRodada.get(n.rodada).push(n); }
   const art = [...app.base.jog.values()].filter(j => clube(j.clube).div === d && s.est?.[j.id]?.[1]).sort((a, b) => s.est[b.id][1] - s.est[a.id][1] || s.est[a.id][0] - s.est[b.id][0]).slice(0, 10);
   const sel = s.destaques?.[d];
@@ -478,8 +425,9 @@ telas.noticias = () => {
 
 // saves antigos ganham os campos novos; a base recebe as transferências deste save
 function migrar(s) {
-  app.base.aplicarTransferencias(s.transf || (s.transf = {}));
-  s.propostas ||= []; s.recebidas ||= []; s.historicoTransf ||= []; s.est ||= {};
+  garantirMercado(s);
+  aplicarSave(app.base, s);
+  s.est ||= {};
   if (s.caixa == null) s.caixa = caixaInicial(app.base, s.tecnico.clube, s.dificuldade);
   garantirFinancas(app.base, s);
   return s;
@@ -506,7 +454,7 @@ async function render() {
   if (precisaJogo && !app.s) { location.hash = '#/saves'; return; }
   if (rota === 'novo' && !app.novo) { location.hash = '#/saves'; return; }
   if (!telas[rota]) { location.hash = app.s ? '#/clube' : '#/saves'; return; }
-  if (app.aba !== rota) app.vaga = null;
+  if (app.aba !== rota) { app.vaga = null; if ($('#ficha').open) $('#ficha').close(); }
   app.aba = rota;
   const main = $('#tela');
   try {
@@ -585,13 +533,8 @@ const acoes = {
   'aba-fin': el => { app.abaFin = el.dataset.a; render(); },
   ingresso: el => { app.s.fin.ingresso = el.dataset.p; render(); salvar(); },
   'pedir-verba': () => { const s = app.s, c = clube(s.tecnico.clube), tab = tabela(app.base, s, c.div); const r = pedirVerba(app.base, s, tab.findIndex(l => l.clube === s.tecnico.clube) + 1); aviso(r.txt); render(); salvar(); },
-  'aba-mercado': el => { app.abaMercado = el.dataset.a; render(); },
-  sugerir: el => { const i = el.closest('form').valor; i.value = el.dataset.v; },
-  'aceitar-contra': el => { const e = aceitarContraproposta(app.s, el.dataset.id); aviso(e || 'Topou pagar. A resposta final sai na próxima rodada.'); render(); salvar(); },
-  desistir: el => { desistir(app.s, el.dataset.id); render(); salvar(); },
-  'aceitar-recebida': el => { const e = aceitarRecebida(app.base, app.s, el.dataset.id); aviso(e || 'Venda concluída.'); if ($('#ficha').open) $('#ficha').close(); render(); salvar(); },
-  'recusar-recebida': el => { recusarRecebida(app.s, el.dataset.id); if ($('#ficha').open) $('#ficha').close(); render(); salvar(); },
   ...AoVivo.acoes,
+  ...Mercado.acoes,
   ...Elenco.acoes,
   'filtro-noticias': el => { app.filtroNoticias = el.dataset.f; app.rodadasNoticias = 3; render(); },
   'mais-noticias': () => { app.rodadasNoticias = (app.rodadasNoticias || 3) + 5; render(); },
@@ -611,6 +554,7 @@ document.addEventListener('click', e => {
 });
 // fecha a ficha ao tocar fora
 $('#ficha').addEventListener('click', e => { if (e.target === e.currentTarget) e.currentTarget.close(); });
+$('#ficha').addEventListener('close', () => Mercado.aoFecharDialog());
 
 // campos do novo jogo ficam guardados no rascunho
 document.addEventListener('input', e => {
@@ -620,8 +564,7 @@ document.addEventListener('input', e => {
     $('.orc-sal').style.width = Math.max(8, Math.min(92, 100 - (n.compras / Math.max(1, n.compras + n.salarios * n.dias)) * 100)) + '%';
     clearTimeout(app.tSal); app.tSal = setTimeout(() => { render(); salvar(); }, 600); return;
   }
-  const fk = e.target.dataset?.filtro;
-  if (fk && app.fMercado) { app.fMercado[fk] = e.target.value; const l = $('#lista-mercado'); if (l) l.innerHTML = filtrarMercado().map(linhaMercado).join(''); return; }
+  if (Mercado.aoDigitar(e.target)) return;
   if (e.target.form?.dataset.form === 'entrar') e.target.form.querySelector('.erro').textContent = '';
   const k = e.target.dataset?.campo; if (!k || !app.novo) return;
   const v = e.target.value, n = app.novo;
@@ -634,14 +577,7 @@ document.addEventListener('input', e => {
 });
 
 document.addEventListener('submit', async e => {
-  if (e.target.dataset.form === 'proposta') {
-    e.preventDefault();
-    const f = e.target, j = app.base.jog.get(+f.dataset.id), valor = Math.round(parseFloat(String(f.valor.value).replace(',', '.')) * 1e6);
-    const erro = fazerProposta(app.base, app.s, j, valor);
-    if (erro) { f.querySelector('.erro').textContent = erro; return; }
-    $('#ficha').close(); aviso('Proposta enviada. A resposta sai na próxima rodada.'); render(); salvar();
-    return;
-  }
+  if (['proposta', 'renovar'].includes(e.target.dataset.form)) { e.preventDefault(); Mercado.enviar(e.target); return; }
   if (e.target.dataset.form !== 'entrar') return;
   e.preventDefault();
   const f = e.target, modo = e.submitter?.value || 'entrar', erro = f.querySelector('.erro');
@@ -662,6 +598,7 @@ document.addEventListener('submit', async e => {
 });
 
 AoVivo.configurar({ app, clube, esc, imgEscudo, $ });
+Mercado.configurar({ app, clube, esc, imgEscudo, $, aviso, render: () => render(), salvar: () => salvar() });
 Elenco.configurar({ app, clube, esc, imgEscudo, figurinha, render: () => render(), salvar: () => salvar(), aviso });
 document.addEventListener('change', e => { if (app.s && Elenco.aoMudar(e.target)) e.stopPropagation(); });
 window.addEventListener('hashchange', render);

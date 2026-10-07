@@ -72,8 +72,8 @@ test('escalação manual: entra quem eu escolho, titular troca de vaga e muda es
 test('jornal: estatísticas batem com os gols e rumores fazem sentido de futebol', () => {
   const s = novoJogo(base, cfg(9));
   for (let i = 0; i < 20; i++) avancar(base, s);
-  const golsTabela = Object.values(s.res.A).reduce((t, g) => t + g[0] + g[1], 0);
-  const golsEst = Object.entries(s.est).filter(([id]) => base.clubes[base.jog.get(+id).clube].div === 'A').reduce((t, [, e]) => t + e[1], 0);
+  const golsTabela = ['A', 'B', 'C'].reduce((t, d) => t + Object.values(s.res[d]).reduce((x, g) => x + g[0] + g[1], 0), 0);
+  const golsEst = Object.values(s.est).reduce((t, e) => t + e[1], 0); // tem gente que trocou de série no mercado
   assert.equal(golsEst, golsTabela);
   const rumores = s.noticias.filter(n => n.para != null);
   assert.ok(rumores.length >= 10, `só ${rumores.length} rumores`);
@@ -86,36 +86,102 @@ test('jornal: estatísticas batem com os gols e rumores fazem sentido de futebol
   assert.ok(s.destaques.A.time.length === 11);
 });
 
-import { precoPedido, fazerProposta, vontade, aceitarRecebida } from '../public/js/motor/mercado.js';
+import { precoPedido, fazerProposta, vontade, salarioPedido, aceitarContraproposta, renovar, pedidoRenovacao, observar, listasIA, bloqueioProposta } from '../public/js/motor/mercado.js';
+import { aplicarSave } from '../public/js/motor/mundo.js';
+const proposta = (base, s, j, extra = {}) => ({ tipo: 'compra', valor: precoPedido(base, s, j), salario: salarioPedido(base, s, j, 3), anos: 3, ...extra });
 
-test('mercado: proposta boa por jogador que quer vir fecha na rodada seguinte; dinheiro e elenco mudam', () => {
+test('mercado: proposta boa por jogador que quer vir fecha na rodada seguinte; dinheiro, salário e contrato mudam', () => {
   const ci = base.clubes.findIndex(c => c.n === 'Flamengo');
   const s = novoJogo(base, { ...cfg(21), clube: ci });
-  // reserva da Série B que seria titular no Flamengo? procura alguém que topa e o Flamengo pode pagar
-  const alvo = [...base.jog.values()].filter(j => j.clube !== ci && base.clubes[j.clube].div !== 'A' && vontade(base, s, j, ci) >= 70).sort((a, b) => b.ovr - a.ovr)[0];
+  const alvo = [...base.jog.values()].filter(j => j.clube !== ci && base.clubes[j.clube].div === 'B' && vontade(base, s, j, ci) >= 70).sort((a, b) => b.ovr - a.ovr)[0];
   assert.ok(alvo, 'precisa de um alvo');
-  const preco = precoPedido(base, s, alvo), caixa = s.caixa, n = base.elencos[ci].length;
-  assert.equal(fazerProposta(base, s, alvo, preco), null);
+  const o = proposta(base, s, alvo), n = base.elencos[ci].length;
+  assert.equal(fazerProposta(base, s, alvo, o), null);
   avancar(base, s);
   const p = s.propostas[0];
   assert.ok(['concluida', 'perdida'].includes(p.estado), `estado ${p.estado} ${p.motivo || ''}`);
   if (p.estado === 'concluida') {
     assert.equal(alvo.clube, ci);
-    assert.equal(s.caixa, caixa - preco);
+    assert.ok(s.fin.extrato.some(e => e.tipo === 'compra' && e.valor === -o.valor));
+    assert.equal(s.salarios[alvo.id], o.salario);
+    assert.equal(alvo.contrato, s.ano + 3);
     assert.equal(base.elencos[ci].length, n + 1);
   }
-  base.aplicarTransferencias({});
 });
 
-test('mercado: proposta baixa é recusada e janela fechada bloqueia', () => {
+test('mercado: proposta baixa é recusada, janela fechada bloqueia compra mas não jogador livre', () => {
   const s = novoJogo(base, cfg(22));
   const alvo = base.elencos[5][0];
-  assert.equal(fazerProposta(base, s, alvo, precoPedido(base, s, alvo) * 0.5), null);
+  assert.equal(fazerProposta(base, s, alvo, proposta(base, s, alvo, { valor: precoPedido(base, s, alvo) * 0.5 })), null);
   avancar(base, s);
   assert.equal(s.propostas[0].estado, 'recusada');
-  s.rodada = 10;
-  assert.match(fazerProposta(base, s, base.elencos[6][0], 1e6), /janela/);
-  base.aplicarTransferencias({});
+  s.rodada = 10; s.fin.salarioBudget = 1e9;
+  const outro = base.elencos[6][0];
+  assert.match(fazerProposta(base, s, outro, proposta(base, s, outro)), /janela/);
+  const livre = base.elencos[base.clubes.findIndex(c => c.div === 'L')].sort((a, b) => b.ovr - a.ovr).find(j => vontade(base, s, j, s.tecnico.clube) >= 60);
+  assert.ok(livre, 'precisa de um livre');
+  assert.equal(precoPedido(base, s, livre), 0);
+  assert.equal(fazerProposta(base, s, livre, { tipo: 'livre', salario: salarioPedido(base, s, livre, 2), anos: 2 }), null);
+  avancar(base, s);
+  const p = s.propostas[0];
+  assert.ok(['concluida', 'perdida'].includes(p.estado), `estado ${p.estado} ${p.motivo || ''}`);
+  if (p.estado === 'concluida') { assert.equal(livre.clube, s.tecnico.clube); assert.ok(!s.fin.extrato.some(e => e.tipo === 'compra')); }
+  assert.match(bloqueioProposta(base, s, outro, { tipo: 'pre', salario: 1000, anos: 2 }), /Pré-contrato/);
+});
+
+test('mercado: salário baixo vira contraproposta do jogador; aceitar fecha o negócio', () => {
+  const ci = base.clubes.findIndex(c => c.n === 'Palmeiras');
+  const s = novoJogo(base, { ...cfg(23), clube: ci });
+  const alvo = [...base.jog.values()].filter(j => j.clube !== ci && base.clubes[j.clube].div === 'B' && vontade(base, s, j, ci) >= 75).sort((a, b) => b.ovr - a.ovr)[0];
+  const o = proposta(base, s, alvo), pede = o.salario;
+  assert.equal(fazerProposta(base, s, alvo, { ...o, salario: Math.round(pede * 0.5) }), null);
+  avancar(base, s);
+  const p = s.propostas[0];
+  if (p.estado === 'perdida') return; // rival levou: caminho válido
+  assert.equal(p.estado, 'contraproposta');
+  assert.ok(p.contraSal >= pede * 0.9, `pediu ${p.contraSal}, esperado perto de ${pede}`);
+  assert.equal(aceitarContraproposta(base, s, p.id), null);
+  avancar(base, s);
+  assert.ok(['concluida', 'perdida'].includes(p.estado), p.estado);
+  if (p.estado === 'concluida') assert.equal(s.salarios[alvo.id], p.salario);
+});
+
+test('mercado: renovação pede salário, aceita quando paga e o contrato novo sobrevive ao save', () => {
+  const s = novoJogo(base, cfg(24)), ci = s.tecnico.clube;
+  const j = base.elencos[ci].slice().sort((a, b) => b.ovr - a.ovr)[3];
+  s.contratos[j.id] = s.ano; aplicarSave(base, s);
+  s.fin.salarioBudget = 1e9; // folga sobrando
+  const { pede } = pedidoRenovacao(base, s, j, 4);
+  const nao = renovar(base, s, j, Math.round(pede * 0.6), 4);
+  assert.equal(nao.ok, false); assert.equal(nao.pede, pede);
+  assert.equal(renovar(base, s, j, pede, 4).ok, true);
+  const volta = JSON.parse(JSON.stringify(paraSalvar(s)));
+  base.aplicarTransferencias({}); assert.notEqual(j.contrato, s.ano + 4);
+  aplicarSave(base, volta); assert.equal(j.contrato, s.ano + 4);
+});
+
+test('mercado: olheiro traz relatórios do foco e observação exata; listas da IA existem', () => {
+  const s = novoJogo(base, cfg(25));
+  s.olheiro = { regiao: 'EUR', setor: 'ATA', jovens: true };
+  const alvo = base.elencos[3][0];
+  assert.equal(observar(s, alvo.id), null);
+  avancar(base, s);
+  assert.equal(s.relatorios[alvo.id].exato, true);
+  const novos = Object.entries(s.relatorios).filter(([, r]) => r.novo).map(([id]) => base.jog.get(+id));
+  assert.equal(novos.length, 2);
+  for (const j of novos) { assert.equal(base.clubes[j.clube].div, 'X'); assert.ok(j.idade <= 21); }
+  const L = listasIA(base, s);
+  assert.ok(L.venda.size > 50 && L.emprestimo.size > 10, `listas ${L.venda.size}/${L.emprestimo.size}`);
+});
+
+test('mercado da IA: clubes se reforçam nas janelas sem desmontar elencos', () => {
+  const s = novoJogo(base, cfg(26)), ci = s.tecnico.clube, n0 = base.elencos[ci].length, ini = base.elencos.map(e => e.length);
+  for (let i = 0; i < 38; i++) avancar(base, s);
+  const ia = s.historicoTransf.filter(x => x.ia);
+  assert.ok(ia.length >= 8, `só ${ia.length} negócios da IA`);
+  for (const x of ia) { assert.notEqual(x.para, ci); assert.notEqual(x.de, ci); }
+  base.clubes.forEach((c, i) => { if (['A', 'B', 'C'].includes(c.div)) assert.ok(base.elencos[i].length >= Math.min(19, ini[i]) && base.elencos[i].length <= Math.max(38, ini[i]) + 1, `${c.n}: ${base.elencos[i].length}`); });
+  assert.equal(base.elencos[ci].length, n0 + s.historicoTransf.filter(x => x.para === ci).length - s.historicoTransf.filter(x => x.de === ci).length);
 });
 
 import { criarPartida, passo, acabou, ESTILOS } from '../public/js/motor/partida.js';

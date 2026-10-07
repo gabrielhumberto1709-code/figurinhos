@@ -491,3 +491,53 @@ input[type=range] { width: 100%; accent-color: var(--placar); min-height: 32px; 
 b.pos { color: var(--gramado); } b.neg { color: var(--cartao); }
 :root[data-tema=escuro] b.pos { color: #7FD66B; } :root[data-tema=escuro] b.neg { color: #FF7A80; }
 .total { display: flex; justify-content: space-between; font-weight: 700; padding-top: 6px; border-top: 2px solid var(--linha); }
+
+/* ---------- mercado completo ---------- */
+.abas-mercado { display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; padding: 2px 2px 6px; margin: 0 -2px; }
+.abas-mercado::-webkit-scrollbar { display: none; }
+.abas-mercado .chip { flex: none; }
+.janela { display: flex; flex-direction: column; gap: 2px; }
+.janela small { font-weight: 500; font-size: .9rem; color: var(--texto-2); }
+.filtros-mercado input[type=search] { min-height: 48px; padding: 8px 12px; border: 2px solid var(--linha); border-radius: var(--raio); background: var(--campo-bg); font-size: 1.1rem; }
+.filtros-mercado .chip { min-height: 36px; padding: 4px 12px; }
+.busca-rodape { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.busca-rodape > span { margin-right: auto; font-weight: 600; }
+.busca-rodape select { min-height: 40px; padding: 4px 8px; border: 2px solid var(--linha); border-radius: var(--raio); background: var(--campo-bg); font-weight: 700; }
+.lm-tags { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 2px; }
+.sit { font-style: normal; font-family: var(--f-pixel); font-size: .62rem; font-weight: 700; text-transform: uppercase; letter-spacing: .03em; padding: 1px 5px; border-radius: 2px; color: #fff; background: var(--texto-2); line-height: 1.4; }
+.sit.livre { background: var(--gramado); } .sit.venda { background: var(--cartao); } .sit.emprestimo { background: var(--carimbo); }
+.sit.fim { background: #C9A227; color: #1B1F2A; } .sit.pre { background: #6B4FA0; } .sit.pot { background: var(--placar); color: #1B1F2A; letter-spacing: 0; }
+.fav-mini { color: #C9A227; }
+.chip.fav[aria-pressed=true] { background: var(--placar); color: #1B1F2A; }
+.link { background: none; border: 0; padding: 0; font: inherit; font-weight: 700; color: var(--texto); text-decoration: underline; text-underline-offset: 3px; cursor: pointer; text-align: left; }
+.campos-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.proposta select { min-height: 48px; padding: 8px; border: 2px solid var(--linha); border-radius: var(--raio); background: var(--campo-bg); font-size: 1.1rem; width: 100%; }
+.proposta label { display: flex; flex-direction: column; gap: 4px; font-weight: 600; }
+.tipos .chip { display: inline-flex; align-items: center; }
+.tipos .chip:has(input:checked) { background: var(--primario-bg); color: var(--primario-txt); }
+.tipos .chip:has(input:focus-visible) { outline: 3px solid var(--carimbo); outline-offset: 2px; }
+.proposta .so-compra, .proposta .so-emprestimo { display: none; }
+.proposta:has([name=tipo][value=compra]:checked) .so-compra, .proposta:has(input[type=hidden][name=tipo][value=compra]) .so-compra { display: flex; flex-direction: column; gap: 8px; }
+.proposta:has([name=tipo][value=emprestimo]:checked) .so-emprestimo, .proposta:has(input[type=hidden][name=tipo][value=emprestimo]) .so-emprestimo { display: block; }
+.proposta:has([name=tipo][value=emprestimo]:checked) .nao-emprestimo, .proposta:has(input[type=hidden][name=tipo][value=emprestimo]) .nao-emprestimo { display: none; }
+.filtros-dialog section { display: flex; flex-direction: column; gap: 6px; }
+.filtros-dialog .chip { min-height: 36px; padding: 4px 12px; }
+.faixa { display: flex; flex-direction: column; gap: 4px; }
+.faixa-topo { display: flex; justify-content: space-between; gap: 8px; font-weight: 700; }
+.faixa-topo output { font-weight: 600; color: var(--texto-2); }
+.faixa-trilho { position: relative; height: 32px; }
+.faixa-trilho::before, .faixa-trilho::after { content: ''; position: absolute; top: 13px; height: 6px; border-radius: 3px; }
+.faixa-trilho::before { left: 0; right: 0; background: var(--encaixe); border: 1px solid var(--linha-fraca); }
+.faixa-trilho::after { left: var(--a); right: calc(100% - var(--b)); background: var(--gramado); }
+.faixa-trilho input { position: absolute; inset: 0; width: 100%; height: 32px; margin: 0; background: none; pointer-events: none; -webkit-appearance: none; appearance: none; z-index: 1; }
+.faixa-trilho input::-webkit-slider-runnable-track { background: none; height: 32px; }
+.faixa-trilho input::-moz-range-track { background: none; }
+.faixa-trilho input::-webkit-slider-thumb { -webkit-appearance: none; pointer-events: auto; width: 24px; height: 24px; margin-top: 4px; border-radius: 50%; background: var(--cartao-bg); border: 3px solid var(--linha); cursor: grab; }
+.faixa-trilho input::-moz-range-thumb { pointer-events: auto; width: 20px; height: 20px; border-radius: 50%; background: var(--cartao-bg); border: 3px solid var(--linha); cursor: grab; }
+.faixa-trilho input:focus-visible::-webkit-slider-thumb { outline: 3px solid var(--carimbo); outline-offset: 2px; }
+.filtros-mercado .chips { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; margin: 0 -4px; padding: 0 4px 2px; }
+.filtros-mercado .chips::-webkit-scrollbar { display: none; }
+.filtros-mercado .chip { flex: none; min-height: 34px; padding: 3px 12px; font-size: .95rem; }
+.campos-2 > * { min-width: 0; }
+.campos-2 input, .campos-2 select { width: 100%; min-width: 0; }
+.lista-propostas p img { display: inline-block; vertical-align: -3px; }

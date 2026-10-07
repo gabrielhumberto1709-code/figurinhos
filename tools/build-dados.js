@@ -31,6 +31,7 @@ const P = new Map();
 const add = rows => { for (const r of rows || []) if (Array.isArray(r) && r.length >= 12 && typeof r[0] === 'number') P.set(r[0], r); };
 for (const k of ['bra', 'rel', 'b26', 'reg26', 'arg', 'col', 'intl', 'young', 'int26', 'tm26']) add(RAW[k]);
 for (const [id, club] of RAW.mv26 || []) { const r = P.get(id); if (r) P.set(id, [...r.slice(0, 3), club, ...r.slice(4)]); }
+P.delete(340950); // Diogo Jota: faleceu em julho de 2025, a referência ainda o lista como sem clube
 
 // ---------- clubes do Brasil 2026 ----------
 const cat = n => CORE.CLUBS_A[n] || CORE.CLUBS_REL[n] || CORE.CLUBS_B_GEN[n] || CORE.CLUBS_REG_GEN[n];
@@ -109,6 +110,36 @@ for (const [n, ci] of idxClube) {
     total++;
   }
 }
+// ---------- sem clube e exterior: fora do calendário, só mercado (vêm depois de A/B/C para não mexer nos índices) ----------
+const LIGA_PAIS = { 'Premier League': 'ING', LaLiga: 'ESP', 'Serie A (ITA)': 'ITA', Bundesliga: 'ALE', 'Ligue 1': 'FRA', 'Liga Portugal': 'POR', Eredivisie: 'HOL', 'Saudi Pro League': 'KSA', 'Süper Lig': 'TUR', 'Pro League (BEL)': 'BEL', 'Premier Liga (RUS)': 'RUS', MLS: 'EUA', 'Liga MX': 'MEX', 'Liga Argentina': 'ARG', 'Liga Colombiana': 'COL', 'Liga PAR': 'PAR', 'Liga BOL': 'BOL', 'Liga CHI': 'CHI', 'Liga EQU': 'EQU', 'Liga PER': 'PER', 'Liga URU': 'URU', 'Premier League (EGI)': 'EGI', 'Super League (GRE)': 'GRE', 'Chance Liga (TCH)': 'TCH', 'Superliga (DIN)': 'DIN', 'Super League (SUI)': 'SUI', 'Premier Liga (UCR)': 'UCR', 'Bundesliga (AUT)': 'AUT', 'Premiership (AFS)': 'RSA', 'Super Liga (SÉR)': 'SER', 'Premiership (ESC)': 'ESC', Ekstraklasa: 'POL', 'Ligue 1 (TUN)': 'TUN', Eliteserien: 'NOR', 'HNL (CRO)': 'CRO', 'A-League': 'AUS', 'Superliga (ROM)': 'ROM', Allsvenskan: 'SUE', 'J1 League': 'JAP', 'K League 1': 'COR' };
+const TIER_EXTRA = { 'Liga PAR': 1.2, 'Liga URU': 1.2, 'Liga CHI': 1.2, 'Liga EQU': 1.2, 'Liga PER': 1, 'Liga BOL': 0.8, 'Premier League (EGI)': 1.2, 'Chance Liga (TCH)': 2, 'Super Liga (SÉR)': 1.8, Ekstraklasa: 1.8, 'Ligue 1 (TUN)': 1, Eliteserien: 1.8, 'HNL (CRO)': 1.8, 'A-League': 1.2, 'Superliga (ROM)': 1.5, Allsvenskan: 1.8, Outras: 2 };
+const PALETA = ['#D0102C', '#0B1F4B', '#1B3F9A', '#F4F4F4', '#141414', '#FFD200', '#0E7A3E', '#6CB4EE', '#7A1F3D', '#F28C28', '#5B2A86', '#8A8A8A'];
+const PATS = ['solid', 'solid', 'vstripes', 'hoops', 'sash', 'band'];
+const semAcento = t => t.replace(/ß/g, 'ss').normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+function siglaDe(n) {
+  const w = semAcento(n).replace(/[^A-Za-z ]/g, ' ').split(' ').filter(x => x.length > 2 && !/^(FC|CF|AC|SC|CD|CA|Club|Clube|Fussballclub|Real|Sporting|Atletico|Deportivo|Racing|United|City|Calcio|SSC|AFC|Olympique|Stade)$/i.test(x));
+  return ((w[0] || semAcento(n).replace(/[^A-Za-z]/g, '')).slice(0, 3) || 'FC').toUpperCase();
+}
+function kitGerado(n) { const r = rng('kit' + n), c1 = pick(r, PALETA); let c2 = pick(r, PALETA); if (c2 === c1) c2 = c1 === '#F4F4F4' ? '#141414' : '#F4F4F4'; return { sig: siglaDe(n), pat: pick(r, PATS), c: [c1, c2], sh: c1, so: c2 }; }
+const catExt = n => CORE.INT_CLUBS[n] || CORE.KITS_KNOWN[n] || CORE.CLUBS_F_GEN[n];
+const SKIP_LIGA = new Set(['Regional', 'Brasileirão', 'Brasileirão B']);
+const ehLivre = r => /^sem clube$/i.test(r[3]);
+const livres = [...P.values()].filter(ehLivre);
+const ext = [...P.values()].filter(r => !idxClube.has(r[3]) && !ehLivre(r) && !SKIP_LIGA.has(r[9]) && (r[8] >= 67 || (r[6] <= 21 && r[8] >= 62)));
+const porClube = new Map(); for (const r of ext) { if (!porClube.has(r[3])) porClube.set(r[3], []); porClube.get(r[3]).push(r); }
+const tierDe = liga => CORE.LEAGUE_TIER[liga] ?? TIER_EXTRA[liga] ?? 1.5;
+const clubesExt = [...porClube].filter(([, l]) => l.length >= 3).map(([n, l]) => ({ n, l, liga: l[0][9] })).sort((a, b) => tierDe(b.liga) - tierDe(a.liga) || a.liga.localeCompare(b.liga) || a.n.localeCompare(b.n));
+const novoJogador = (r, ci) => { const [id, nome, curto, , pos, , idade, nat, ovr, , valor, contrato] = r; const ct = contrato && contrato >= ANO ? contrato : ANO + 1 + Math.floor(rng('ct' + id)() * 3); return [id, nome, curto, ci, pos, idade, nat, ovr, valor || 0, ct, potencial(id, idade, ovr), atributos(id, pos, ovr), rosto(id, nat, idade), RAW.nums?.[id] || 0]; };
+idxClube.set('Sem clube', clubes.length);
+clubes.push({ n: 'Sem clube', s: 'S/C', pat: 'solid', c: ['#8A8A8A', '#F4F4F4'], sh: '#8A8A8A', so: '#F4F4F4', fan: 0, est: ['—', 0], div: 'L', lvl: 60 });
+for (const r of livres) { const j = novoJogador(r, clubes.length - 1); j[9] = ANO; jogadores.push(j); }
+for (const { n, l, liga } of clubesExt) {
+  const k = catExt(n) || kitGerado(n), tier = tierDe(liga), top = l.map(r => r[8]).sort((a, b) => b - a).slice(0, 11);
+  const lvl = Math.round(top.reduce((a, b) => a + b, 0) / top.length);
+  idxClube.set(n, clubes.length);
+  clubes.push({ n, s: k.sig, pat: k.pat, c: k.c, sh: k.sh, so: k.so, fan: k.fan || clamp(Math.round(tier + (lvl - 70) / 3), 2, 9), est: [`Estádio do ${n}`, 30000], div: 'X', liga, tier, nat: k.nat || LIGA_PAIS[liga] || '', lvl });
+  for (const r of l) jogadores.push(novoJogador(r, clubes.length - 1));
+}
 // numeração: sem número ou repetido no clube ganha o próximo livre
 for (let ci = 0; ci < clubes.length; ci++) {
   const usados = new Set();
@@ -117,8 +148,8 @@ for (let ci = 0; ci < clubes.length; ci++) {
     usados.add(j[13]);
   }
 }
-const dados = { versao: 1, ano: ANO, fonte: 'Treineiros 1.38.10 (uso autorizado)', clubes, jogadores, divisoes: DIV };
+const dados = { versao: 2, ano: ANO, fonte: 'Treineiros 1.38.10 (uso autorizado)', clubes, jogadores, divisoes: DIV };
 fs.mkdirSync(path.dirname(OUT), { recursive: true });
 fs.writeFileSync(OUT, JSON.stringify(dados));
 const porDiv = d => jogadores.filter(j => clubes[j[3]].div === d).length;
-console.log(`clubes ${clubes.length} · jogadores ${jogadores.length} (A ${porDiv('A')}, B ${porDiv('B')}, C ${porDiv('C')}) · ${(fs.statSync(OUT).size / 1024).toFixed(0)} KB`);
+console.log(`clubes ${clubes.length} · jogadores ${jogadores.length} (A ${porDiv('A')}, B ${porDiv('B')}, C ${porDiv('C')}, livres ${porDiv('L')}, exterior ${porDiv('X')} em ${clubesExt.filter(c => c.l.length >= 3).length} clubes) · ${(fs.statSync(OUT).size / 1024).toFixed(0)} KB`);

@@ -9,10 +9,9 @@ export const NOME_PRECO = { barato: 'Barato', normal: 'Normal', caro: 'Caro', ab
 const MARCAS = ['ApostaBet', 'Banco Cordial', 'Pix&Vai', 'Supermercados Boa Praça', 'TeleGol', 'Cimentos Rocha Firme', 'Café Arretado', 'Seguros Tá Tranquilo', 'Auto Peças Turbinão', 'Farmácia Saúde Já'];
 
 // salário por dia: ~30% do valor de mercado por ano, com piso da divisão (ou o que foi acertado no contrato)
+export const salarioBase = (div, valorK) => Math.round(Math.max(PISO[div] || PISO.C, valorK * 1000 * 0.3) / 365);
 export function salarioDia(base, s, j) {
-  if (s.salarios?.[j.id]) return s.salarios[j.id];
-  const div = base.clubes[j.clube].div;
-  return Math.round(Math.max(PISO[div] || PISO.C, j.valor * 1000 * 0.3) / 365);
+  return s.salarios?.[j.id] || salarioBase(base.clubes[j.clube].div, j.valor);
 }
 export const folhaDia = (base, s, ci = s.tecnico.clube) => base.elencos[ci].reduce((t, j) => t + salarioDia(base, s, j), 0);
 
