@@ -3,6 +3,7 @@
 import { rng, clamp, pickW, SETOR } from './util.js';
 import { interessados, media } from './noticias.js';
 import { janelaAberta, caixaInicial } from './mundo.js';
+import { orcamento, lancar, garantirFinancas } from './financas.js';
 
 const NIVEL = { A: 0, B: 1, C: 2 };
 const arred = v => Math.max(50000, Math.round(v / 10000) * 10000);
@@ -53,6 +54,8 @@ export function bloqueioProposta(base, s, j, valor) {
   if (base.elencos[s.tecnico.clube].length >= LIMITE_ELENCO) return `Elenco cheio (${LIMITE_ELENCO}).`;
   if (!(valor > 0)) return 'Diga quanto quer oferecer.';
   if (valor > s.caixa) return 'Não tem dinheiro em caixa para isso.';
+  const orc = orcamento(base, s);
+  if (valor > orc.compras) return `Passa do orçamento de compras (${fmt(orc.compras)}). Ajuste a divisão salários x compras em Finanças ou venda alguém.`;
   return null;
 }
 
@@ -75,8 +78,9 @@ export function transferir(base, s, j, para, valor) {
   const de = j.clube;
   s.transf[j.id] = para;
   base.aplicarTransferencias(s.transf);
-  if (para === s.tecnico.clube) s.caixa -= valor;
-  if (de === s.tecnico.clube) s.caixa += valor;
+  garantirFinancas(base, s);
+  if (para === s.tecnico.clube) { lancar(s, 'compra', `Compra de ${j.curto} (${base.clubes[de].n})`, -valor); s.fin.temporada.compras += valor; }
+  if (de === s.tecnico.clube) { lancar(s, 'venda', `Venda de ${j.curto} (${base.clubes[para].n})`, valor); s.fin.temporada.vendas += valor; }
   if (s.xi) s.xi = null; // escalação manual refeita com o elenco novo
   s.historicoTransf.unshift({ rodada: s.rodada, jogador: j.id, nome: j.curto, de, para, valor });
 }

@@ -4,6 +4,7 @@ import { pontosCorridos } from './calendario.js';
 import { simular, melhorTime, bancoAuto } from './partida.js';
 import { gerarNoticias } from './noticias.js';
 import { resolverMercado } from './mercado.js';
+import { contasDaRodada, financasIniciais } from './financas.js';
 
 const DIVS = ['A', 'B', 'C'];
 
@@ -31,7 +32,8 @@ export function janelaAberta(ano, r) {
 const PESO_DIV = { A: 1, B: 0.4, C: 0.15 }, PESO_DIF = { facil: 1.5, normal: 1, dificil: 0.6 };
 export function caixaInicial(base, ci, dificuldade = 'normal') {
   const c = base.clubes[ci], elenco = base.elencos[ci].reduce((t, j) => t + j.valor, 0) * 1000;
-  return Math.round((elenco * 0.12 + c.fan * c.fan * 150000 * PESO_DIV[c.div]) * (PESO_DIF[dificuldade] || 1) / 10000) * 10000;
+  const minimo = { A: 3e6, B: 1e6, C: 3e5 }[c.div];
+  return Math.round(Math.max(minimo, elenco * 0.12 + c.fan * c.fan * 150000 * PESO_DIV[c.div]) * (PESO_DIF[dificuldade] || 1) / 10000) * 10000;
 }
 
 export class Base {
@@ -69,12 +71,14 @@ export function novoJogo(base, cfg) {
   let clube = cfg.clube;
   if (cfg.modo === 'sorteio') { const r = rng('sorteio' + seed), lista = base.clubes.map((c, i) => i).filter(i => base.clubes[i].div === cfg.divisao); clube = pick(r, lista); }
   if (cfg.modo === 'reputacao') clube = clubeParaReputacao(base, cfg.tecnico.reputacao, seed);
-  return {
+  const s = {
     v: 1, dadosVersao: base.dados.versao, seed, criado: Date.now(), ano: base.dados.ano, rodada: 0,
     tecnico: { ...cfg.tecnico, clube, modo: cfg.modo },
     dificuldade: cfg.dificuldade || 'normal',
     formacao: '4-3-3', xi: null, ultima: null, est: {}, ...TATICA_PADRAO(), caixa: caixaInicial(base, clube, cfg.dificuldade), transf: {}, propostas: [], historicoTransf: [], noticias: [{ rodada: 0, tipo: 'clube', div: base.clubes[clube].div, texto: `${cfg.tecnico.nome} é o novo técnico do ${base.clubes[clube].n}.` }],
   };
+  s.fin = financasIniciais(base, s);
+  return s;
 }
 
 export const chave = (h, a) => `${h}-${a}`;
@@ -230,7 +234,10 @@ export function concluirRodada(base, s, R, simMeu) {
   const m = R.meu;
   s.ultima = m ? { rodada: R.rd, div: m.d, casa: m.h, fora: m.a, ...simMeu, xi: [m.th.xi.map(j => j.id), m.ta.xi.map(j => j.id)] } : null;
   s.rodada++;
-  gerarNoticias(base, s, R.rd, jogos, Object.fromEntries(DIVS.map(d => [d, tabela(base, s, d)])));
+  const tabs = Object.fromEntries(DIVS.map(d => [d, tabela(base, s, d)]));
+  gerarNoticias(base, s, R.rd, jogos, tabs);
+  const casa = R.meu && R.meu.h === s.tecnico.clube ? { adv: R.meu.a } : null;
+  for (const txt of contasDaRodada(base, s, R.rd, casa, tabs[base.clubes[s.tecnico.clube].div])) s.noticias.unshift({ rodada: R.rd + 1, tipo: 'clube', div: base.clubes[s.tecnico.clube].div, texto: txt });
   resolverMercado(base, s, R.rd);
   return s.ultima;
 }

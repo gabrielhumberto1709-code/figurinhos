@@ -146,3 +146,18 @@ test('plano B entra sozinho: perdendo depois dos 60 o time vai para pressão tot
   assert.ok(viu, 'em 40 jogos o time fraco deveria estar perdendo aos 60 alguma vez');
   assert.equal(Object.keys(ESTILOS).length, 8);
 });
+
+import { orcamento, folhaDia, balanco } from '../public/js/motor/financas.js';
+
+test('finanças: salários saem e receitas entram a cada rodada; orçamento de compras nunca passa do caixa', () => {
+  const s = novoJogo(base, cfg(41));
+  const caixa0 = s.caixa;
+  for (let i = 0; i < 6; i++) avancar(base, s);
+  const b = balanco(s);
+  assert.ok(b.salarios < 0 && b.tv > 0 && b.patrocinio > 0, JSON.stringify(b));
+  const soma = Object.values(b).reduce((t, v) => t + v, 0);
+  assert.ok(Math.abs(s.caixa - caixa0 - soma) < 5, 'extrato bate com o caixa');
+  const o = orcamento(base, s);
+  assert.ok(o.compras >= 0 && o.compras <= s.caixa);
+  assert.ok(folhaDia(base, s) > 0);
+});

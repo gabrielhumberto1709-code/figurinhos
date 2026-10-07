@@ -1,5 +1,6 @@
 // Interface do Figurinhos: telas, navegação por hash e saves na nuvem.
 import { Base, novoJogo, iniciarRodada, concluirRodada, tabela, rodadasDe, escalacao, paraSalvar, resumo, REPUTACOES, DIFICULDADES, dataRodada, janelaAberta, caixaInicial } from './motor/mundo.js';
+import { garantirFinancas, orcamento, socorro, metaDiretoria, balanco, bilheteria, pedirVerba, PRECOS, NOME_PRECO } from './motor/financas.js';
 import { precoPedido, vontade, pistaVontade, fazerProposta, aceitarContraproposta, desistir, aceitarRecebida, recusarRecebida, bloqueioProposta } from './motor/mercado.js';
 import * as AoVivo from './aovivo.js';
 import * as Elenco from './elenco.js';
@@ -258,15 +259,45 @@ telas.clube = () => {
 };
 
 // ----- finanças -----
+const ROT_FIN = { bilheteria: 'Bilheteria', tv: 'Cota de TV', patrocinio: 'Patrocínio', premio: 'Prêmios', venda: 'Vendas', verba: 'Verba da diretoria', socorro: 'Socorro (adiantamentos)', salarios: 'Salários', compra: 'Compras', rescisao: 'Rescisões' };
 telas.financas = () => {
-  const s = app.s, ci = s.tecnico.clube, h = s.historicoTransf || [];
-  const compras = h.filter(x => x.para === ci).reduce((t, x) => t + x.valor, 0), vendas = h.filter(x => x.de === ci).reduce((t, x) => t + x.valor, 0);
-  const elenco = app.base.elencos[ci].reduce((t, j) => t + j.valor * 1000, 0);
-  return `<div class="titulo-linha"><h2>Finanças</h2><a href="#/clube">Voltar</a></div>
-    <div class="kpis"><div class="cartao kpi"><small>Em caixa</small><b class="num">${fmtDinheiro(s.caixa ?? 0)}</b></div><div class="cartao kpi"><small>Valor do elenco</small><b class="num">${fmtDinheiro(elenco)}</b></div>
-      <div class="cartao kpi"><small>Gasto em reforços</small><b class="num">${fmtDinheiro(compras)}</b></div><div class="cartao kpi"><small>Recebido em vendas</small><b class="num">${fmtDinheiro(vendas)}</b></div></div>
-    <section class="cartao"><h3>Movimentações</h3>${h.length ? `<ul class="noticias">${h.map(x => `<li><span class="rd">R${x.rodada + 1}</span><span>${x.para === ci ? 'Compra' : 'Venda'}: <b>${esc(x.nome)}</b> (${esc(clube(x.para === ci ? x.de : x.para).n)}) · ${fmtDinheiro(x.valor)}</span></li>`).join('')}</ul>` : '<p class="mudo">Nenhuma compra ou venda ainda.</p>'}</section>
-    <p class="mudo">Bilheteria, patrocínios e salários entram na fase de gestão do clube.</p>`;
+  const s = app.s, ci = s.tecnico.clube, c = clube(ci), aba = app.abaFin || 'resumo';
+  garantirFinancas(app.base, s);
+  const f = s.fin, o = orcamento(app.base, s), sc = socorro(app.base, s), meta = metaDiretoria(app.base, s), bal = balanco(s);
+  const topo = `<div class="titulo-linha"><h2>Finanças</h2><a href="#/clube">Voltar</a></div>
+    <section class="cartao caixa-topo"><small>Caixa</small><b class="num">${fmtDinheiro(s.caixa)}</b></section>
+    <div class="chips" role="group" aria-label="Seção">${[['resumo', 'Resumo'], ['extrato', 'Extrato'], ['balanco', `Balanço ${s.ano}`]].map(([k, t]) => `<button type="button" class="chip" data-acao="aba-fin" data-a="${k}" aria-pressed="${aba === k}">${t}</button>`).join('')}</div>`;
+  if (aba === 'extrato') return topo + `<section class="cartao"><h3>Extrato</h3>${f.extrato.length ? `<ul class="extrato">${f.extrato.slice(0, 150).map(e => `<li><span class="rd">R${e.r + 1}</span><span>${esc(e.desc)}</span><b class="${e.valor < 0 ? 'neg' : 'pos'}">${e.valor < 0 ? '−' : '+'} ${fmtDinheiro(Math.abs(e.valor))}</b></li>`).join('')}</ul>` : '<p class="mudo">Nada lançado ainda. As contas fecham a cada rodada.</p>'}</section>`;
+  if (aba === 'balanco') {
+    const rec = Object.entries(bal).filter(([, v]) => v > 0).sort((a, b) => b[1] - a[1]), desp = Object.entries(bal).filter(([, v]) => v < 0).sort((a, b) => a[1] - b[1]);
+    const soma = l => l.reduce((t, [, v]) => t + v, 0);
+    const linha = ([k, v]) => `<li><span>${ROT_FIN[k] || k}</span><b class="${v < 0 ? 'neg' : 'pos'}">${v < 0 ? '−' : '+'} ${fmtDinheiro(Math.abs(v))}</b></li>`;
+    return topo + `<section class="cartao"><h3>Receitas</h3><ul class="linhas-fin">${rec.map(linha).join('') || '<li class="mudo">Nenhuma ainda</li>'}</ul><p class="total">Total <b class="pos">+ ${fmtDinheiro(soma(rec))}</b></p></section>
+      <section class="cartao"><h3>Despesas</h3><ul class="linhas-fin">${desp.map(linha).join('') || '<li class="mudo">Nenhuma ainda</li>'}</ul><p class="total">Total <b class="neg">− ${fmtDinheiro(Math.abs(soma(desp)))}</b></p></section>
+      <section class="cartao"><p class="total">Resultado da temporada <b class="${soma(rec) + soma(desp) < 0 ? 'neg' : 'pos'}">${fmtDinheiro(soma(rec) + soma(desp))}</b></p></section>`;
+  }
+  const jogo = s.rodada < 38 ? rodadasDe(app.base, s, c.div)[s.rodada].find(([h, a]) => h === ci || a === ci) : null;
+  const tab = tabela(app.base, s, c.div), l = tab.find(x => x.clube === ci), pos = tab.indexOf(l) + 1;
+  const advCasa = jogo && jogo[0] === ci ? jogo[1] : null;
+  const prev = nivel => bilheteria(app.base, s, ci, advCasa ?? ci, l.ultimos, pos, nivel);
+  const pctSal = o.maxSal > o.folha ? Math.round((o.salarios - o.folha) / (o.maxSal - o.folha) * 100) : 0;
+  return topo + `
+    <section class="cartao aviso-fin ${sc.ok ? 'ok' : 'nao'}"><p><b>${sc.ok ? 'Socorro disponível' : 'Socorro bloqueado'}:</b> se o caixa ficar negativo, a TV adianta a cota e os salários saem em dia. Perde esse direito quem comprar mais do que vender na temporada ou aumentar a folha em mais de 10% (regra da ANRESF).${sc.ok ? '' : ` Agora está bloqueado porque ${esc(sc.motivo)}.`}</p></section>
+    <section class="cartao"><div class="titulo-linha"><h3>Diretoria</h3><span class="conf"><b class="num">${Math.round(f.diretoria)}</b>/100 de confiança</span></div>
+      <p>Meta: <b>${meta.txt}</b>. ${s.rodada ? `Hoje: ${pos}º.` : ''}</p>
+      <div class="linha-botoes"><button class="botao sec" type="button" data-acao="pedir-verba">Pedir verba</button></div></section>
+    <section class="cartao"><div class="titulo-linha"><h3>Salários × compras</h3></div>
+      <div class="barra-orc"><div class="orc-sal" style="width:${Math.max(8, Math.min(92, 100 - (o.compras / Math.max(1, o.compras + o.salarios * o.dias)) * 100))}%"></div></div>
+      <div class="orc-legenda"><span class="sal">Salários ${fmtDinheiro(o.salarios)}/dia</span><span class="comp">Compras ${fmtDinheiro(o.compras)}</span></div>
+      ${o.maxSal > o.folha ? `<label class="vh" for="orc-slider">Orçamento de salários por dia</label><input id="orc-slider" type="range" min="0" max="100" step="1" value="${pctSal}" data-orc>` : ''}
+      <div class="chips"><span class="chip-info">Folha ${fmtDinheiro(o.folha)}/dia</span><span class="chip-info">Folga ${fmtDinheiro(o.folga)}/dia</span></div>
+      <p class="msg-fin ${o.pagaAteFim ? 'ok' : 'nao'}">${o.pagaAteFim ? `O caixa paga os salários até o fim da temporada (faltam ${o.dias} dias).` : `O caixa (com a TV que falta) paga só ${o.diasDeSalario} dias de salário; faltam ${o.dias}.`}</p>
+      <p class="mudo" style="font-size:.95rem">Mais espaço para salários deixa contratar quem ganha mais; o resto do caixa vira verba de compras. A folga é quanto ainda cabe de salário novo.</p></section>
+    <section class="cartao"><div class="titulo-linha"><h3>${esc(c.est[0])}</h3><span class="mudo">${(c.est[1] || 0).toLocaleString('pt-BR')} lugares</span></div>
+      <div class="chips" role="group" aria-label="Preço do ingresso">${Object.keys(PRECOS).map(k => `<button type="button" class="chip" data-acao="ingresso" data-p="${k}" aria-pressed="${f.ingresso === k}">${NOME_PRECO[k]} · ${fmtDinheiro(prev(k).preco)}</button>`).join('')}</div>
+      ${advCasa != null ? `<p>Próximo jogo em casa (× ${esc(clube(advCasa).n)}): cerca de <b>${prev(f.ingresso).publico.toLocaleString('pt-BR')}</b> pagantes (${Math.round(prev(f.ingresso).occ * 100)}% de lotação), renda de <b>${fmtDinheiro(prev(f.ingresso).renda)}</b>.</p>` : '<p class="mudo">O próximo jogo é fora de casa.</p>'}
+      <p class="mudo" style="font-size:.95rem">Ingresso caro com estádio cheio agrada a diretoria; abusivo com estádio vazio irrita.</p></section>
+    <section class="cartao"><h3>Na temporada</h3><ul class="linhas-fin">${['bilheteria', 'tv', 'patrocinio', 'premio', 'venda', 'verba', 'salarios', 'compra'].map(k => `<li><span>${ROT_FIN[k]}${k === 'patrocinio' ? ` · ${esc(f.patrocinador)}` : ''}</span><b class="${(bal[k] || 0) < 0 ? 'neg' : 'pos'}">${(bal[k] || 0) < 0 ? '−' : '+'} ${fmtDinheiro(Math.abs(bal[k] || 0))}</b></li>`).join('')}</ul></section>`;
 };
 
 // ----- carreira -----
@@ -450,6 +481,7 @@ function migrar(s) {
   app.base.aplicarTransferencias(s.transf || (s.transf = {}));
   s.propostas ||= []; s.recebidas ||= []; s.historicoTransf ||= []; s.est ||= {};
   if (s.caixa == null) s.caixa = caixaInicial(app.base, s.tecnico.clube, s.dificuldade);
+  garantirFinancas(app.base, s);
   return s;
 }
 
@@ -550,6 +582,9 @@ const acoes = {
   },
   'vivo-fim': () => { concluirAoVivo(); ir('#/partida'); },
   'em-breve': el => aviso(`${el.dataset.t} chega numa próxima atualização.`),
+  'aba-fin': el => { app.abaFin = el.dataset.a; render(); },
+  ingresso: el => { app.s.fin.ingresso = el.dataset.p; render(); salvar(); },
+  'pedir-verba': () => { const s = app.s, c = clube(s.tecnico.clube), tab = tabela(app.base, s, c.div); const r = pedirVerba(app.base, s, tab.findIndex(l => l.clube === s.tecnico.clube) + 1); aviso(r.txt); render(); salvar(); },
   'aba-mercado': el => { app.abaMercado = el.dataset.a; render(); },
   sugerir: el => { const i = el.closest('form').valor; i.value = el.dataset.v; },
   'aceitar-contra': el => { const e = aceitarContraproposta(app.s, el.dataset.id); aviso(e || 'Topou pagar. A resposta final sai na próxima rodada.'); render(); salvar(); },
@@ -579,6 +614,12 @@ $('#ficha').addEventListener('click', e => { if (e.target === e.currentTarget) e
 
 // campos do novo jogo ficam guardados no rascunho
 document.addEventListener('input', e => {
+  if (e.target.dataset?.orc != null && app.s) {
+    const o = orcamento(app.base, app.s); app.s.fin.salarioBudget = Math.round(o.folha + (o.maxSal - o.folha) * e.target.value / 100);
+    const n = orcamento(app.base, app.s); $('.orc-legenda .sal').textContent = `Salários ${fmtDinheiro(n.salarios)}/dia`; $('.orc-legenda .comp').textContent = `Compras ${fmtDinheiro(n.compras)}`;
+    $('.orc-sal').style.width = Math.max(8, Math.min(92, 100 - (n.compras / Math.max(1, n.compras + n.salarios * n.dias)) * 100)) + '%';
+    clearTimeout(app.tSal); app.tSal = setTimeout(() => { render(); salvar(); }, 600); return;
+  }
   const fk = e.target.dataset?.filtro;
   if (fk && app.fMercado) { app.fMercado[fk] = e.target.value; const l = $('#lista-mercado'); if (l) l.innerHTML = filtrarMercado().map(linhaMercado).join(''); return; }
   if (e.target.form?.dataset.form === 'entrar') e.target.form.querySelector('.erro').textContent = '';
