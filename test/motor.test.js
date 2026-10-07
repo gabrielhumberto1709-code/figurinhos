@@ -430,3 +430,17 @@ test('treino: jovem com margem evolui jogando, treino intenso e foco aceleram, e
   novoJogo(base, cfg(52)); assert.equal(jovem.ovr, o0);
   aplicarSave(base, salvo); assert.equal(jovem.ovr, Math.min(o0 + Math.floor(salvo.evo[jovem.id]), Math.max(jovem.pot, o0)));
 });
+
+import { rivais } from '../public/js/motor/rivais.js';
+import { interessados as interessadosR } from '../public/js/motor/noticias.js';
+test('rivais: clássicos reconhecidos, rival não entra no interesse, jogador não quer ir pro rival e IA quase nunca negocia entre rivais', () => {
+  const id = n => base.clubes.findIndex(c => c.n === n);
+  assert.ok(rivais(base, id('Flamengo'), id('Vasco')) && rivais(base, id('Grêmio'), id('Internacional')) && !rivais(base, id('Flamengo'), id('Grêmio')));
+  const s = novoJogo(base, { ...cfg(61), clube: id('Corinthians') });
+  const craque = base.elencos[id('Palmeiras')].slice().sort((a, b) => b.ovr - a.ovr)[0];
+  assert.ok(vontade(base, s, craque, id('Corinthians')) <= 35, 'craque do Palmeiras não quer o Corinthians');
+  for (const j of base.jog.values()) if (j.ovr >= 74 && base.clubes[j.clube].div === 'A') for (const ci of interessadosR(base, j)) assert.ok(!rivais(base, ci, j.clube));
+  ate(s, 12);
+  const entreRivais = s.historicoTransf.filter(t => t.ia && rivais(base, t.de, t.para)).length;
+  assert.ok(entreRivais <= 1, `${entreRivais} negócios entre rivais`);
+});

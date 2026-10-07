@@ -5,6 +5,7 @@ import { simular, melhorTime, bancoAuto, FORMACOES, encaixe, fatorCond } from '.
 import { fragilidade, indisponiveis, posJogo, TREINO_LES } from './dm.js';
 import { garantirCarreira, torcidaAposJogo, aposRodada, tituloDeCopa } from './carreira.js';
 import { evoluir } from './treino.js';
+import { rivais } from './rivais.js';
 import { TORNEIOS, PREMIO_SUP, FASES_CONT, dataCont, dataSup, novaCont, contDevida, naCont, supDevida, jogosDaFase, decidirCont, avancarCont, timeFora, jogadorCont } from './continental.js';
 import { gerarNoticias } from './noticias.js';
 import { resolverMercado, garantirMercado } from './mercado.js';
@@ -241,7 +242,7 @@ export function recuperar(base, s, dias) {
 // depois do jogo: condição de quem jogou e moral (resultado, nota, capitão)
 function aposJogo(base, s, h, a, sim) {
   for (const [id, c] of Object.entries(sim.cond || {})) s.cond[id] = c;
-  const res = sim.gols[0] > sim.gols[1] ? [4, -4] : sim.gols[0] < sim.gols[1] ? [-4, 4] : [0, 0];
+  const k = rivais(base, h, a) ? 2 : 1, res = sim.gols[0] > sim.gols[1] ? [4 * k, -4 * k] : sim.gols[0] < sim.gols[1] ? [-4 * k, 4 * k] : [0, 0]; // clássico vale o dobro no vestiário
   [h, a].forEach((ci, t) => {
     let bonus = 0;
     if (ci === s.tecnico.clube) { const cap = sim.capitao; if (cap) { const mc = s.mor[cap] ?? 62; bonus = mc >= 70 ? 1 : mc < 35 ? -1 : 0; } }
@@ -360,7 +361,7 @@ export function concluirCopa(base, s, R, simMeu) {
     const meuJogo = h === ci || a === ci, placar = `${nome(h)} ${sim.gols[0]} × ${sim.gols[1]} ${nome(a)}${dec.pen ? ` (${dec.pen[0]} a ${dec.pen[1]} nos pênaltis)` : ''}`;
     if (meuJogo) {
       if (h === ci) { const b = bilheteria(base, s, ci, a, [], 10, s.fin.ingresso); lancar(s, 'bilheteria', `Bilheteria Copa do Brasil × ${nome(a)} (${b.publico.toLocaleString('pt-BR')} pagantes)`, b.renda); }
-      torcidaAposJogo(s, ci, h, sim.gols, { pen: dec.pen, mataMata: k !== 'f1', final: k === 'f2' });
+      torcidaAposJogo(s, ci, h, sim.gols, { pen: dec.pen, mataMata: k !== 'f1', final: k === 'f2', classico: rivais(base, h, a) });
       s.ultima = { rodada: s.rodada - 1, copa: FASES[i].nome, div: 'copa', casa: h, fora: a, ...sim, pen: dec.pen || null, xi: [R.meu.th.xi.map(j => j.id), R.meu.ta.xi.map(j => j.id)] };
       N.push({ tipo: 'clube', texto: `Copa do Brasil, ${FASES[i].nome.toLowerCase()}: ${placar}.${dec.vencedor === ci ? (k === 'f2' ? ' É CAMPEÃO!' : ' Classificado!') : dec.perdedor === ci ? ' Eliminado.' : ''}` });
     }
@@ -417,7 +418,7 @@ export function concluirCont(base, s, R, simMeu) {
     if (casa && f !== 8) { const b = bilheteria(base, s, ci, adv, [], 10, s.fin.ingresso); lancar(s, 'bilheteria', `Bilheteria ${TORNEIOS[k].nome} × ${nome(adv)} (${b.publico.toLocaleString('pt-BR')} pagantes)`, b.renda); }
     if (f === 0) lancar(s, 'premio', `${TORNEIOS[k].nome}: cota da fase de grupos`, P.grupos);
     if (f < 6 && my > ot) lancar(s, 'premio', `${TORNEIOS[k].nome}: vitória na fase de grupos`, P.vitoria);
-    torcidaAposJogo(s, ci, h, sim.gols, { pen: dec.pen, mataMata: f >= 6, final: f === 8 });
+    torcidaAposJogo(s, ci, h, sim.gols, { pen: dec.pen, mataMata: f >= 6, final: f === 8, classico: rivais(base, h, a) });
     s.ultima = { rodada: s.rodada - 1, copa: `${TORNEIOS[k].nome} · ${FASES_CONT[f].nome}`, div: k, casa: h, fora: a, ...sim, pen: dec.pen || null, xi: [R.meu.th.xi.map(j => j.id), R.meu.ta.xi.map(j => j.id)] };
     N.push({ tipo: 'clube', texto: `${TORNEIOS[k].nome}, ${FASES_CONT[f].nome.toLowerCase()}: ${nome(h)} ${sim.gols[0]} × ${sim.gols[1]} ${nome(a)}${dec.pen ? ` (${dec.pen[0]} a ${dec.pen[1]} nos pênaltis)` : ''}.${dec.vencedor === ci ? (f === 8 ? ' É CAMPEÃO!' : ' Classificado!') : dec.perdedor === ci ? ' Eliminado.' : ''}` });
   }
@@ -485,7 +486,7 @@ export function concluirRodada(base, s, R, simMeu) {
   for (const { d, h, a, sim } of jogos) { s.res[d][chave(h, a)] = sim.gols; registrar(s.est, sim); aposJogo(base, s, h, a, sim); dmN.push(...posJogo(base, s, h, a, sim, 'L')); }
   const m = R.meu;
   s.ultima = m ? { rodada: R.rd, div: m.d, casa: m.h, fora: m.a, ...simMeu, xi: [m.th.xi.map(j => j.id), m.ta.xi.map(j => j.id)] } : null;
-  if (m && simMeu) torcidaAposJogo(s, s.tecnico.clube, m.h, simMeu.gols);
+  if (m && simMeu) torcidaAposJogo(s, s.tecnico.clube, m.h, simMeu.gols, { classico: rivais(base, m.h, m.a) });
   s.rodada++;
   const tabs = Object.fromEntries(DIVS.map(d => [d, tabela(base, s, d)]));
   gerarNoticias(base, s, R.rd, jogos, tabs);

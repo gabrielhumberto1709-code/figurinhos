@@ -32,7 +32,7 @@ export function pilares(base, s) {
 }
 
 // a torcida reage a cada jogo oficial e volta devagar para o normal
-export function torcidaAposJogo(s, ci, h, gols, { pen = null, mataMata = false, final = false } = {}) {
+export function torcidaAposJogo(s, ci, h, gols, { pen = null, mataMata = false, final = false, classico = false } = {}) {
   s.torcida ??= 55;
   const casa = h === ci, my = gols[casa ? 0 : 1], ot = gols[casa ? 1 : 0];
   let won = my > ot, lost = my < ot;
@@ -41,6 +41,7 @@ export function torcidaAposJogo(s, ci, h, gols, { pen = null, mataMata = false, 
   if (mataMata && lost) v -= 3;
   if (final && won) v += 5;
   if (Math.abs(my - ot) >= 3) v += won ? 2 : -2;
+  if (classico) v *= 1.6;
   v += (55 - s.torcida) * 0.08;
   s.torcida = clamp(Math.round((s.torcida + v) * 10) / 10, 0, 100);
 }

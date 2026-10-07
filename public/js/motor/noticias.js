@@ -1,5 +1,6 @@
 // Jornal da rodada: resultados, sequências, artilharia, crises e rumores de mercado.
 // Rumor só sai quando faz sentido de futebol: clube maior, carência na posição e reforço de verdade.
+import { rivais } from './rivais.js';
 import { rng, pick, pickW, SETOR, nivelDiv } from './util.js';
 
 const DIVS = ['A', 'B', 'C'];
@@ -11,7 +12,7 @@ export function interessados(base, j) {
   const daqui = base.clubes[j.clube], forcaAqui = base.forca(j.clube);
   return base.clubes.map((c, ci) => ci).filter(ci => {
     const c = base.clubes[ci];
-    if (ci === j.clube || c.div === 'L' || nivelDiv(c) > nivelDiv(daqui)) return false;
+    if (ci === j.clube || c.div === 'L' || nivelDiv(c) > nivelDiv(daqui) || rivais(base, ci, j.clube)) return false; // rival não negocia com rival
     if (c.div === 'X' && (j.idade > 29 || c.tier < 2)) return false;   // de fora só vem quem compra jovem, e de liga forte
     const f = base.forca(ci);
     if (f < forcaAqui + 2 || j.ovr < f - 6) return false;           // clube maior, e o jogador tem nível pra ele
@@ -65,7 +66,7 @@ export function gerarNoticias(base, s, rd, jogos, tabs) {
   const mj = jogos.find(x => x.h === meu || x.a === meu);
   if (mj) {
     const g = mj.sim.eventos.filter(e => e.tipo === 'gol');
-    add('clube', mj.d, `${nome(mj.h)} ${mj.sim.gols[0]} × ${mj.sim.gols[1]} ${nome(mj.a)}. ${g.length ? 'Gols: ' + g.map(e => `${curto(e.jogador)} ${e.min}'`).join(', ') + '.' : 'Sem gols.'}`);
+    add('clube', mj.d, `${rivais(base, mj.h, mj.a) ? 'Clássico: ' : ''}${nome(mj.h)} ${mj.sim.gols[0]} × ${mj.sim.gols[1]} ${nome(mj.a)}. ${g.length ? 'Gols: ' + g.map(e => `${curto(e.jogador)} ${e.min}'`).join(', ') + '.' : 'Sem gols.'}`);
   }
 
   for (const d of DIVS) {

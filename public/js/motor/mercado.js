@@ -1,6 +1,7 @@
 // Mercado: preço, salário e contrato, vontade do jogador, disputa com rivais, livres, pré-contratos,
 // listas de venda e empréstimo, olheiros, favoritos e negócios entre os clubes da IA.
 // Proposta feita numa rodada é respondida na seguinte (dá tempo de rival entrar na briga).
+import { rivais } from './rivais.js';
 import { rng, clamp, pickW, SETOR, nivelDiv, estrelas, continenteDe } from './util.js';
 import { interessados, media } from './noticias.js';
 import { janelaAberta, caixaInicial, aplicarSave } from './mundo.js';
@@ -66,6 +67,7 @@ export function precoPedido(base, s, j) {
   if (base.clubes[j.clube].div === 'X') v *= 1.15;                      // clube de fora não vende barato
   if (rank < 3 && base.clubes[j.clube].div === base.clubes[s.tecnico.clube].div) v *= 1.3; // não vende craque pra rival direto
   if (listasIA(base, s).venda.has(j.id)) v *= 0.7;                       // está à venda: o clube quer se livrar
+  if (rivais(base, j.clube, s.tecnico.clube)) v *= 1.6;                  // vender pro rival só se for muito bom
   return arred(v);
 }
 
@@ -81,10 +83,12 @@ export function vontade(base, s, j, destino) {
   if (j.idade >= 31) v += 10;
   if (j.ovr >= 80 && base.forca(destino) < base.forca(j.clube)) v -= 20;
   if (destino === s.tecnico.clube) v += (s.tecnico.reputacao || 0) * 4;
+  if (rivais(base, j.clube, destino)) v -= 35; // trocar pelo rival queima o jogador com a torcida
   return clamp(Math.round(v), 0, 100);
 }
 export const pistaVontade = v => v >= 65 ? 'O empresário diz que ele adoraria jogar aqui.' : v >= 50 ? 'Ele topa ouvir a proposta.' : v >= 35 ? 'Ele não parece muito animado.' : 'Ele não quer saber de vir.';
 function motivoRecusa(base, s, j) {
+  if (rivais(base, j.clube, s.tecnico.clube)) return 'não quer jogar no rival';
   if (nivelDiv(base.clubes[s.tecnico.clube]) > nivelDiv(base.clubes[j.clube]) && !ehLivre(base, j.clube)) return 'não quer cair de divisão';
   if (base.elencos[s.tecnico.clube].filter(x => x.pos === j.pos && x.ovr >= j.ovr).length >= 2) return 'acha que não seria titular';
   return 'prefere esperar um clube maior';
@@ -283,7 +287,7 @@ function negociosIA(base, s, rd, r, add) {
     const el = base.elencos[ci], f = base.forca(ci), melhorNa = p => el.filter(x => x.pos === p).reduce((m, x) => Math.max(m, x.ovr), 0);
     const pos = POS_CHAVE.slice().sort((a, b) => melhorNa(a) - melhorNa(b))[0], min = melhorNa(pos) + 2, caixa = caixaInicial(base, ci) * 0.5;
     const cands = [...base.jog.values()].filter(j => j.pos === pos && j.clube !== ci && j.ovr >= min && j.ovr <= f + 5 && !s.emprestimos[j.id] && !preContratoDe(s, j.id)
-      && vendedorAguenta(base, s, j) && precoPedido(base, s, j) <= caixa && vontade(base, s, j, ci) >= 50);
+      && vendedorAguenta(base, s, j) && precoPedido(base, s, j) <= caixa && vontade(base, s, j, ci) >= 50 && (!rivais(base, j.clube, ci) || r() < 0.03));
     if (!cands.length) continue;
     const j = pickW(r, cands, x => x.ovr - min + 1), valor = precoPedido(base, s, j), de = mover(j, ci, valor);
     add(ehLivre(base, de) ? `Mercado: ${nome(ci)} contrata ${j.curto}, que estava sem clube.` : `Mercado: ${j.curto} deixa o ${nome(de)} e acerta com o ${nome(ci)} por ${fmt(valor)}.`, 'mercado', base.clubes[ci].div, { jogador: j.id });
@@ -312,6 +316,7 @@ export function resolverMercado(base, s, rd) {
     const falha = (motivo, txt) => { p.estado = 'recusada'; p.motivo = motivo; if (txt) add(txt); };
     if (j.clube !== p.de) { p.estado = 'cancelada'; p.motivo = 'ele já trocou de clube'; continue; }
     if (preContratoDe(s, j.id)) { p.estado = 'cancelada'; p.motivo = 'assinou pré-contrato com outro clube'; continue; }
+    if (tipo !== 'livre' && !p.clubeOk && rivais(base, j.clube, meu) && r() < 0.9) { falha('o clube não negocia com o rival', `O ${nome(j.clube)} nem abre conversa: não negocia ${j.curto} com o rival.`); continue; }
     if (tipo === 'compra' && !p.clubeOk && !p.aceitouContra) {
       const pedido = precoPedido(base, s, j);
       if (p.valor < pedido) {

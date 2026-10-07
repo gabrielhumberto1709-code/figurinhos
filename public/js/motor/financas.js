@@ -1,5 +1,6 @@
 // Finanças do seu clube: salários por dia, bilheteria, TV, patrocínio, prêmios, extrato, diretoria e socorro.
 import { clamp } from './util.js';
+import { rivais } from './rivais.js';
 import { dataRodada } from './mundo.js';
 
 const DIA = 864e5;
@@ -32,7 +33,7 @@ export function bilheteria(base, s, ci, adv, ultimos = [], pos = 10, nivel = 'no
   const occBase = 0.3 + fan * 0.055;
   const v = ultimos.filter(x => x === 'V').length, d = ultimos.filter(x => x === 'D').length;
   const fase = Math.max(0.4, 1 + 0.05 * v - 0.06 * d + (pos <= 4 ? 0.08 : pos >= 17 ? -0.06 : 0));
-  const imp = (a.fan >= 8 ? 1.12 : 1) * (a.div === c.div && a.fan >= 7 && c.fan >= 7 ? 1.1 : 1);
+  const imp = (a.fan >= 8 ? 1.12 : 1) * (rivais(base, ci, adv) ? 1.25 : a.div === c.div && a.fan >= 7 && c.fan >= 7 ? 1.1 : 1);
   const pm = PRECOS[nivel] || 1, elast = clamp(1.25 - (imp - 1) * 0.9 - fan * 0.03, 0.35, 1.3);
   const occ = clamp(occBase * fase * imp * pm ** -elast, 0.08, 1);
   const publico = Math.round(cap * occ), preco = Math.round((8 + fan * 1.5) * pm * 100) / 100;

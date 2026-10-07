@@ -4,6 +4,7 @@
 import { rng, pick, clamp, shuffle } from './util.js';
 import { tabela, janelaAberta, proximoEvento } from './mundo.js';
 import { pilares } from './carreira.js';
+import { rivais } from './rivais.js';
 import { metaDiretoria, folhaDia, lancar } from './financas.js';
 
 export const TONS = {
@@ -26,6 +27,8 @@ const REPORTERES = [['Paulinho Pena', 'Rádio Bola de Meia'], ['Cida Moraes', 'T
 // perguntas por tema (o peso diz quando o tema aparece; 0 = não cabe)
 const TEMAS = {
   vitoria: { tons: BOM, q: ['O que deu certo hoje contra o {adv}?', '{placar} contra o {adv}. O time encontrou o caminho?', 'Vitória importante. Qual foi a chave do jogo?'] },
+  classicoV: { tons: BOM, q: ['Vitória no clássico! O que significa bater o {adv}?', 'A cidade é sua essa semana. Recado para o torcedor do {adv}?'] },
+  classicoD: { tons: RUIM, q: ['Perder clássico dói mais?', 'O torcedor não perdoa derrota pro {adv}. O que você diz pra ele?'] },
   goleada: { tons: BOM, q: ['Goleada sobre o {adv}. Foi a melhor atuação do ano?', '{placar}! Dá pra sonhar alto com esse futebol?'] },
   empate: { tons: [...BOM, 'irritada'], q: ['Empate com o {adv}. Ponto ganho ou dois perdidos?', 'O time criou, mas não venceu. O que faltou?'] },
   derrota: { tons: RUIM, q: ['O que faltou contra o {adv}?', 'A torcida saiu do estádio na bronca. O que você diz pra ela?', 'Derrota para o {adv}. Onde o time errou?'] },
@@ -96,9 +99,11 @@ const GERAL = {
   },
 };
 // um tema por grupo em cada coletiva (não faz três perguntas sobre a mesma derrota)
-const GRUPO = { vitoria: 'res', goleada: 'res', empate: 'res', derrota: 'res', sofreuGoleada: 'res', virada: 'res', levouVirada: 'res', golNoFim: 'res', levouNoFim: 'res', maFase: 'seq', semVencer: 'seq', boaFase: 'seq', lider: 'tab', titulo: 'tab', rebaixamento: 'tab', meta: 'tab', diretoria: 'cargo', ultimato: 'cargo', torcida: 'cargo', eliminado: 'res', classificado: 'res', campeao: 'res', vice: 'res' };
+const GRUPO = { classicoV: 'res', classicoD: 'res', vitoria: 'res', goleada: 'res', empate: 'res', derrota: 'res', sofreuGoleada: 'res', virada: 'res', levouVirada: 'res', golNoFim: 'res', levouNoFim: 'res', maFase: 'seq', semVencer: 'seq', boaFase: 'seq', lider: 'tab', titulo: 'tab', rebaixamento: 'tab', meta: 'tab', diretoria: 'cargo', ultimato: 'cargo', torcida: 'cargo', eliminado: 'res', classificado: 'res', campeao: 'res', vice: 'res' };
 const famDe = T => T.tons === BOM ? 'B' : T.tons === RUIM ? 'R' : 'F';
 const RESP = {
+  classicoV: { confiante: ['Clássico se ganha na raça, e hoje sobrou raça.'], irritada: ['Eles falaram demais durante a semana. Respondemos em campo.'], diplomatica: ['Respeito muito o {adv}. Hoje fomos melhores.'], protege: ['A vitória é do grupo. Eles sabiam o tamanho desse jogo.'] },
+  classicoD: { autocritica: ['Não preparei o time como devia. Clássico não perdoa.'], cobra: ['Perder clássico desse jeito é inaceitável. Vou cobrar um por um.'], irritada: ['Não vou ficar dando entrevista pra falar de rival.'], motivacional: ['Ainda tem o returno. A resposta vem.'] },
   vitoria: { confiante: ['O time fez exatamente o que treinou. É só o começo.'], cobra: ['Venceu, mas não me enganou. Dá pra jogar muito mais.'], autocritica: ['Ganhamos, mas eu demorei a mexer. Preciso ser mais rápido.'] },
   goleada: { confiante: ['Esse é o nosso nível. Quem duvidou vai ter que engolir.'], cautelosa: ['Placar elástico engana. Semana que vem é outra história.'] },
   derrota: { protege: ['Os jogadores não merecem a crítica. A culpa é minha.'], cobra: ['Faltou coragem. Teve gente que se escondeu hoje.'], irritada: ['Derrota faz parte. Querem que eu chore aqui?'] },
@@ -142,7 +147,7 @@ function contexto(base, s) {
   const mataMata = (u.div === 'copa' && u.copa !== 'Final · ida') || u.div === 'SUP' || (['LIB', 'SUL'].includes(u.div) && !/Grupos/.test(u.copa || ''));
   const final = u.div === 'SUP' || /Final · volta$|· Final$/.test(u.copa || '');
   return {
-    ci, adv, my, ot, venceu, perdeu, placar: `${u.gols[0]} a ${u.gols[1]}`, notas, d, tab, l, pos, P: pilares(base, s), meta: metaDiretoria(base, s),
+    ci, adv, my, ot, venceu, perdeu, classico: rivais(base, u.casa, u.fora), placar: `${u.gols[0]} a ${u.gols[1]}`, notas, d, tab, l, pos, P: pilares(base, s), meta: metaDiretoria(base, s),
     destaque: notas[0]?.[1] >= 7.4 ? notas[0][0] : null, criticado: notas.at(-1)?.[1] <= 5.6 ? notas.at(-1)[0] : null,
     expulso: J(ev('vermelho')[0]?.jogador), lesionado: J(ev('lesao')[0]?.jogador),
     penPerdido: J(u.eventos.find(e => e.penalti && e.tipo !== 'gol' && e.time === t)?.jogador),
@@ -160,6 +165,7 @@ function contexto(base, s) {
 function pesos(c, s) {
   const j = c.l.j;
   return {
+    classicoV: c.classico && c.venceu ? 9 : 0, classicoD: c.classico && c.perdeu ? 9 : 0,
     vitoria: c.venceu && c.my - c.ot < 3 ? 5 : 0, goleada: c.venceu && c.my - c.ot >= 3 ? 7 : 0, empate: !c.venceu && !c.perdeu ? 5 : 0,
     derrota: c.perdeu && c.ot - c.my < 3 ? 5 : 0, sofreuGoleada: c.perdeu && c.ot - c.my >= 3 ? 8 : 0,
     destaque: c.destaque ? 4 : 0, criticado: c.criticado ? 4 : 0, expulsao: c.expulso ? 6 : 0, penalti: c.penPerdido ? 6 : 0, arbitragem: c.arbitragem ? 5 : 0, lesao: c.lesionado ? 4 : 0,
@@ -198,7 +204,7 @@ export function abrirColetiva(base, s) {
     const esc = [...new Set([duro, suave, ...tons].filter(Boolean))].slice(0, 4);
     return { tema: t, jogador: j?.id ?? null, reporter: reps[i % reps.length], texto: fill(pick(r, T.q)), respostas: shuffle(r, esc).map(tom => ({ tom, texto: frase(t, tom, fill) })) };
   });
-  s.coletiva = { chave: k, quente: c.mataMata || c.ot - c.my >= 3 || c.derrotas >= 3 || !!s.cargo?.ult, perguntas, respostas: [], feita: false };
+  s.coletiva = { chave: k, quente: c.classico || c.mataMata || c.ot - c.my >= 3 || c.derrotas >= 3 || !!s.cargo?.ult, perguntas, respostas: [], feita: false };
   return s.coletiva;
 }
 
