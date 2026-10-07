@@ -476,3 +476,19 @@ test('mercado agressivo: jogador em fase excelente num clube da B recebe propost
   }
   assert.ok(ofertas.some(o => o.quer) || ofertas.every(o => !querIr(base, s, base.jog.get(o.jogador), o.de)));
 });
+
+import { naoLidas } from '../public/js/motor/correio.js';
+test('caixa de mensagens: boas-vindas, meta, desfalques e propostas chegam uma vez só', () => {
+  const s = novoJogo(base, cfg(91)), ci = s.tecnico.clube;
+  assert.equal(naoLidas(s), 1);
+  ate(s, 3);
+  assert.ok(s.msgs.some(m => m.assunto.startsWith('A meta')));
+  const j = base.elencos[ci].slice().sort((a, b) => b.ovr - a.ovr)[0];
+  s.dm[j.id] = { k: 'adutor', n: 3, tot: 3 };
+  rodada(s);
+  const desf = s.msgs.filter(m => m.assunto.startsWith('Desfalques'));
+  assert.ok(desf.length >= 1 && desf[0].texto.includes(j.curto));
+  const n = s.msgs.length; rodada(s);
+  assert.equal(s.msgs.filter(m => m.assunto === desf[0].assunto).length, 1, 'mesmo assunto não repete');
+  assert.ok(s.msgs.length >= n);
+});

@@ -8,7 +8,7 @@ import { metaDiretoria, financasIniciais } from './financas.js';
 const DIVS = ['A', 'B', 'C'];
 const PRIMEIROS = ['Renato', 'Marcelo', 'Paulo', 'Luiz', 'Roberto', 'Sérgio', 'Carlos', 'Márcio', 'Ricardo', 'Fábio', 'Eduardo', 'Jorge', 'Antônio', 'Cláudio', 'Gilson', 'Wagner', 'Adilson', 'Hélio', 'Marcos', 'Celso', 'Dário', 'Osvaldo', 'Nelson', 'Toninho', 'Vadão', 'Joel', 'Zé Carlos', 'Mário', 'Gustavo', 'Rui'];
 const SOBRENOMES = ['Moreira', 'Barros', 'Teixeira', 'Rangel', 'Pacheco', 'Nogueira', 'Fontes', 'Bastos', 'Siqueira', 'Lacerda', 'Prates', 'Valente', 'Medeiros', 'Quintana', 'Arruda', 'Peixoto', 'Brandão', 'Coutinho', 'Furtado', 'Guedes', 'Leitão', 'Mattos', 'Rezende', 'Sampaio', 'Tavares'];
-const nomeTecnico = r => `${pick(r, PRIMEIROS)} ${pick(r, SOBRENOMES)}`;
+export const nomeTecnico = r => `${pick(r, PRIMEIROS)} ${pick(r, SOBRENOMES)}`;
 const ULT_PONTOS = { 4: 6, 6: 6, 10: 5, 12: 5, 16: 4 };
 
 export function garantirCarreira(base, s) {

@@ -7,6 +7,7 @@ import { garantirCarreira, torcidaAposJogo, aposRodada, tituloDeCopa } from './c
 import { evoluir } from './treino.js';
 import { rivais } from './rivais.js';
 import { registrarForma, bonusFase } from './forma.js';
+import { correio } from './correio.js';
 import { TORNEIOS, PREMIO_SUP, FASES_CONT, dataCont, dataSup, novaCont, contDevida, naCont, supDevida, jogosDaFase, decidirCont, avancarCont, timeFora, jogadorCont } from './continental.js';
 import { gerarNoticias } from './noticias.js';
 import { resolverMercado, garantirMercado } from './mercado.js';
@@ -145,6 +146,7 @@ export function novoJogo(base, cfg) {
   garantirCarreira(base, s);
   novaCont(base, s);
   novaCopa(base, s);
+  s.msgs = [{ id: 'boas-vindas', de: 'presidente', ano: s.ano, rodada: 0, lida: false, assunto: 'Bem-vindo', texto: `${cfg.tecnico.nome}, seja bem-vindo ao ${base.clubes[clube].n}. A partir de agora o diretor de futebol vai te escrever por aqui sempre que precisar de uma decisão sua: desfalques, propostas, contratos, dinheiro. Boa sorte.` }];
   return s;
 }
 
@@ -385,6 +387,7 @@ export function concluirCopa(base, s, R, simMeu) {
     N.push({ tipo: 'clube', texto: `Sorteio da Copa do Brasil: ${prox.k === 'f1' ? 'final' : prox.nome.toLowerCase()} contra o ${nome(adv)}.` });
   }
   s.noticias = [...dmN.map(n => ({ rodada: s.rodada, div: base.clubes[n.clube].div, ...n })), ...N.map(n => ({ rodada: s.rodada, div: base.clubes[ci].div, copa: true, ...n })), ...s.noticias].slice(0, 220);
+  if (R.meu || !R.cont) correio(base, s);
   return R.meu ? s.ultima : null;
 }
 
@@ -441,6 +444,7 @@ export function concluirCont(base, s, R, simMeu) {
     if (T.campeao === ci) { lancar(s, 'premio', `${TORNEIOS[k].nome}: prêmio de campeão`, P.campeao); tituloDeCopa(s); }
   }
   s.noticias = [...dmN.map(n => ({ rodada: s.rodada, div: base.clubes[n.clube].div, ...n })), ...N.map(n => ({ rodada: s.rodada, div: base.clubes[ci].div, copa: true, ...n })), ...s.noticias].slice(0, 220);
+  if (R.meu || !R.cont) correio(base, s);
   return R.meu ? s.ultima : null;
 }
 export function iniciarSup(base, s) {
@@ -463,6 +467,7 @@ export function concluirSup(base, s, R, simMeu) {
   }
   const N = [{ tipo: dec.vencedor === ci ? 'clube' : 'destaque', texto: `Supercopa do Brasil: ${placar}. ${nome(dec.vencedor)} é campeão.` }];
   s.noticias = [...dmN, ...N].map(n => ({ rodada: 0, div: base.clubes[n.clube ?? ci].div, copa: true, ...n })).concat(s.noticias).slice(0, 220);
+  if (R.meu || !R.cont) correio(base, s);
   return R.meu ? s.ultima : null;
 }
 // fases que não envolvem o seu clube (ou já atrasadas) se resolvem sozinhas
@@ -504,6 +509,7 @@ export function concluirRodada(base, s, R, simMeu) {
   resolverMercado(base, s, R.rd);
   if (!naCopa(s, s.tecnico.clube)) copaSemVoce(base, s);
   contSemVoce(base, s);
+  correio(base, s);
   return s.ultima;
 }
 

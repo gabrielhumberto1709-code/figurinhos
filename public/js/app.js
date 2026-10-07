@@ -14,6 +14,7 @@ import * as Jornal from './jornal.js';
 import * as Coletiva from './coletiva.js';
 import { perfil } from './motor/imprensa.js';
 import { faseDe } from './motor/forma.js';
+import { remetente, naoLidas } from './motor/correio.js';
 import { POS_NOME, ATT, ATT_NOME, cartaDe, estrelas, fmtDinheiro, PAISES } from './motor/util.js';
 import { urlRosto, urlEscudo, urlBandeira, urlBotao } from './pixel.js';
 
@@ -112,6 +113,7 @@ const ICONES = {
   pessoa: '<circle cx="12" cy="8" r="4" fill="none" stroke="currentColor" stroke-width="2.2"/><path d="M4 21c1-4 4.5-6 8-6s7 2 8 6" fill="none" stroke="currentColor" stroke-width="2.2"/>',
   halter: '<path d="M2 12h20M5 8v8M8 6v12M16 6v12M19 8v8" fill="none" stroke="currentColor" stroke-width="2.2"/>',
   broto: '<path d="M12 21v-9M12 12c0-4-3-6-7-6 0 4 3 6 7 6zM12 14c0-3 2.5-5 6-5 0 3-2.5 5-6 5z" fill="none" stroke="currentColor" stroke-width="2"/>',
+  carta: '<rect x="3" y="5" width="18" height="14" rx="1" fill="none" stroke="currentColor" stroke-width="2.2"/><path d="m3 6 9 7 9-7" fill="none" stroke="currentColor" stroke-width="2.2"/>',
   cruz: '<path d="M9 3h6v6h6v6h-6v6H9v-6H3V9h6z" fill="none" stroke="currentColor" stroke-width="2"/>',
   micro: '<rect x="9" y="3" width="6" height="11" rx="3" fill="none" stroke="currentColor" stroke-width="2.2"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3" fill="none" stroke="currentColor" stroke-width="2.2"/>',
   camisa: '<path d="M8 3l-5 3 2 5 3-1v11h8V10l3 1 2-5-5-3c-.5 1.5-2 2.5-4 2.5S8.5 4.5 8 3z" fill="none" stroke="currentColor" stroke-width="2"/>',
@@ -236,10 +238,29 @@ function desfalques(ci, fim) {
 }
 const MESES = ['JAN', 'FEV', 'MAR', 'ABR', 'MAI', 'JUN', 'JUL', 'AGO', 'SET', 'OUT', 'NOV', 'DEZ'], SEMANA = ['DOM', 'SEG', 'TER', 'QUA', 'QUI', 'SEX', 'SÁB'];
 const ATALHOS = [
-  ['tatica', 'Tática', '#/elenco', 'var(--gramado)'], ['calendario', 'Agenda', '#/calendario', 'var(--carimbo)'], ['apito', 'Último jogo', '#/partida', 'var(--placar)'],
+  ['carta', 'Mensagens', '#/mensagens', '#7A5CC2'], ['tatica', 'Tática', '#/elenco', 'var(--gramado)'], ['calendario', 'Agenda', '#/calendario', 'var(--carimbo)'], ['apito', 'Último jogo', '#/partida', 'var(--placar)'],
   ['moeda', 'Finanças', '#/financas', '#C9A227'], ['pessoa', 'Carreira', '#/carreira', 'var(--cartao)'],
   ['halter', 'Treino', '#/treino', '#E07B39'], ['broto', 'Base', '#/base', 'var(--gramado)'], ['cruz', 'DM', '#/dm', 'var(--cartao)'], ['micro', 'Coletiva', '#/coletiva', 'var(--carimbo)'], ['camisa', 'Uniforme', null, '#2BA8A0'],
 ];
+
+// ----- caixa de mensagens -----
+const ROSTO_REM = { diretor: '3220100000', presidente: '1612200000', medico: '2033100000', olheiro: '4141000000' };
+const cartaMsg = (m, curta = false) => { const r = remetente(app.s, m.de);
+  return `<article class="msg ${m.lida ? '' : 'nova'}"><div class="msg-topo"><img class="px" src="${urlRosto(ROSTO_REM[m.de] || ROSTO_REM.diretor, TERNO)}" width="32" height="32" alt=""><span><b>${esc(r.nome)}</b><small>${esc(r.cargo)} · ${m.rodada ? `rodada ${m.rodada}` : 'pré-temporada'}</small></span></div>
+    <h3>${esc(m.assunto)}</h3>${curta ? '' : `<p>${esc(m.texto)}</p>`}
+    ${curta ? '' : `<div class="linha-botoes">${m.jogador != null && app.base.jog.get(m.jogador) ? `<button class="botao peq sec" type="button" data-acao="ficha" data-id="${m.jogador}">Ver jogador</button>` : ''}${m.link ? `<a class="botao peq" href="${m.link}" ${m.aba ? `data-acao="msg-aba" data-a="${m.aba}"` : ''}>Resolver</a>` : ''}</div>`}</article>`; };
+function recados() {
+  const novas = (app.s.msgs || []).filter(m => !m.lida);
+  return novas.length ? `<a class="cartao recados" href="#/mensagens"><b>${novas.length} mensage${novas.length > 1 ? 'ns' : 'm'} do clube</b><span>${novas.slice(0, 3).map(m => esc(m.assunto)).join(' · ')}</span></a>` : '';
+}
+telas.mensagens = () => {
+  const s = app.s, msgs = s.msgs || [];
+  const html = `<div class="titulo-linha"><h2>Mensagens</h2><a href="#/clube">Voltar</a></div>
+    ${msgs.length ? `<div class="caixa-msgs">${msgs.map(m => cartaMsg(m)).join('')}</div>` : '<section class="cartao"><p class="mudo">Nenhuma mensagem.</p></section>'}`;
+  let mudou = false; for (const m of msgs) if (!m.lida) { m.lida = true; mudou = true; }
+  if (mudou) { salvar(); setTimeout(desenhaTopo, 0); }
+  return html;
+};
 
 // ----- vida de técnico -----
 const CARGO_TXT = { ok: 'Cargo estável', risco: 'Cargo balançando' };
@@ -280,11 +301,11 @@ telas.clube = () => {
         <div class="ingresso-jogo">${lado(jogo[0])}<span class="x">×</span>${lado(jogo[1])}</div>
         <span class="ingresso-local">${ev.neutro ? 'Estádio neutro' : esc(clube(jogo[0]).est[0])}</span>
         <button class="botao grande" data-acao="jogar" type="button">Jogar</button></div></section>`}
-    ${s.demitido ? '' : desfalques(ci, fim)}${ofertasHtml()}
+    ${s.demitido ? '' : desfalques(ci, fim)}${ofertasHtml()}${recados()}
     ${acabando.length && !fim ? `<a class="cartao aviso-contratos" href="#/elenco"><b>${acabando.length} ${acabando.length > 1 ? 'contratos acabam' : 'contrato acaba'} no fim da temporada</b><span>${acabando.slice(0, 5).map(j => esc(j.curto)).join(', ')}${acabando.length > 5 ? '…' : ''}. Quem não renovar sai de graça, e outro clube pode assinar pré-contrato.</span></a>` : ''}
     <nav class="atalhos" aria-label="Atalhos do clube">${ATALHOS.map(([ic, t, href, cor]) => {
       const off = !href || (href === '#/partida' && !s.ultima);
-      const ponto = ic === 'micro' && !s.demitido && Coletiva.pendente(s) ? '<i class="ponto" aria-label="coletiva aberta"></i>' : '';
+      const nl = ic === 'carta' ? naoLidas(s) : 0, ponto = nl ? `<i class="ponto num" aria-label="${nl} não lidas">${nl}</i>` : ic === 'micro' && !s.demitido && Coletiva.pendente(s) ? '<i class="ponto" aria-label="coletiva aberta"></i>' : '';
       return href && !off ? `<a class="atalho" href="${href}" style="--ac:${cor}"><svg viewBox="0 0 24 24" aria-hidden="true">${ICONES[ic]}</svg><span>${t}</span>${ponto}</a>`
         : `<button class="atalho off" type="button" data-acao="em-breve" data-t="${t}" style="--ac:${cor}" aria-disabled="true"><svg viewBox="0 0 24 24" aria-hidden="true">${ICONES[ic]}</svg><span>${t}</span>${href ? '' : '<small>em breve</small>'}</button>`;
     }).join('')}</nav>
@@ -465,7 +486,7 @@ async function render() {
   if (rota === 'tabela') { location.hash = '#/torneios'; return; }
   if (rota === 'base' || rota === 'treino' || rota === 'dm') { app.abaElenco = rota; location.hash = '#/elenco'; return; }
   if (app.s?.demitido && ['elenco', 'mercado', 'financas', 'partida', 'calendario', 'coletiva'].includes(rota)) { location.hash = '#/clube'; return; } // sem clube: só propostas, tabelas e notícias
-  const precisaJogo = ['clube', 'elenco', 'torneios', 'calendario', 'partida', 'noticias', 'mercado', 'financas', 'carreira', 'coletiva'].includes(rota);
+  const precisaJogo = ['clube', 'elenco', 'torneios', 'calendario', 'partida', 'noticias', 'mercado', 'financas', 'carreira', 'coletiva', 'mensagens'].includes(rota);
   if (!app.conta && rota !== 'entrar') { location.hash = '#/entrar'; return; }
   if (precisaJogo && !app.s) { location.hash = '#/saves'; return; }
   if (rota === 'novo' && !app.novo) { location.hash = '#/saves'; return; }
@@ -563,6 +584,7 @@ const acoes = {
     $('meta[name=theme-color]').content = novo === 'escuro' ? '#090B0F' : '#1B1F2A';
     render();
   },
+  'msg-aba': el => { app.abaMercado = el.dataset.a; ir(el.getAttribute('href')); },
   'aceitar-oferta': el => { const m = aceitarOferta(app.base, app.s, +el.dataset.c); if (m) return aviso(m); aviso(`Bem-vindo ao ${clube(app.s.tecnico.clube).n}!`); salvar(); location.hash === '#/clube' ? render() : ir('#/clube'); },
   'recusar-oferta': el => { recusarOferta(app.s, +el.dataset.c); render(); salvar(); },
   'pedir-demissao': el => { if (el.dataset.confirma !== '1') { el.dataset.confirma = '1'; el.textContent = 'Tem certeza? Toque de novo'; return; } pedirDemissao(app.base, app.s); salvar(); ir('#/clube'); },
