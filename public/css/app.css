@@ -495,6 +495,12 @@ tr.z-sul td.pos { border-left-color: var(--gramado); } tr.z-sobe td.pos { border
 .caixa-topo { flex-direction: row; align-items: baseline; justify-content: space-between; }
 .caixa-topo small { color: var(--texto-2); font-weight: 700; text-transform: uppercase; letter-spacing: .04em; }
 .caixa-topo b { font-size: 2.6rem; line-height: 1; }
+.caixa-topo { flex-wrap: wrap; }
+.caixa-topo .fim-temp { flex-basis: 100%; margin: 8px 0 0; font-size: 1rem; }
+.caixa-topo .fim-temp b { font-size: inherit; }
+.caixa-topo .fim-temp small { text-transform: none; letter-spacing: 0; font-weight: 400; display: block; }
+.fim-temp.neg b { color: var(--cartao); }
+.dicas { margin: 0; padding-left: 1.1em; display: grid; gap: 6px; }
 .aviso-fin { border-left-width: 8px; }
 .aviso-fin.ok { border-left-color: var(--gramado); } .aviso-fin.nao { border-left-color: var(--cartao); }
 .conf { font-weight: 700; } .conf b { font-size: 1.6rem; }

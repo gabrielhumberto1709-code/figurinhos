@@ -94,13 +94,14 @@ export function vontade(base, s, j, destino) {
   v += acima === 0 ? 15 * peso : acima >= 2 ? -20 * peso : 0;
   if (j.idade >= 31) v += 10;
   if (j.ovr >= 80 && base.forca(destino) < base.forca(j.clube)) v -= 20;
-  if (destino === s.tecnico.clube) v += (s.tecnico.reputacao || 0) * 4;
+  if (destino === s.tecnico.clube) v += (s.tecnico.reputacao || 0) * 4 - (mauPagador(s) ? 12 : 0);
   if (rivais(base, j.clube, destino)) v -= 35; // trocar pelo rival queima o jogador com a torcida
   return clamp(Math.round(v), 0, 100);
 }
 export const pistaVontade = v => v >= 65 ? 'O empresário diz que ele adoraria jogar aqui.' : v >= 50 ? 'Ele topa ouvir a proposta.' : v >= 35 ? 'Ele não parece muito animado.' : 'Ele não quer saber de vir.';
 function motivoRecusa(base, s, j) {
   if (rivais(base, j.clube, s.tecnico.clube)) return 'não quer jogar no rival';
+  if (mauPagador(s)) return 'tem medo de não receber em dia';
   if (nivelDiv(base.clubes[s.tecnico.clube]) > nivelDiv(base.clubes[j.clube]) && !ehLivre(base, j.clube)) return 'não quer cair de divisão';
   if (base.elencos[s.tecnico.clube].filter(x => x.pos === j.pos && x.ovr >= j.ovr).length >= 2) return 'acha que não seria titular';
   return 'prefere esperar um clube maior';
@@ -314,15 +315,21 @@ export function rescindir(base, s, id) {
   if (s.emprestimos[j.id]) return 'Ele está emprestado ao seu clube.';
   const e = elencoAguenta(base, s, j); if (e) return e;
   const v = multaRescisao(base, s, j); if (v > s.caixa) return `A multa (${fmt(v)}) passa do que tem em caixa.`;
-  const livres = base.clubes.findIndex(c => c.div === 'L');
   lancar(s, 'rescisao', `Rescisão de ${j.curto}`, -v);
-  s.transf[j.id] = livres; delete s.salarios[j.id]; delete s.contratos[j.id]; tirarDasListas(s, j.id);
-  s.recebidas = s.recebidas.filter(x => x.jogador !== j.id); delete s.querSair?.[j.id];
-  aplicarSave(base, s); if (s.xi) s.xi = null;
-  s.historicoTransf.unshift({ rodada: s.rodada, jogador: j.id, nome: j.curto, de: meu, para: livres, valor: v, tipo: 'rescisao' });
+  liberar(base, s, j, v);
   s.noticias.unshift({ rodada: s.rodada, tipo: 'clube', mercado: true, jogador: j.id, div: base.clubes[meu].div, texto: `Rescisão: ${j.curto} deixa o ${base.clubes[meu].n}. A multa custou ${fmt(v)}.` });
   return null;
 }
+
+// jogador do seu clube vira livre (rescisão paga ou ganha na Justiça)
+export function liberar(base, s, j, valor = 0) {
+  const meu = s.tecnico.clube, livres = base.clubes.findIndex(c => c.div === 'L');
+  s.transf[j.id] = livres; delete s.salarios[j.id]; delete s.contratos[j.id]; tirarDasListas(s, j.id);
+  s.recebidas = s.recebidas.filter(x => x.jogador !== j.id); delete s.querSair?.[j.id];
+  aplicarSave(base, s); if (s.xi) s.xi = null;
+  s.historicoTransf.unshift({ rodada: s.rodada, jogador: j.id, nome: j.curto, de: meu, para: livres, valor, tipo: 'rescisao' });
+}
+export const mauPagador = s => s.fin?.mauPagador != null && s.ano - s.fin.mauPagador <= 1;
 
 // acordos fechados com a janela fechada: o jogador (e quem foi na troca) se muda quando ela abre
 export function cumprirAcordos(base, s, add) {

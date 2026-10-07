@@ -594,3 +594,19 @@ test('mercado extras: troca, trava de 14 jogos, acordo com janela fechada, 3 rec
   for (let k = 0; k < 120; k++) { s.seed = 1000 + k; s.recebidas = []; resolverMercado(base, s, s.rodada); g += s.recebidas.filter(x => x.gigante && base.clubes[x.de].div === 'X').length; }
   assert.ok(g >= 2 && g <= 20, `gigantes: ${g}`);
 });
+
+import { contasDaRodada, dicasFinanceiras } from '../public/js/motor/financas.js';
+test('finanças: atraso escalona (pedido de saída, Justiça, fama de mau pagador), projeção do fim da temporada e dicas', () => {
+  const s = novoJogo(base, cfg(97)), ci = s.tecnico.clube; ate(s, 3);
+  const alvo = [...base.jog.values()].find(j => j.clube !== ci && base.clubes[j.clube].div === 'A'), v0 = vontade(base, s, alvo, ci);
+  const o = orcamento(base, s); assert.equal(o.fim, Math.round(s.caixa + o.cota - o.folha * o.dias));
+  s.caixa = -5e6; s.fin.temporada.compras = 1e7; s.fin.temporada.vendas = 0; s.fin.tvPagas = [0, 9, 19, 29];
+  const n0 = base.elencos[ci].length, tab = tabela(base, s, base.clubes[ci].div);
+  const N = []; for (let k = 0; k < 3; k++) N.push(...contasDaRodada(base, s, s.rodada + k, null, tab));
+  assert.equal(s.fin.atraso, 3);
+  assert.ok(N.some(t => t.includes('pede')) && Object.values(s.querSair).some(q => q.motivo.includes('atrasado')));
+  assert.ok(N.some(t => t.includes('Justiça')) && base.elencos[ci].length === n0 - 1);
+  assert.ok(vontade(base, s, alvo, ci) <= v0 - 10, 'mau pagador afasta reforço');
+  const D = dicasFinanceiras(base, s);
+  assert.ok(D.some(d => d.includes('faltam')) && D.some(d => d.includes('mau pagador')));
+});

@@ -2,6 +2,7 @@
 import { clamp } from './util.js';
 import { rivais } from './rivais.js';
 import { dataRodada } from './mundo.js';
+import { liberar } from './mercado.js';
 
 const DIA = 864e5;
 const PISO = { A: 150000, B: 40000, C: 15000 };                 // salário anual mínimo por divisão
@@ -73,7 +74,7 @@ export function orcamento(base, s) {
   const reserva = sal * dias - cota;
   const compras = Math.max(0, Math.min(s.caixa, Math.round(s.caixa - reserva)));
   const diasDeSalario = folha ? Math.floor((s.caixa + cota) / folha) : 999;
-  return { folha, salarios: sal, maxSal, folga: Math.max(0, sal - folha), compras, dias, cota, diasDeSalario, pagaAteFim: diasDeSalario >= dias };
+  return { folha, salarios: sal, maxSal, folga: Math.max(0, sal - folha), compras, dias, cota, diasDeSalario, pagaAteFim: diasDeSalario >= dias, fim: Math.round(s.caixa + cota - folha * dias) };
 }
 
 // regra da ANRESF: só tem socorro quem não comprou mais do que vendeu nem inchou a folha em mais de 10%
@@ -148,11 +149,39 @@ export function contasDaRodada(base, s, rd, jogoCasa, tab) {
       f.diretoria = Math.max(0, f.diretoria - 2);
       for (const j of base.elencos[ci]) s.mor[j.id] = Math.max(0, (s.mor[j.id] ?? 62) - Math.min(4, 1 + f.atraso));
       N.push(`Salários atrasados: a ANRESF negou socorro porque ${sc.motivo}. O elenco está irritado.`);
+      // atraso que se arrasta: os mais bem pagos pedem pra sair; depois um deles vai à Justiça e sai de graça
+      const caros = base.elencos[ci].filter(j => !s.emprestimos?.[j.id]).sort((a, b) => salarioDia(base, s, b) - salarioDia(base, s, a));
+      if (f.atraso >= 2) {
+        const pedem = caros.filter(j => !s.querSair?.[j.id]).slice(0, 2);
+        for (const j of pedem) (s.querSair ||= {})[j.id] = { de: ci, rodada: rd, motivo: 'está com o salário atrasado' };
+        if (pedem.length) N.push(`Com o salário atrasado, ${pedem.map(j => j.curto).join(' e ')} ${pedem.length > 1 ? 'pedem' : 'pede'} para ser negociado${pedem.length > 1 ? 's' : ''}.`);
+      }
+      if (f.atraso >= 3 && base.elencos[ci].length > 18 && caros[0]) {
+        const j = caros[0];
+        f.mauPagador = s.ano;
+        liberar(base, s, j);
+        N.push(`${j.curto} vai à Justiça pelos salários atrasados, ganha a rescisão e sai de graça. O clube fica com fama de mau pagador.`);
+      }
     }
   } else if (f.atraso) { f.atraso = 0; for (const j of base.elencos[ci]) s.mor[j.id] = Math.min(100, (s.mor[j.id] ?? 62) + 4); N.push('Salários em dia de novo. O vestiário respirou.'); }
   // diretoria acompanha a campanha depois da 5ª rodada
   if (rd >= 4 && pos) f.diretoria = clamp(f.diretoria + clamp((metaDiretoria(base, s).pos - pos) * 0.35 + 0.3, -2, 2), 0, 100);
   return N;
+}
+
+// dicas do balanço: o que pesa nas contas e o que dá pra fazer
+export function dicasFinanceiras(base, s) {
+  const bal = balanco(s), o = orcamento(base, s), t = s.fin.temporada, D = [];
+  const entra = Object.values(bal).filter(v => v > 0).reduce((a, v) => a + v, 0), sal = -(bal.salarios || 0);
+  if (o.fim < 0) D.push(`No ritmo atual, faltam ${fmt(-o.fim)} para pagar os salários até o fim da temporada. Vender alguém ou pedir verba resolve antes que atrase.`);
+  else if (o.fim > o.folha * o.dias * 0.5) D.push(`O caixa fecha a temporada com folga (${fmt(o.fim)}). Dá para reforçar o time sem risco.`);
+  if (entra && sal / entra > 0.75) D.push(`A folha come ${Math.round(sal / entra * 100)}% do que entra. Quem quase não joga e ganha bem é o primeiro a sair.`);
+  if (t.compras > t.vendas) D.push('Você comprou mais do que vendeu: perdeu o direito ao socorro da TV se o caixa ficar negativo.');
+  if (s.fin.atraso) D.push('Salário atrasado vira pedido de saída e, depois, processo na Justiça. Prioridade é colocar a folha em dia.');
+  if (s.fin.mauPagador != null && s.ano - s.fin.mauPagador <= 1) D.push(`Fama de mau pagador: os jogadores pensam duas vezes antes de vir (até o fim de ${s.fin.mauPagador + 1}).`);
+  if ((bal.bilheteria || 0) < entra * 0.08 && s.fin.ingresso !== 'barato') D.push('A bilheteria rende pouco. Ingresso mais barato enche o estádio e ajuda o time em casa.');
+  if (!D.length) D.push('Contas equilibradas. Siga de olho na folga da folha antes de contratar.');
+  return D;
 }
 
 // balanço da temporada por categoria

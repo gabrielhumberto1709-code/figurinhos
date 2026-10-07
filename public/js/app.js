@@ -5,7 +5,7 @@ import { garantirCarreira, pilares, aceitarOferta, recusarOferta, pedirDemissao 
 import { virarTemporada, fimDeTemporada } from './motor/temporada.js';
 import { campanha } from './motor/copa.js';
 import * as Torneios from './torneios.js';
-import { garantirFinancas, orcamento, socorro, metaDiretoria, balanco, bilheteria, pedirVerba, PRECOS, NOME_PRECO } from './motor/financas.js';
+import { garantirFinancas, orcamento, socorro, metaDiretoria, balanco, bilheteria, pedirVerba, dicasFinanceiras, PRECOS, NOME_PRECO } from './motor/financas.js';
 import { garantirMercado } from './motor/mercado.js';
 import * as Mercado from './mercado.js';
 import * as AoVivo from './aovivo.js';
@@ -333,13 +333,14 @@ telas.clube = () => {
 };
 
 // ----- finanças -----
-const ROT_FIN = { bilheteria: 'Bilheteria', tv: 'Cota de TV', patrocinio: 'Patrocínio', premio: 'Prêmios', venda: 'Vendas', verba: 'Verba da diretoria', socorro: 'Socorro (adiantamentos)', salarios: 'Salários', compra: 'Compras', rescisao: 'Rescisões' };
+const ROT_FIN = { bilheteria: 'Bilheteria', tv: 'Cota de TV', patrocinio: 'Patrocínio', premio: 'Prêmios', venda: 'Vendas', verba: 'Verba da diretoria', socorro: 'Socorro (adiantamentos)', salarios: 'Salários', compra: 'Compras', rescisao: 'Rescisões', multa: 'Multas de jogadores', investidor: 'Investidores', calote: 'Calotes', penhora: 'Penhoras', show: 'Shows no estádio', vaquinha: 'Vaquinha da torcida', reembolso: 'Reembolsos de empréstimo' };
 telas.financas = () => {
   const s = app.s, ci = s.tecnico.clube, c = clube(ci), aba = app.abaFin || 'resumo';
   garantirFinancas(app.base, s);
   const f = s.fin, o = orcamento(app.base, s), sc = socorro(app.base, s), meta = metaDiretoria(app.base, s), bal = balanco(s);
   const topo = `<div class="titulo-linha"><h2>Finanças</h2><a href="#/clube">Voltar</a></div>
-    <section class="cartao caixa-topo"><small>Caixa</small><b class="num">${fmtDinheiro(s.caixa)}</b></section>
+    <section class="cartao caixa-topo"><small>Caixa</small><b class="num">${fmtDinheiro(s.caixa)}</b>
+      <p class="fim-temp ${o.fim < 0 ? 'neg' : 'pos'}">${o.fim < 0 ? `Faltam <b>${fmtDinheiro(-o.fim)}</b> para fechar a temporada` : `Fecha a temporada com <b>${fmtDinheiro(o.fim)}</b>`} <small>(com TV, patrocínio e bilheteria que faltam, menos ${o.dias} dias de salário)</small></p></section>
     <div class="chips" role="group" aria-label="Seção">${[['resumo', 'Resumo'], ['extrato', 'Extrato'], ['balanco', `Balanço ${s.ano}`]].map(([k, t]) => `<button type="button" class="chip" data-acao="aba-fin" data-a="${k}" aria-pressed="${aba === k}">${t}</button>`).join('')}</div>`;
   if (aba === 'extrato') return topo + `<section class="cartao"><h3>Extrato</h3>${f.extrato.length ? `<ul class="extrato">${f.extrato.slice(0, 150).map(e => `<li><span class="rd">R${e.r + 1}</span><span>${esc(e.desc)}</span><b class="${e.valor < 0 ? 'neg' : 'pos'}">${e.valor < 0 ? '−' : '+'} ${fmtDinheiro(Math.abs(e.valor))}</b></li>`).join('')}</ul>` : '<p class="mudo">Nada lançado ainda. As contas fecham a cada rodada.</p>'}</section>`;
   if (aba === 'balanco') {
@@ -348,7 +349,8 @@ telas.financas = () => {
     const linha = ([k, v]) => `<li><span>${ROT_FIN[k] || k}</span><b class="${v < 0 ? 'neg' : 'pos'}">${v < 0 ? '−' : '+'} ${fmtDinheiro(Math.abs(v))}</b></li>`;
     return topo + `<section class="cartao"><h3>Receitas</h3><ul class="linhas-fin">${rec.map(linha).join('') || '<li class="mudo">Nenhuma ainda</li>'}</ul><p class="total">Total <b class="pos">+ ${fmtDinheiro(soma(rec))}</b></p></section>
       <section class="cartao"><h3>Despesas</h3><ul class="linhas-fin">${desp.map(linha).join('') || '<li class="mudo">Nenhuma ainda</li>'}</ul><p class="total">Total <b class="neg">− ${fmtDinheiro(Math.abs(soma(desp)))}</b></p></section>
-      <section class="cartao"><p class="total">Resultado da temporada <b class="${soma(rec) + soma(desp) < 0 ? 'neg' : 'pos'}">${fmtDinheiro(soma(rec) + soma(desp))}</b></p></section>`;
+      <section class="cartao"><p class="total">Resultado da temporada <b class="${soma(rec) + soma(desp) < 0 ? 'neg' : 'pos'}">${fmtDinheiro(soma(rec) + soma(desp))}</b></p></section>
+      <section class="cartao"><h3>Dicas do diretor financeiro</h3><ul class="dicas">${dicasFinanceiras(app.base, s).map(d => `<li>${esc(d)}</li>`).join('')}</ul></section>`;
   }
   const jogo = s.rodada < 38 ? rodadasDe(app.base, s, c.div)[s.rodada].find(([h, a]) => h === ci || a === ci) : null;
   const tab = tabela(app.base, s, c.div), l = tab.find(x => x.clube === ci), pos = tab.indexOf(l) + 1;
