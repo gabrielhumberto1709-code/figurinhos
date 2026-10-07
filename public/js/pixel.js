@@ -399,6 +399,44 @@ const PADRAO = { hoops: 'aros', hoops3: 'aros', vstripes: 'listras', sash: 'faix
 export const kitDe = clube => ({ c1: clube.c[0], c2: clube.c[1] || shade(clube.c[0], 0.6), pat: PADRAO[clube.pat] || 'liso', collar: 'redonda' });
 export const escudoDe = clube => ({ nome: clube.n, sigla: clube.s, c1: clube.c[0], c2: clube.c[1] || clube.c[0], c3: clube.c[2] });
 
+// ---------- bonequinho de corpo inteiro (12x17) para o campo ----------
+const CRESPOS = new Set(['black', 'cacheado', 'twists-degrade', 'cacheado-degrade']), LONGOS = new Set(['longo', 'trancas', 'dreads']);
+function boneco(look, gk) {
+  const g = new Grid(12, 17);
+  const [SH, SB, SS, SO] = SKIN[look.skin], [HB, HH, HS] = HAIR[look.hair];
+  const k = look.kit, c1 = gk ? '#F2B33D' : k.c1, c2 = gk ? '#1B1F2A' : (k.c2 || shade(k.c1, 0.6));
+  // cabeça (linhas 2-6) e pescoço
+  g.rect(3, 2, 6, 5, SB); g.hline(3, 8, 6, SS); g.set(8, 3, SS); g.set(8, 4, SS); g.set(3, 3, SH);
+  g.set(4, 4, '#1B1513'); g.set(7, 4, '#1B1513'); g.set(5, 7, SS); g.set(6, 7, SS);
+  // barba
+  const BC = look.hair === 'platinado' ? HAIR.castanho[0] : HB;
+  if (['cheia', 'aparada', 'curta'].includes(look.beard)) { g.hline(3, 8, 6, BC); g.set(3, 5, BC); g.set(8, 5, BC); }
+  else if (['cavanhaque', 'bigode', 'bigodinho'].includes(look.beard)) g.hline(5, 6, 6, BC);
+  // cabelo
+  const st = look.style;
+  if (st !== 'careca') {
+    if (st === 'raspado' || st === 'baixinho') { g.hline(3, 8, 2, HB); g.set(4, 2, HS); g.set(7, 2, HS); }
+    else if (st === 'moicano') { g.rect(5, 0, 2, 3, HB); }
+    else if (CRESPOS.has(st)) { g.rect(3, 0, 6, 3, HB); g.hline(2, 9, 1, HB); g.set(2, 2, HB); g.set(9, 2, HB); g.set(4, 0, HH); g.set(7, 1, HH); }
+    else { g.rect(3, 1, 6, 2, HB); g.set(4, 1, HH); g.set(8, 2, HS); if (st === 'topete' || st === 'topete-degrade') g.hline(4, 8, 0, HB); if (st === 'coque') g.rect(5, 0, 2, 1, HB); if (st === 'franja') g.hline(3, 7, 3, HB); }
+    if (LONGOS.has(st)) for (let y = 3; y <= 7; y++) { g.set(2, y, y % 2 && st !== 'longo' ? HS : HB); g.set(9, y, HB); }
+    if (look.luzes) { const L = HAIR[look.luzes]; for (let y = 0; y <= 2; y++) for (let x = 2; x <= 9; x++) if ([HB, HH, HS].includes(g.get(x, y))) g.set(x, y, L[y === 0 ? 1 : 0]); }
+  }
+  if (look.acc === 'faixa') g.hline(3, 8, 2, '#FFFFFF');
+  // camisa com braços, calção, meião e chuteira
+  g.rect(2, 8, 8, 4, c1); g.set(1, 8, c1); g.set(10, 8, c1);
+  if (!gk && k.pat === 'listras') for (let y = 8; y <= 11; y++) { g.set(4, y, c2); g.set(7, y, c2); }
+  if (!gk && (k.pat === 'aros' || k.pat === 'banda')) g.hline(2, 9, 10, c2);
+  if (!gk && k.pat === 'faixa') { g.set(3, 8, c2); g.set(4, 9, c2); g.set(5, 10, c2); g.set(6, 11, c2); }
+  g.set(1, 9, SB); g.set(10, 9, SB); g.set(1, 10, SS); g.set(10, 10, SS);
+  const calcao = gk ? '#1B1F2A' : (k.short || (lum(c1) > 0.75 ? '#1B1F2A' : '#FFFFFF'));
+  g.rect(3, 12, 6, 2, calcao); g.set(5, 13, null); g.set(6, 13, null);
+  g.rect(3, 14, 2, 2, c1); g.rect(7, 14, 2, 2, c1);
+  g.hline(3, 4, 16, '#1B1F2A'); g.hline(7, 8, 16, '#1B1F2A');
+  g.outline(c => c === SB || c === SH || c === SS ? SO : shade(c, 0.5));
+  return g.toData();
+}
+
 // ---------- desenho em canvas, com cache ----------
 const cache = new Map();
 function paraURL(d) {
@@ -413,4 +451,5 @@ export const urlEscudo = clube => mem(`e${clube.n}`, () => crest(escudoDe(clube)
 export const urlCamisa = clube => mem(`c${clube.n}`, () => shirt(kitDe(clube)));
 export const urlBotao = clube => mem(`b${clube.n}`, () => button(clube.c[0], clube.c[1]));
 export const urlBandeira = code => mem(`f${code}`, () => flag(code));
-export { portrait, button, crest, shirt, flag, pitch, SKIN, HAIR, shade };
+export const urlBoneco = (code, clube, gk = false) => mem(`p${code}${clube.n}${gk ? 'g' : ''}`, () => boneco(lookDe(code, { ...kitDe(clube), short: clube.so }), gk));
+export { portrait, button, crest, shirt, flag, pitch, boneco, SKIN, HAIR, shade };

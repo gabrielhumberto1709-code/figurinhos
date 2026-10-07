@@ -117,3 +117,32 @@ test('mercado: proposta baixa é recusada e janela fechada bloqueia', () => {
   assert.match(fazerProposta(base, s, base.elencos[6][0], 1e6), /janela/);
   base.aplicarTransferencias({});
 });
+
+import { criarPartida, passo, acabou, ESTILOS } from '../public/js/motor/partida.js';
+import { recuperar, definirCapitao } from '../public/js/motor/mundo.js';
+
+test('condição cai no jogo e volta no descanso; capitão novo mexe na moral', () => {
+  const s = novoJogo(base, cfg(31)), ci = s.tecnico.clube;
+  avancar(base, s);
+  const titular = s.ultima.xi[s.ultima.casa === ci ? 0 : 1][3];
+  const depois = s.cond[titular];
+  assert.ok(depois < 85, `condição depois do jogo ${depois}`);
+  recuperar(base, s, 4);
+  assert.ok((s.cond[titular] ?? 100) > depois + 10, 'recupera com 4 dias');
+  const outro = escalacao(base, s, ci).xi.find(j => j.id !== escalacao(base, s, ci).capitao && j.pos !== 'GOL');
+  const antes = s.mor[outro.id] ?? 62;
+  definirCapitao(base, s, outro.id);
+  assert.equal(s.mor[outro.id], Math.min(100, antes + 4));
+});
+
+test('plano B entra sozinho: perdendo depois dos 60 o time vai para pressão total', () => {
+  const a = melhorTime(base.elencos[30]), b = melhorTime(base.elencos[0]);
+  let viu = false;
+  for (let k = 0; k < 40 && !viu; k++) {
+    const P = criarPartida({ ...a, gatilhos: { perdendo60: { estilo: 'pressao' } } }, b, 'plano' + k, { narrar: true });
+    while (!acabou(P)) passo(P);
+    if (P.disparou[0].perdendo60) { assert.equal(P.times[0].estilo, 'pressao'); assert.ok(P.lances.some(l => l.tipo === 'tatica')); viu = true; }
+  }
+  assert.ok(viu, 'em 40 jogos o time fraco deveria estar perdendo aos 60 alguma vez');
+  assert.equal(Object.keys(ESTILOS).length, 8);
+});

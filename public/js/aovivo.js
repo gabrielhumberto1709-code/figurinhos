@@ -1,5 +1,5 @@
 // Partida ao vivo: campinho com os botões se mexendo, narração, placar, estatísticas e substituições.
-import { criarPartida, passo, acabou, resultado, substituir, trocarEsquema, FORMACOES, COORD_Y } from './motor/partida.js';
+import { criarPartida, passo, acabou, resultado, substituir, trocarEsquema, trocarEstilo, FORMACOES, COORD_Y, ESTILOS } from './motor/partida.js';
 import { clamp } from './motor/util.js';
 
 let H; // utilidades da interface (app, clube, esc, imgEscudo, $)
@@ -25,9 +25,9 @@ function cores(casa, fora) {
 }
 
 export function novaPartidaAoVivo(R) {
-  const { th, ta, seed, humano } = R.meu;
+  const { th, ta, seed, humano, opts } = R.meu;
   let vel = 1; try { vel = +localStorage.getItem('fig.vel') || 1; } catch { }
-  return { R, P: criarPartida(th, ta, seed, { narrar: true, humano }), humano, fila: [], vel, pausado: false, painel: false, fim: false, k: 0, placar: [0, 0], min: 0, ult: null, timer: null, sel: null, historico: [] };
+  return { R, P: criarPartida(th, ta, seed, { ...opts, narrar: true, humano }), humano, fila: [], vel, pausado: false, painel: false, fim: false, k: 0, placar: [0, 0], min: 0, ult: null, timer: null, sel: null, historico: [] };
 }
 
 // ---------- posições dos botões a partir da bola ----------
@@ -104,6 +104,7 @@ function painelHtml(V) {
   const resta = 5 - P.subs[t];
   return `<section class="cartao painel-vivo"><div class="titulo-linha"><h3>Mexer no time</h3><span class="mudo">${resta} troca${resta === 1 ? '' : 's'} restante${resta === 1 ? '' : 's'}</span></div>
     <div class="chips" role="group" aria-label="Esquema">${Object.keys(FORMACOES).map(f => `<button class="chip" type="button" data-acao="vivo-esquema" data-f="${f}" aria-pressed="${time.formacao === f}">${f}</button>`).join('')}</div>
+    <div class="chips" role="group" aria-label="Estilo">${Object.entries(ESTILOS).map(([k, e]) => `<button class="chip" type="button" data-acao="vivo-estilo" data-e="${k}" aria-pressed="${time.estilo === k}">${e.nome}</button>`).join('')}</div>
     <p class="dica">${V.sel ? `Quem entra no lugar de <b>${esc(time.xi.find(j => j.id === V.sel)?.curto || '')}</b>?` : 'Toque em quem vai sair.'}</p>
     <div class="painel-listas"><div><p class="esc-titulo">Em campo</p><ul>${time.xi.map((j, i) => P.expulsos[t].has(j.id) ? '' : `<li><button type="button" class="linha-jog ${V.sel === j.id ? 'sel' : ''}" data-acao="vivo-sai" data-id="${j.id}"><span class="slot">${slots[i]}</span><span class="nm">${esc(j.curto)}</span><span class="nota-mini">${(P.notas[t].get(j.id) || 6).toFixed(1).replace('.', ',')}</span></button></li>`).join('')}</ul></div>
       <div><p class="esc-titulo">Banco</p><ul>${time.banco.map(j => `<li><button type="button" class="linha-jog" data-acao="vivo-entra" data-id="${j.id}" ${!V.sel || !resta ? 'disabled' : ''}><span class="slot">${j.pos}</span><span class="nm">${esc(j.curto)}</span><span class="nota-mini">${j.ovr}</span></button></li>`).join('') || '<li class="mudo">Ninguém no banco</li>'}</ul></div></div>
@@ -203,5 +204,6 @@ export const acoes = {
     H.$('#vivo-painel').innerHTML = painelHtml(V);
     H.$('[data-acao=vivo-painel]').textContent = `Mexer no time (${5 - V.P.subs[V.humano]} trocas)`;
   },
+  'vivo-estilo': el => { const V = H.app.vivo; trocarEstilo(V.P, V.humano, el.dataset.e); H.$('#vivo-painel').innerHTML = painelHtml(V); },
   'vivo-esquema': el => { const V = H.app.vivo; trocarEsquema(V.P, V.humano, el.dataset.f); H.$('#vivo-painel').innerHTML = painelHtml(V); H.$('#vivo-esc').innerHTML = escalacoesHtml(V); desenharCampo(V, V.ult); },
 };

@@ -1,8 +1,8 @@
 // Interface do Figurinhos: telas, navegação por hash e saves na nuvem.
-import { Base, novoJogo, iniciarRodada, concluirRodada, tabela, rodadasDe, escalacao, escalar, trocarFormacao, paraSalvar, resumo, REPUTACOES, DIFICULDADES, dataRodada, janelaAberta, caixaInicial } from './motor/mundo.js';
+import { Base, novoJogo, iniciarRodada, concluirRodada, tabela, rodadasDe, escalacao, paraSalvar, resumo, REPUTACOES, DIFICULDADES, dataRodada, janelaAberta, caixaInicial } from './motor/mundo.js';
 import { precoPedido, vontade, pistaVontade, fazerProposta, aceitarContraproposta, desistir, aceitarRecebida, recusarRecebida, bloqueioProposta } from './motor/mercado.js';
 import * as AoVivo from './aovivo.js';
-import { FORMACOES, encaixe } from './motor/partida.js';
+import * as Elenco from './elenco.js';
 import { media } from './motor/noticias.js';
 import { POS_NOME, SETOR, ATT, ATT_NOME, cartaDe, estrelas, fmtDinheiro, POS_ORDEM } from './motor/util.js';
 import { urlRosto, urlEscudo, urlBandeira, urlBotao } from './pixel.js';
@@ -283,38 +283,8 @@ telas.carreira = () => {
     <p class="mudo">Histórico de temporadas, propostas de outros clubes e demissão chegam com a fase "Vida de técnico".</p>`;
 };
 
-// ----- elenco -----
-const COORD = {
-  '4-3-3': [[50, 90], [14, 68], [37, 74], [63, 74], [86, 68], [26, 48], [50, 56], [74, 48], [18, 22], [50, 15], [82, 22]],
-  '4-4-2': [[50, 90], [14, 68], [37, 74], [63, 74], [86, 68], [14, 44], [38, 52], [62, 52], [86, 44], [36, 18], [64, 20]],
-  '4-2-3-1': [[50, 90], [14, 68], [37, 74], [63, 74], [86, 68], [36, 56], [64, 56], [16, 32], [50, 36], [84, 32], [50, 14]],
-  '3-5-2': [[50, 90], [26, 74], [50, 76], [74, 74], [10, 46], [36, 56], [64, 56], [50, 36], [90, 46], [36, 17], [64, 19]],
-  '5-3-2': [[50, 90], [9, 62], [29, 74], [50, 77], [71, 74], [91, 62], [26, 46], [50, 52], [74, 46], [36, 18], [64, 20]],
-};
-const SETORES = [['GOL', 'Goleiros'], ['DEF', 'Defensores'], ['MEI', 'Meio-campistas'], ['ATA', 'Atacantes']];
-
-// rendimento do jogador numa vaga do esquema (fora de posição rende menos)
-const rende = (j, slot) => Math.round(j.ovr * encaixe(j.pos, slot));
-
-telas.elenco = () => {
-  const s = app.s, ci = s.tecnico.clube, time = escalacao(app.base, s, ci), slots = FORMACOES[time.formacao];
-  const titulares = new Set(time.xi.map(j => j.id)), vaga = app.vaga, slotSel = vaga != null ? slots[vaga] : null;
-  const elenco = app.base.elencos[ci].slice().sort((a, b) => POS_ORDEM.indexOf(a.pos) - POS_ORDEM.indexOf(b.pos) || b.ovr - a.ovr);
-  const forcaXI = Math.round(time.xi.reduce((t, j, i) => t + rende(j, slots[i]), 0) / 11);
-  const opcoes = slotSel ? elenco.filter(j => j.id !== time.xi[vaga].id).sort((a, b) => rende(b, slotSel) - rende(a, slotSel)).slice(0, 8) : [];
-  const card = j => figurinha(j, `${titulares.has(j.id) ? 'titular' : ''} ${slotSel ? 'escolha' : ''}`, false, slotSel ? rende(j, slotSel) : null);
-  return `<div class="titulo-linha"><h2>Elenco</h2><span class="mudo">${elenco.length} jogadores · força do time <b class="num" style="font-size:1.3rem">${forcaXI}</b></span></div>
-    <section class="cartao"><div class="titulo-linha"><h3>Esquema</h3>${s.xi ? '<button class="botao peq sec" data-acao="auto" type="button">Escalar os melhores</button>' : '<span class="mudo" style="font-size:.95rem">Escalação automática</span>'}</div>
-      <div class="chips" role="group" aria-label="Formação">${Object.keys(FORMACOES).map(f => `<button type="button" class="chip" data-acao="formacao" data-f="${f}" aria-pressed="${s.formacao === f}">${f}</button>`).join('')}</div>
-      <p class="dica" role="status">${slotSel ? `Quem entra no lugar de <b>${esc(time.xi[vaga].curto)}</b> (${slotSel})? Toque na figurinha. <button class="link" data-acao="vaga" data-i="${vaga}" type="button">Cancelar</button>` : 'Toque num jogador do campo para trocar.'}</p>
-      <div class="campo"><span class="area cima"></span><span class="area baixo"></span><span class="meio"></span><span class="roda"></span>
-        ${time.xi.map((j, i) => { const [x, y] = COORD[time.formacao][i], r = rende(j, slots[i]), fora = encaixe(j.pos, slots[i]) < 0.9;
-          return `<button class="botao-campo ${vaga === i ? 'sel' : ''} ${fora ? 'fora' : ''}" style="left:${x}%;top:${y}%" data-acao="vaga" data-i="${i}" type="button" aria-label="${esc(j.curto)}, ${slots[i]}, rende ${r}${fora ? ', fora de posição' : ''}"><img class="px" src="${urlBotao(clube(ci))}" width="12" height="13" alt=""><span>${esc(j.curto)}</span><b>${slots[i]} ${r}</b></button>`; }).join('')}
-      </div>
-      ${slotSel ? `<h3>Melhores opções para ${slotSel}</h3><div class="album opcoes-vaga">${opcoes.map(card).join('')}</div>` : ''}</section>
-    ${SETORES.map(([k, t]) => { const js = elenco.filter(j => SETOR[j.pos] === k); return `<h3 class="setor-titulo">${t} <span class="mudo">${js.length}</span></h3><div class="album">${js.map(card).join('')}</div>`; }).join('')}
-    <p class="mudo" style="font-size:.95rem">O ponto verde marca quem está no time titular. No campo, o número é quanto o jogador rende naquela vaga; nome em amarelo é jogador fora de posição.</p>`;
-};
+// ----- elenco (módulo próprio) -----
+telas.elenco = () => Elenco.tela();
 
 function abrirFicha(id) {
   const j = app.base.jog.get(+id); if (!j) return;
@@ -324,7 +294,7 @@ function abrirFicha(id) {
   d.innerHTML = `<div class="ficha">
     <div class="ficha-topo">${figurinha(j, '', true)}
       <div><h2 style="font-size:1.4rem">${esc(j.nome)}</h2><p class="mudo">${POS_NOME[j.pos]} · ${esc(clube(j.clube).n)}</p>
-      <dl style="margin-top:8px"><dt>Idade</dt><dd>${j.idade} anos</dd><dt>País</dt><dd>${bandeira(j.nat)}${esc(j.nat)}</dd><dt>Carta</dt><dd>${carta.nome}</dd>
+      <dl style="margin-top:8px">${app.s && meu ? `<dt>Condição</dt><dd>${Math.round(app.s.cond?.[j.id] ?? 100)}%</dd><dt>Moral</dt><dd>${Elenco.carinha(app.s.mor?.[j.id])} ${Math.round(app.s.mor?.[j.id] ?? 62)}</dd>` : ''}<dt>Idade</dt><dd>${j.idade} anos</dd><dt>País</dt><dd>${bandeira(j.nat)}${esc(j.nat)}</dd><dt>Carta</dt><dd>${carta.nome}</dd>
       <dt>Potencial</dt><dd><span class="estrelas" aria-label="${meu ? estrelas(j.pot) + ' de 5' : 'desconhecido'}">${meu ? estrelasTxt(estrelas(j.pot)) : '? ? ?'}</span></dd></dl></div></div>
     <div class="atts">${ATT.map(k => `<div class="att" style="--c:${corAtt(j.att[k])}"><span>${ATT_NOME[k]}</span><span class="num">${j.att[k]}</span><div><b style="width:${j.att[k]}%"></b></div></div>`).join('')}</div>
     <dl><dt>Valor</dt><dd>${fmtDinheiro(j.valor * 1000)}</dd><dt>Contrato</dt><dd>até ${j.contrato}</dd></dl>
@@ -449,7 +419,7 @@ telas.partida = () => {
       ${linha('Posse', st[0].posse, st[1].posse, v => v + '%')}${linha('Finalizações', st[0].chutes, st[1].chutes)}${linha('No alvo', st[0].noAlvo, st[1].noAlvo)}
       ${linha('Gols esperados', st[0].xg, st[1].xg, v => v.toFixed(1).replace('.', ','))}${linha('Escanteios', st[0].escanteios, st[1].escanteios)}${linha('Faltas', st[0].faltas, st[1].faltas)}</section>
     <section class="cartao"><h3>Notas</h3><div class="notas">${[0, 1].map(t => `<div><p style="font-weight:700;margin-bottom:4px">${esc(clube(t ? u.fora : u.casa).n)}</p><ol>${notasTime(t).map(([id, n]) => `<li><span>${nome(id)}</span><span class="nota ${id === u.craque ? 'craque' : classe(n)}">${n.toFixed(1).replace('.', ',')}</span></li>`).join('')}</ol></div>`).join('')}</div></section>
-    <div class="linha-botoes"><a class="botao sec" href="#/clube">Clube</a>${app.s.rodada < 38 ? '<button class="botao" data-acao="jogar" type="button">Próxima rodada</button>' : ''}</div>`;
+    <div class="linha-botoes"><a class="botao" href="#/clube">Voltar ao clube</a></div>`;
 };
 
 // ----- jornal da bola -----
@@ -587,10 +557,7 @@ const acoes = {
   'aceitar-recebida': el => { const e = aceitarRecebida(app.base, app.s, el.dataset.id); aviso(e || 'Venda concluída.'); if ($('#ficha').open) $('#ficha').close(); render(); salvar(); },
   'recusar-recebida': el => { recusarRecebida(app.s, el.dataset.id); if ($('#ficha').open) $('#ficha').close(); render(); salvar(); },
   ...AoVivo.acoes,
-  formacao: el => { trocarFormacao(app.base, app.s, el.dataset.f); app.vaga = null; render(); salvar(); },
-  vaga: el => { const i = +el.dataset.i; app.vaga = app.vaga === i ? null : i; render(); },
-  escolher: el => { escalar(app.base, app.s, app.vaga, +el.dataset.id); app.vaga = null; render(); salvar(); },
-  auto: () => { app.s.xi = null; app.vaga = null; render(); salvar(); },
+  ...Elenco.acoes,
   'filtro-noticias': el => { app.filtroNoticias = el.dataset.f; app.rodadasNoticias = 3; render(); },
   'mais-noticias': () => { app.rodadasNoticias = (app.rodadasNoticias || 3) + 5; render(); },
   tema: () => {
@@ -654,6 +621,8 @@ document.addEventListener('submit', async e => {
 });
 
 AoVivo.configurar({ app, clube, esc, imgEscudo, $ });
+Elenco.configurar({ app, clube, esc, imgEscudo, figurinha, render: () => render(), salvar: () => salvar(), aviso });
+document.addEventListener('change', e => { if (app.s && Elenco.aoMudar(e.target)) e.stopPropagation(); });
 window.addEventListener('hashchange', render);
 render();
 // a vitrine entra sem redesenhar a tela, para não apagar o que a pessoa já digitou
