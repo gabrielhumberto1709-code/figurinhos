@@ -235,7 +235,7 @@ telas.novo = () => {
 // quem não joga a próxima partida (lesão ou suspensão naquela competição)
 function desfalques(ci, fim) {
   const s = app.s, comp = compProxima(app.base, s), d = fim ? [] : app.base.elencos[ci].filter(j => indisponivel(s, j.id, comp));
-  return d.length ? `<a class="cartao aviso-contratos aviso-dm" href="#/dm"><b>Desfalques no próximo jogo</b><span>${d.map(j => `${esc(j.curto)} (${indisponivel(s, j.id, comp) === 'lesao' ? `lesão, ${s.dm[j.id].n} jogo${s.dm[j.id].n > 1 ? 's' : ''}` : 'suspenso'})`).join(', ')}</span></a>` : '';
+  return d.length ? `<a class="cartao aviso-contratos aviso-dm" href="#/dm"><b>Desfalques no próximo jogo</b><span>${d.map(j => `${esc(j.curto)} (${{ lesao: `lesão, ${s.dm[j.id]?.n} jogo${s.dm[j.id]?.n > 1 ? 's' : ''}`, suspenso: 'suspenso', afastado: `afastado, ${s.afast?.[j.id]?.n} jogo${s.afast?.[j.id]?.n > 1 ? 's' : ''}` }[indisponivel(s, j.id, comp)]})`).join(', ')}</span></a>` : '';
 }
 const MESES = ['JAN', 'FEV', 'MAR', 'ABR', 'MAI', 'JUN', 'JUL', 'AGO', 'SET', 'OUT', 'NOV', 'DEZ'], SEMANA = ['DOM', 'SEG', 'TER', 'QUA', 'QUI', 'SEX', 'SÁB'];
 const ATALHOS = [

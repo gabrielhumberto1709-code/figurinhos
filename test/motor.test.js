@@ -510,3 +510,19 @@ test('vestiário: preleção uma por jogo, conversa com cooldown e efeito pelo t
   assert.equal(s.salarios[j.id], 99990);
   assert.equal(s.pedidosAumento.length, 0);
 });
+
+import { eventosAposRodada } from '../public/js/motor/eventos.js';
+test('eventos: afastado sai da escalação e cumpre os jogos; julgamento de doping resolve; eventos acontecem ao longo da temporada', () => {
+  const s = novoJogo(base, cfg(96)), ci = s.tecnico.clube;
+  ate(s, 2);
+  const xi = escalacao(base, s, ci).xi.filter(Boolean), alvo = xi[3];
+  s.afast = { [alvo.id]: { n: 2, motivo: 'indisciplina' } };
+  assert.ok(!escalacao(base, s, ci).xi.some(j => j && j.id === alvo.id), 'afastado não joga');
+  ate(s, 4);
+  assert.ok(!(s.afast[alvo.id]?.n > 0), 'cumpriu os 2 jogos');
+  s.julgamentos = [{ jogador: alvo.id, rodada: s.rodada, ano: s.ano }];
+  const N = eventosAposRodada(base, s);
+  assert.ok(N.some(n => n.texto.includes('doping')) && !s.julgamentos.length);
+  let ev = 0; for (let k = 0; k < 30; k++) { s.rodada = 100 + k; ev += eventosAposRodada(base, s).filter(n => n.evento).length; }
+  assert.ok(ev >= 4 && ev <= 18, `eventos em 30 rodadas: ${ev}`);
+});

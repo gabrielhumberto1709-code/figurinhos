@@ -45,6 +45,7 @@ export function indisponivel(s, id, comp = 'L') {
   const l = s.dm?.[id];
   if (l && !l.inf) return 'lesao';
   if (s.susp?.[id]?.[comp] > 0) return 'suspenso';
+  if (s.afast?.[id]?.n > 0) return 'afastado';
   return null;
 }
 export const indisponiveis = (s, elenco, comp) => new Set(elenco.filter(j => indisponivel(s, j.id, comp)).map(j => j.id));
@@ -97,6 +98,8 @@ export function posJogo(base, s, h, a, sim, comp) {
         if (meu(c)) noticia(c, `${j.curto} está recuperado e volta a ficar à disposição.`, { jogador: j.id });
       }
     }
+    const af = s.afast?.[j.id];
+    if (af && !jogou.has(j.id) && --af.n <= 0) delete s.afast[j.id]; // afastado pelo clube: cumpre em qualquer competição
     const sp = s.susp[j.id];
     if (sp?.[comp] > 0 && !jogou.has(j.id)) { if (!--sp[comp]) delete sp[comp]; if (!Object.keys(sp).length) delete s.susp[j.id]; }
   }

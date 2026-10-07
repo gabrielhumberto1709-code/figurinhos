@@ -44,7 +44,7 @@ export function correio(base, s) {
     const comp = compProxima(base, s), adv = ev.h === ci ? ev.a : ev.h;
     const fora = el.filter(j => indisponivel(s, j.id, comp)).sort((a, b) => b.ovr - a.ovr);
     if (fora.length) enviar(s, 'diretor', `desf-${tag}`, `Desfalques contra o ${nome(adv)}`,
-      `Professor, para o jogo contra o ${nome(adv)} não teremos ${lista(fora.map(j => `${j.curto} (${indisponivel(s, j.id, comp) === 'lesao' ? `lesão, ${s.dm[j.id].n} jogo${s.dm[j.id].n > 1 ? 's' : ''}` : 'suspenso'})`))}. Confira a escalação antes de entrar em campo.`, { link: '#/elenco' });
+      `Professor, para o jogo contra o ${nome(adv)} não teremos ${lista(fora.map(j => `${j.curto} (${{ lesao: `lesão, ${s.dm[j.id]?.n} jogo${s.dm[j.id]?.n > 1 ? 's' : ''}`, suspenso: 'suspenso', afastado: `afastado pelo clube (${s.afast?.[j.id]?.motivo})` }[indisponivel(s, j.id, comp)]})`))}. Confira a escalação antes de entrar em campo.`, { link: '#/elenco' });
     const pend = el.filter(j => pendurado(s, j.id, comp) && !indisponivel(s, j.id, comp));
     if (pend.length) enviar(s, 'diretor', `pend-${tag}`, 'Pendurados', `${lista(pend.map(j => j.curto))} ${pend.length > 1 ? 'estão pendurados' : 'está pendurado'} ${COMP_DE[comp] || ''}. Mais um amarelo e ${pend.length > 1 ? 'ficam' : 'fica'} fora do jogo seguinte.`, { link: '#/dm' });
   }

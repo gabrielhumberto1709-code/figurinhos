@@ -108,7 +108,7 @@ export function virarTemporada(base, s) {
 
   // temporada zerada
   viradaDM(base, s);
-  s.forma = {};
+  s.forma = {}; s.afast = {}; s.julgamentos = [];
   Object.assign(s, { rodada: 0, res: { A: {}, B: {}, C: {} }, est: {}, ultima: null, lider: {}, rumores: {}, destaques: {}, ultimaData: null, recuperado: null, cond: {}, mor: {}, semJogar: {}, xi: null, banco: null, recebidas: [], preContratos: [] });
   delete s._cal;
   s.propostas = s.propostas.filter(p => !['aguardando', 'contraproposta'].includes(p.estado)).slice(0, 30);
