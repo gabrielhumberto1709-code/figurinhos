@@ -7,6 +7,9 @@ import { Base, novoJogo, avancar, tabela, paraSalvar } from '../public/js/motor/
 
 const base = new Base(JSON.parse(fs.readFileSync(new URL('../public/data/brasil.json', import.meta.url))));
 const cfg = seed => ({ tecnico: { nome: 'Teste', reputacao: 1 }, modo: 'escolher', clube: 0, seed });
+// joga até a liga chegar na rodada n (jogos da copa no meio contam à parte)
+const ate = (s, n) => { while (s.rodada < n) avancar(base, s); };
+const rodada = s => ate(s, s.rodada + 1);
 
 test('calendário: 38 rodadas, cada par se enfrenta em casa e fora, um jogo por rodada', () => {
   const times = [...Array(20).keys()], cal = pontosCorridos(times, 7);
@@ -29,7 +32,7 @@ test('temporada da Série A com números de futebol de verdade', () => {
   const campeoes = [], lanternas = [];
   for (const seed of [1, 2, 3]) {
     const s = novoJogo(base, cfg(seed));
-    for (let i = 0; i < 38; i++) avancar(base, s);
+    ate(s, 38);
     for (const v of Object.values(s.res.A)) { n++; g += v[0] + v[1]; if (v[0] > v[1]) casa++; }
     const t = tabela(base, s, 'A');
     assert.equal(t.reduce((x, l) => x + l.j, 0), 760);
@@ -44,7 +47,7 @@ test('temporada da Série A com números de futebol de verdade', () => {
 
 test('save sem cache volta igual', () => {
   const s = novoJogo(base, cfg(5));
-  avancar(base, s); avancar(base, s);
+  rodada(s); rodada(s);
   const volta = JSON.parse(JSON.stringify(paraSalvar(s)));
   assert.equal(volta._cal, undefined);
   assert.deepEqual(tabela(base, volta, 'A'), tabela(base, s, 'A'));
@@ -65,13 +68,13 @@ test('escalação manual: entra quem eu escolho, titular troca de vaga e muda es
   trocarFormacao(base, s, '3-5-2');
   assert.equal(s.formacao, '3-5-2');
   assert.deepEqual(new Set(s.xi), onze);
-  avancar(base, s);
+  rodada(s);
   assert.ok(s.ultima.xi[s.ultima.casa === ci ? 0 : 1].includes(reserva.id));
 });
 
 test('jornal: estatísticas batem com os gols e rumores fazem sentido de futebol', () => {
   const s = novoJogo(base, cfg(9));
-  for (let i = 0; i < 20; i++) avancar(base, s);
+  ate(s, 20);
   const golsTabela = ['A', 'B', 'C'].reduce((t, d) => t + Object.values(s.res[d]).reduce((x, g) => x + g[0] + g[1], 0), 0);
   const golsEst = Object.values(s.est).reduce((t, e) => t + e[1], 0); // tem gente que trocou de série no mercado
   assert.equal(golsEst, golsTabela);
@@ -97,7 +100,7 @@ test('mercado: proposta boa por jogador que quer vir fecha na rodada seguinte; d
   assert.ok(alvo, 'precisa de um alvo');
   const o = proposta(base, s, alvo), n = base.elencos[ci].length;
   assert.equal(fazerProposta(base, s, alvo, o), null);
-  avancar(base, s);
+  rodada(s);
   const p = s.propostas[0];
   assert.ok(['concluida', 'perdida'].includes(p.estado), `estado ${p.estado} ${p.motivo || ''}`);
   if (p.estado === 'concluida') {
@@ -113,7 +116,7 @@ test('mercado: proposta baixa é recusada, janela fechada bloqueia compra mas n�
   const s = novoJogo(base, cfg(22));
   const alvo = base.elencos[5][0];
   assert.equal(fazerProposta(base, s, alvo, proposta(base, s, alvo, { valor: precoPedido(base, s, alvo) * 0.5 })), null);
-  avancar(base, s);
+  rodada(s);
   assert.equal(s.propostas[0].estado, 'recusada');
   s.rodada = 10; s.fin.salarioBudget = 1e9;
   const outro = base.elencos[6][0];
@@ -122,7 +125,7 @@ test('mercado: proposta baixa é recusada, janela fechada bloqueia compra mas n�
   assert.ok(livre, 'precisa de um livre');
   assert.equal(precoPedido(base, s, livre), 0);
   assert.equal(fazerProposta(base, s, livre, { tipo: 'livre', salario: salarioPedido(base, s, livre, 2), anos: 2 }), null);
-  avancar(base, s);
+  rodada(s);
   const p = s.propostas[0];
   assert.ok(['concluida', 'perdida'].includes(p.estado), `estado ${p.estado} ${p.motivo || ''}`);
   if (p.estado === 'concluida') { assert.equal(livre.clube, s.tecnico.clube); assert.ok(!s.fin.extrato.some(e => e.tipo === 'compra')); }
@@ -135,13 +138,13 @@ test('mercado: salário baixo vira contraproposta do jogador; aceitar fecha o ne
   const alvo = [...base.jog.values()].filter(j => j.clube !== ci && base.clubes[j.clube].div === 'B' && vontade(base, s, j, ci) >= 75).sort((a, b) => b.ovr - a.ovr)[0];
   const o = proposta(base, s, alvo), pede = o.salario;
   assert.equal(fazerProposta(base, s, alvo, { ...o, salario: Math.round(pede * 0.5) }), null);
-  avancar(base, s);
+  rodada(s);
   const p = s.propostas[0];
   if (p.estado === 'perdida') return; // rival levou: caminho válido
   assert.equal(p.estado, 'contraproposta');
   assert.ok(p.contraSal >= pede * 0.9, `pediu ${p.contraSal}, esperado perto de ${pede}`);
   assert.equal(aceitarContraproposta(base, s, p.id), null);
-  avancar(base, s);
+  rodada(s);
   assert.ok(['concluida', 'perdida'].includes(p.estado), p.estado);
   if (p.estado === 'concluida') assert.equal(s.salarios[alvo.id], p.salario);
 });
@@ -165,7 +168,7 @@ test('mercado: olheiro traz relatórios do foco e observação exata; listas da 
   s.olheiro = { regiao: 'EUR', setor: 'ATA', jovens: true };
   const alvo = base.elencos[3][0];
   assert.equal(observar(s, alvo.id), null);
-  avancar(base, s);
+  rodada(s);
   assert.equal(s.relatorios[alvo.id].exato, true);
   const novos = Object.entries(s.relatorios).filter(([, r]) => r.novo).map(([id]) => base.jog.get(+id));
   assert.equal(novos.length, 2);
@@ -176,7 +179,7 @@ test('mercado: olheiro traz relatórios do foco e observação exata; listas da 
 
 test('mercado da IA: clubes se reforçam nas janelas sem desmontar elencos', () => {
   const s = novoJogo(base, cfg(26)), ci = s.tecnico.clube, n0 = base.elencos[ci].length, ini = base.elencos.map(e => e.length);
-  for (let i = 0; i < 38; i++) avancar(base, s);
+  ate(s, 38);
   const ia = s.historicoTransf.filter(x => x.ia);
   assert.ok(ia.length >= 8, `só ${ia.length} negócios da IA`);
   for (const x of ia) { assert.notEqual(x.para, ci); assert.notEqual(x.de, ci); }
@@ -189,7 +192,7 @@ import { recuperar, definirCapitao } from '../public/js/motor/mundo.js';
 
 test('condição cai no jogo e volta no descanso; capitão novo mexe na moral', () => {
   const s = novoJogo(base, cfg(31)), ci = s.tecnico.clube;
-  avancar(base, s);
+  rodada(s);
   const titular = s.ultima.xi[s.ultima.casa === ci ? 0 : 1][3];
   const depois = s.cond[titular];
   assert.ok(depois < 85, `condição depois do jogo ${depois}`);
@@ -218,7 +221,7 @@ import { orcamento, folhaDia, balanco } from '../public/js/motor/financas.js';
 test('finanças: salários saem e receitas entram a cada rodada; orçamento de compras nunca passa do caixa', () => {
   const s = novoJogo(base, cfg(41));
   const caixa0 = s.caixa;
-  for (let i = 0; i < 6; i++) avancar(base, s);
+  ate(s, 6);
   const b = balanco(s);
   assert.ok(b.salarios < 0 && b.tv > 0 && b.patrocinio > 0, JSON.stringify(b));
   const soma = Object.values(b).reduce((t, v) => t + v, 0);
@@ -226,4 +229,52 @@ test('finanças: salários saem e receitas entram a cada rodada; orçamento de c
   const o = orcamento(base, s);
   assert.ok(o.compras >= 0 && o.compras <= s.caixa);
   assert.ok(folhaDia(base, s) > 0);
+});
+
+import { virarTemporada, fimDeTemporada } from '../public/js/motor/temporada.js';
+import { proximoEvento, rodadasDe } from '../public/js/motor/mundo.js';
+import { FASES, penaltis } from '../public/js/motor/copa.js';
+
+test('copa do brasil: 32 clubes, mata-mata até a final, campeão e prêmios', () => {
+  const ci = base.clubes.findIndex(c => c.n === 'Flamengo');
+  const s = novoJogo(base, { ...cfg(41), clube: ci });
+  assert.equal(s.copa.chaves.length, 16);
+  assert.equal(new Set(s.copa.chaves.flat()).size, 32);
+  let jogosCopa = 0;
+  while (s.rodada < 38) { if (proximoEvento(base, s).tipo === 'copa') jogosCopa++; avancar(base, s); }
+  assert.ok(fimDeTemporada(s));
+  assert.equal(s.copa.fase, FASES.length);
+  assert.ok(s.copa.campeao != null && s.copa.vice != null && s.copa.campeao !== s.copa.vice);
+  assert.equal(s.copa.jogos.length, 16 + 8 + 4 + 2 + 1 + 1);
+  for (const j of s.copa.jogos.filter(x => x.fase < 4)) assert.ok(j.gols[0] !== j.gols[1] || j.pen, 'jogo único empatado precisa de pênaltis');
+  assert.ok(jogosCopa >= 1 && jogosCopa <= 6);
+  if (s.copa.campeao === ci) assert.ok(s.fin.extrato.some(e => e.desc.includes('campeão')));
+  assert.deepEqual(penaltis('x'), penaltis('x'));
+});
+
+test('virada de temporada: 4 sobem e 4 caem, todo mundo envelhece, contratos e calendário novos', () => {
+  const s = novoJogo(base, cfg(42)), ci = s.tecnico.clube;
+  const amostra = base.elencos[5].find(j => j.idade < 30), idade0 = amostra.idade;
+  const sairao = base.elencos[ci].filter(j => j.contrato <= s.ano).map(j => j.id);
+  const renovado = sairao[0];
+  if (renovado != null) { s.contratos[renovado] = s.ano + 2; aplicarSave(base, s); }
+  while (!fimDeTemporada(s)) avancar(base, s);
+  const tabA = tabela(base, s, 'A'), tabB = tabela(base, s, 'B');
+  const h = virarTemporada(base, s);
+  assert.equal(s.ano, 2027); assert.equal(s.rodada, 0); assert.equal(h.ano, 2026);
+  for (const d of ['A', 'B', 'C']) assert.equal(base.clubes.filter(c => c.div === d).length, 20, d);
+  for (const l of tabA.slice(16)) assert.equal(base.clubes[l.clube].div, 'B');
+  for (const l of tabB.slice(0, 4)) assert.equal(base.clubes[l.clube].div, 'A');
+  if (!amostra.fora) assert.equal(amostra.idade, idade0 + 1);
+  for (const id of sairao.slice(1)) assert.notEqual(base.jog.get(id).clube, ci, 'contrato acabou: saiu');
+  if (renovado != null) assert.equal(base.jog.get(renovado).clube, ci);
+  for (const d of ['A', 'B', 'C']) { const cal = rodadasDe(base, s, d); assert.equal(cal.length, 38); assert.equal(new Set(cal[0].flat()).size, 20); }
+  assert.ok(base.elencos[ci].length >= 18, `elenco ${base.elencos[ci].length}`);
+  assert.equal(s.copa.ano, 2027); assert.equal(s.copa.chaves.length, 16);
+  // save e carga na temporada nova: jovens da base e divisões voltam iguais
+  const volta = JSON.parse(JSON.stringify(paraSalvar(s))), n = base.elencos[ci].length;
+  base.aplicarTransferencias({}); aplicarSave(base, volta);
+  assert.equal(base.elencos[ci].length, n);
+  ate(s, 3);
+  assert.equal(tabela(base, s, 'A').reduce((t, l) => t + l.j, 0), 60);
 });

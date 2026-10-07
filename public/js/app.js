@@ -1,5 +1,8 @@
 // Interface do Figurinhos: telas, navegação por hash e saves na nuvem.
-import { Base, novoJogo, iniciarRodada, concluirRodada, tabela, rodadasDe, escalacao, paraSalvar, resumo, REPUTACOES, DIFICULDADES, dataRodada, janelaAberta, caixaInicial, aplicarSave } from './motor/mundo.js';
+import { Base, novoJogo, iniciarRodada, concluirRodada, iniciarCopa, concluirCopa, proximoEvento, copaSemVoce, tabela, rodadasDe, escalacao, paraSalvar, resumo, REPUTACOES, DIFICULDADES, dataRodada, janelaAberta, caixaInicial, aplicarSave } from './motor/mundo.js';
+import { virarTemporada, fimDeTemporada } from './motor/temporada.js';
+import { campanha } from './motor/copa.js';
+import * as Torneios from './torneios.js';
 import { garantirFinancas, orcamento, socorro, metaDiretoria, balanco, bilheteria, pedirVerba, PRECOS, NOME_PRECO } from './motor/financas.js';
 import { garantirMercado } from './motor/mercado.js';
 import * as Mercado from './mercado.js';
@@ -222,31 +225,33 @@ telas.novo = () => {
 
 // ----- clube -----
 const MESES = ['JAN', 'FEV', 'MAR', 'ABR', 'MAI', 'JUN', 'JUL', 'AGO', 'SET', 'OUT', 'NOV', 'DEZ'], SEMANA = ['DOM', 'SEG', 'TER', 'QUA', 'QUI', 'SEX', 'SÁB'];
-const dataCurta = d => `${SEMANA[d.getUTCDay()]} ${String(d.getUTCDate()).padStart(2, '0')}/${String(d.getUTCMonth() + 1).padStart(2, '0')}`;
 const ATALHOS = [
   ['tatica', 'Tática', '#/elenco', 'var(--gramado)'], ['calendario', 'Agenda', '#/calendario', 'var(--carimbo)'], ['apito', 'Último jogo', '#/partida', 'var(--placar)'],
   ['moeda', 'Finanças', '#/financas', '#C9A227'], ['pessoa', 'Carreira', '#/carreira', 'var(--cartao)'],
-  ['halter', 'Treino', null, '#E07B39'], ['broto', 'Base', null, 'var(--gramado)'], ['cruz', 'DM', null, 'var(--cartao)'], ['micro', 'Coletiva', null, 'var(--carimbo)'], ['camisa', 'Uniforme', null, '#2BA8A0'],
+  ['halter', 'Treino', '#/treino', '#E07B39'], ['broto', 'Base', '#/base', 'var(--gramado)'], ['cruz', 'DM', null, 'var(--cartao)'], ['micro', 'Coletiva', null, 'var(--carimbo)'], ['camisa', 'Uniforme', null, '#2BA8A0'],
 ];
 
 telas.clube = () => {
   const s = app.s, ci = s.tecnico.clube, c = clube(ci), d = c.div;
-  const fim = s.rodada >= 38;
-  const jogo = fim ? null : rodadasDe(app.base, s, d)[s.rodada].find(([h, a]) => h === ci || a === ci);
+  const ev = proximoEvento(app.base, s), fim = !ev;
+  const jogo = ev && [ev.h, ev.a];
   const tab = tabela(app.base, s, d), pos = tab.findIndex(l => l.clube === ci);
   const viz = tab.slice(Math.max(0, Math.min(pos - 2, tab.length - 5)), Math.max(5, pos + 3)).map(l => ({ ...l, n: tab.indexOf(l) + 1 }));
-  const dt = dataRodada(s.ano, Math.min(s.rodada, 37)), janela = janelaAberta(s.ano, s.rodada);
+  const dt = ev ? ev.data : dataRodada(s.ano, 37), janela = janelaAberta(s.ano, s.rodada);
+  const acabando = s.rodada >= 19 ? app.base.elencos[ci].filter(j => j.contrato <= s.ano && !s.preContratos?.some(p => p.jogador === j.id) && !s.emprestimos?.[j.id]) : [];
   const lado = ci2 => `<div class="lado">${imgEscudo(ci2, 64, 69)}<span>${esc(clube(ci2).n)}</span>${s.rodada ? `<small>${posicaoNaTabela(ci2)}º</small>` : ''}</div>`;
   return `<div class="status-clube"><span title="Dinheiro em caixa"><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">${ICONES.moeda}</svg>${fmtDinheiro(s.caixa ?? 0)}</span>
       <span>${s.rodada ? `${pos + 1}º na Série ${d}` : `Série ${d}`}</span><span class="${janela ? 'aberta' : ''}">${janela ? 'Janela aberta' : 'Janela fechada'}</span></div>
-    ${fim ? `<section class="cartao escuro"><h2>Fim da temporada</h2><p>${esc(c.n)} terminou em <b>${pos + 1}º</b> na Série ${d}. Campeão: <b>${esc(clube(tab[0].clube).n)}</b>.</p>
-      <p style="color:var(--barra-texto-2)">A virada de temporada, com acesso e rebaixamento, entra na próxima atualização.</p></section>`
-    : `<section class="ingresso" style="--cc:${c.c[0]};--cc2:${c.c[1] || '#fff'}">
+    ${fim ? `<section class="cartao escuro fim-temporada"><h2>Fim da temporada ${s.ano}</h2><p>${esc(c.n)} terminou em <b>${pos + 1}º</b> na Série ${d}${pos < 4 && d !== 'A' ? ' e <b>subiu</b>' : pos >= 16 && d !== 'C' ? ' e <b>caiu</b>' : ''}. Campeão: <b>${esc(clube(tab[0].clube).n)}</b>.${s.copa?.campeao != null ? ` Copa do Brasil: <b>${esc(clube(s.copa.campeao).n)}</b>.` : ''}</p>
+      ${acabando.length ? `<p style="color:var(--placar)">Saem por fim de contrato: ${acabando.map(j => esc(j.curto)).join(', ')}. Ainda dá para renovar na ficha de cada um.</p>` : ''}
+      <button class="botao grande" type="button" data-acao="virar">Começar a temporada ${s.ano + 1}</button></section>`
+    : `<section class="ingresso ${ev.tipo === 'copa' ? 'copa' : ''}" style="--cc:${c.c[0]};--cc2:${c.c[1] || '#fff'}">
       <div class="ingresso-data"><span class="dia">${String(dt.getUTCDate()).padStart(2, '0')}</span><span class="mes">${MESES[dt.getUTCMonth()]}</span><span class="sem">${SEMANA[dt.getUTCDay()]}</span><span class="ano">${dt.getUTCFullYear()}</span></div>
-      <div class="ingresso-corpo"><span class="ingresso-tag">${s.rodada + 1}ª rodada · Série ${d} · ${jogo[0] === ci ? 'em casa' : 'fora'}</span>
+      <div class="ingresso-corpo"><span class="ingresso-tag">${esc(ev.titulo)} · ${jogo[0] === ci ? 'em casa' : 'fora'}</span>
         <div class="ingresso-jogo">${lado(jogo[0])}<span class="x">×</span>${lado(jogo[1])}</div>
         <span class="ingresso-local">${esc(clube(jogo[0]).est[0])}</span>
         <button class="botao grande" data-acao="jogar" type="button">Jogar</button></div></section>`}
+    ${acabando.length && !fim ? `<a class="cartao aviso-contratos" href="#/elenco"><b>${acabando.length} ${acabando.length > 1 ? 'contratos acabam' : 'contrato acaba'} no fim da temporada</b><span>${acabando.slice(0, 5).map(j => esc(j.curto)).join(', ')}${acabando.length > 5 ? '…' : ''}. Quem não renovar sai de graça, e outro clube pode assinar pré-contrato.</span></a>` : ''}
     <nav class="atalhos" aria-label="Atalhos do clube">${ATALHOS.map(([ic, t, href, cor]) => {
       const off = !href || (href === '#/partida' && !s.ultima);
       return href && !off ? `<a class="atalho" href="${href}" style="--ac:${cor}"><svg viewBox="0 0 24 24" aria-hidden="true">${ICONES[ic]}</svg><span>${t}</span></a>`
@@ -338,40 +343,9 @@ function abrirFicha(id) {
 // ----- mercado (módulo próprio) -----
 telas.mercado = () => Mercado.tela();
 
-// ----- tabela -----
-const ZONAS = {
-  A: [[1, 4, 'z-lib', 'Libertadores', 'var(--carimbo)'], [5, 6, 'z-pre', 'Pré-Libertadores', '#6E8FD0'], [7, 12, 'z-sul', 'Sul-Americana', 'var(--gramado)'], [17, 20, 'z-cai', 'Rebaixamento', 'var(--cartao)']],
-  B: [[1, 4, 'z-sobe', 'Acesso', 'var(--gramado)'], [17, 20, 'z-cai', 'Rebaixamento', 'var(--cartao)']],
-  C: [[1, 4, 'z-sobe', 'Acesso', 'var(--gramado)'], [17, 20, 'z-cai', 'Rebaixamento', 'var(--cartao)']],
-};
-telas.torneios = () => {
-  const s = app.s, ci = s.tecnico.clube, d = app.divTabela || clube(ci).div;
-  const zona = n => (ZONAS[d].find(([a, b]) => n >= a && n <= b) || [])[2] || '';
-  const art = [...app.base.jog.values()].filter(j => clube(j.clube).div === d && s.est?.[j.id]?.[1]).sort((a, b) => s.est[b.id][1] - s.est[a.id][1] || s.est[a.id][0] - s.est[b.id][0]).slice(0, 10);
-  return `<div class="titulo-linha"><h2>Torneios</h2><span class="mudo">${s.rodada} de 38 rodadas</span></div>
-    <div class="chips" role="group" aria-label="Divisão">${['A', 'B', 'C'].map(x => `<button type="button" class="chip" data-acao="div-tabela" data-div="${x}" aria-pressed="${d === x}">Série ${x}</button>`).join('')}</div>
-    <section class="cartao tabela-wrap"><table><caption class="vh">Série ${d}</caption>
-      <thead><tr><th>#</th><th style="text-align:left">Clube</th><th>P</th><th>J</th><th>V</th><th class="so-largo">E</th><th class="so-largo">D</th><th class="so-largo">GP</th><th>SG</th><th class="so-largo">Últimos</th></tr></thead>
-      <tbody>${tabela(app.base, s, d).map((l, i) => `<tr class="${zona(i + 1)} ${l.clube === ci ? 'meu' : ''}"><td class="pos">${i + 1}</td>
-        <td class="clube-cel"><span>${imgEscudo(l.clube, 20, 22)}${esc(clube(l.clube).n)}</span></td><td class="p">${l.p}</td><td>${l.j}</td><td>${l.v}</td>
-        <td class="so-largo">${l.e}</td><td class="so-largo">${l.d}</td><td class="so-largo">${l.gp}</td><td>${l.sg}</td>
-        <td class="so-largo"><span class="forma">${l.ultimos.map(r => `<i class="${r}" title="${{ V: 'Vitória', E: 'Empate', D: 'Derrota' }[r]}"></i>`).join('')}</span></td></tr>`).join('')}</tbody></table></section>
-    <div class="legenda">${ZONAS[d].map(z => `<span style="--c:${z[4]}">${z[3]}</span>`).join('')}</div>
-    <div class="grade-clube"><section class="cartao"><h3>Artilharia · Série ${d}</h3>${art.length ? `<table><thead><tr><th>#</th><th style="text-align:left">Jogador</th><th>G</th><th>J</th></tr></thead><tbody>${art.map((j, i) => `<tr class="${j.clube === ci ? 'meu' : ''}"><td class="pos">${i + 1}</td><td class="clube-cel"><span>${imgEscudo(j.clube, 18, 20)}${esc(j.curto)}</span></td><td class="p">${s.est[j.id][1]}</td><td>${s.est[j.id][0]}</td></tr>`).join('')}</tbody></table>` : '<p class="mudo">Ninguém marcou ainda.</p>'}</section>
-      <section class="cartao em-breve-card"><h3>Copa do Brasil</h3><p class="mudo">Mata-mata com os 60 clubes, jogos no meio de semana. Chega no próximo marco.</p></section></div>`;
-};
-
-// ----- calendário -----
-telas.calendario = () => {
-  const s = app.s, ci = s.tecnico.clube, d = clube(ci).div, cal = rodadasDe(app.base, s, d);
-  return `<div class="titulo-linha"><h2>Agenda</h2><a href="#/clube">Voltar</a></div>
-    <section class="cartao"><ol class="rodadas">${cal.map((rd, i) => {
-      const [h, a] = rd.find(([x, y]) => x === ci || y === ci), casa = h === ci, adv = casa ? a : h;
-      const g = s.res?.[d]?.[`${h}-${a}`], meus = g && (casa ? g[0] : g[1]), deles = g && (casa ? g[1] : g[0]);
-      const r = g ? (meus > deles ? 'V' : meus < deles ? 'D' : 'E') : '';
-      return `<li class="${i === s.rodada ? 'atual' : ''}"><span class="rd">${i + 1}ª<br>${dataCurta(dataRodada(s.ano, i))}</span>${imgEscudo(adv, 22, 24)}<span>${esc(clube(adv).n)} <small class="mudo">${casa ? '(casa)' : '(fora)'}</small></span>
-        ${g ? `<span class="res ${r}">${meus}-${deles}</span>` : '<span class="mudo">–</span>'}</li>`; }).join('')}</ol></section>`;
-};
+// ----- torneios e agenda (módulo próprio) -----
+telas.torneios = () => Torneios.tela();
+telas.calendario = () => `<div class="titulo-linha"><h2>Agenda ${app.s.ano}</h2><a href="#/clube">Voltar</a></div>${Torneios.agenda()}`;
 
 // ----- súmula -----
 telas.partida = () => {
@@ -386,12 +360,12 @@ telas.partida = () => {
   const txt = e => e.tipo === 'sub' ? `<span class="assist" style="display:inline">⇄ ${nome(e.jogador)} no lugar de ${nome(e.sai)}</span>` : e.tipo === 'gol' ? `<span class="gol"><i class="ic bola"></i>${nome(e.jogador)}${e.assist ? `<span class="assist">assist. ${nome(e.assist)}</span>` : ''}</span>` : `<i class="ic ${e.tipo}"></i>${nome(e.jogador)}${e.segundo ? ' (2º amarelo)' : ''}`;
   const classe = n => n >= 7.5 ? 'alta' : n < 5.5 ? 'baixa' : '';
   const notasTime = t => Object.entries(u.notas[t]).map(([id, n]) => [+id, n]).sort((a, b) => b[1] - a[1]);
-  const resultado = u.gols[0] === u.gols[1] ? 'Empate' : (u.gols[0] > u.gols[1]) === (u.casa === ci) ? 'Vitória' : 'Derrota';
-  return `<div class="titulo-linha"><h2>${resultado}</h2><span class="mudo">${u.rodada + 1}ª rodada</span></div>
+  const resultado = u.pen ? ((u.pen[0] > u.pen[1]) === (u.casa === ci) ? 'Vitória nos pênaltis' : 'Derrota nos pênaltis') : u.gols[0] === u.gols[1] ? 'Empate' : (u.gols[0] > u.gols[1]) === (u.casa === ci) ? 'Vitória' : 'Derrota';
+  return `<div class="titulo-linha"><h2>${resultado}</h2><span class="mudo">${u.copa ? `Copa do Brasil · ${u.copa}` : `${u.rodada + 1}ª rodada`}</span></div>
     <section class="placar"><div class="lado">${imgEscudo(u.casa, 60, 65)}<span>${esc(clube(u.casa).n)}</span></div>
       <span class="gols" aria-label="${u.gols[0]} a ${u.gols[1]}">${u.gols[0]}-${u.gols[1]}</span>
       <div class="lado">${imgEscudo(u.fora, 60, 65)}<span>${esc(clube(u.fora).n)}</span></div>
-      <small>${esc(clube(u.casa).est[0])} · Craque do jogo: ${nome(u.craque)}</small></section>
+      <small>${u.pen ? `<b>Pênaltis: ${u.pen[0]} a ${u.pen[1]}</b> · ` : ''}${esc(clube(u.casa).est[0])} · Craque do jogo: ${nome(u.craque)}</small></section>
     ${lances.length ? `<section class="cartao"><h3>Lances</h3><ol class="lances">${lances.map(e => `<li><span class="c">${e.time === 0 ? txt(e) : ''}</span><span class="min">${e.min}'</span><span class="f">${e.time === 1 ? txt(e) : ''}</span></li>`).join('')}</ol></section>` : ''}
     <section class="cartao stats"><h3>Estatísticas</h3>
       ${linha('Posse', st[0].posse, st[1].posse, v => v + '%')}${linha('Finalizações', st[0].chutes, st[1].chutes)}${linha('No alvo', st[0].noAlvo, st[1].noAlvo)}
@@ -426,8 +400,10 @@ telas.noticias = () => {
 // saves antigos ganham os campos novos; a base recebe as transferências deste save
 function migrar(s) {
   garantirMercado(s);
+  s.anoInicial ??= s.ano;
   aplicarSave(app.base, s);
   s.est ||= {};
+  copaSemVoce(app.base, s); // saves de antes da copa ganham a edição do ano (fases atrasadas se resolvem sozinhas)
   if (s.caixa == null) s.caixa = caixaInicial(app.base, s.tecnico.clube, s.dificuldade);
   garantirFinancas(app.base, s);
   return s;
@@ -438,7 +414,7 @@ telas['ao-vivo'] = () => AoVivo.tela(app.vivo);
 function concluirAoVivo() {
   const V = app.vivo; if (!V) return;
   if (!V.fim) AoVivo.pular(V);
-  concluirRodada(app.base, app.s, V.R, AoVivo.resultadoFinal(V));
+  (V.R.copa ? concluirCopa : concluirRodada)(app.base, app.s, V.R, AoVivo.resultadoFinal(V));
   app.vivo = null;
   salvar();
 }
@@ -449,6 +425,7 @@ async function render() {
   if (app.vivo && rota !== 'ao-vivo') concluirAoVivo(); // saiu no meio do jogo: termina na hora
   if (rota === 'ao-vivo' && !app.vivo) { location.hash = app.s ? '#/clube' : '#/saves'; return; }
   if (rota === 'tabela') { location.hash = '#/torneios'; return; }
+  if (rota === 'base' || rota === 'treino') { app.abaElenco = rota; location.hash = '#/elenco'; return; }
   const precisaJogo = ['clube', 'elenco', 'torneios', 'calendario', 'partida', 'noticias', 'mercado', 'financas', 'carreira'].includes(rota);
   if (!app.conta && rota !== 'entrar') { location.hash = '#/entrar'; return; }
   if (precisaJogo && !app.s) { location.hash = '#/saves'; return; }
@@ -522,7 +499,7 @@ const acoes = {
 
   jogar: el => {
     el.disabled = true;
-    const R = iniciarRodada(app.base, app.s);
+    const R = proximoEvento(app.base, app.s)?.tipo === 'copa' ? iniciarCopa(app.base, app.s) : iniciarRodada(app.base, app.s);
     if (!R) return;
     if (!R.meu) { concluirRodada(app.base, app.s, R, null); salvar(); return render(); }
     app.vivo = AoVivo.novaPartidaAoVivo(R);
@@ -545,7 +522,8 @@ const acoes = {
     $('meta[name=theme-color]').content = novo === 'escuro' ? '#090B0F' : '#1B1F2A';
     render();
   },
-  'div-tabela': el => { app.divTabela = el.dataset.div; render(); },
+  virar: el => { el.disabled = true; const h = virarTemporada(app.base, app.s); if (h) aviso(`Bem-vindo a ${app.s.ano}!`); render(); salvar(); },
+  ...Torneios.acoes,
 };
 
 document.addEventListener('click', e => {
@@ -598,6 +576,7 @@ document.addEventListener('submit', async e => {
 });
 
 AoVivo.configurar({ app, clube, esc, imgEscudo, $ });
+Torneios.configurar({ app, clube, esc, imgEscudo, render: () => render() });
 Mercado.configurar({ app, clube, esc, imgEscudo, $, aviso, render: () => render(), salvar: () => salvar() });
 Elenco.configurar({ app, clube, esc, imgEscudo, figurinha, render: () => render(), salvar: () => salvar(), aviso });
 document.addEventListener('change', e => { if (app.s && Elenco.aoMudar(e.target)) e.stopPropagation(); });

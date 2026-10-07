@@ -391,5 +391,6 @@ export function resolverMercado(base, s, rd) {
 
   if (janelaAberta(s.ano, rd)) negociosIA(base, s, rd, r, add);
   trabalhoDoOlheiro(base, s, rd, r);
+  if (s.historicoTransf.length > 400) s.historicoTransf.length = 400;
   s.noticias = [...N, ...s.noticias].slice(0, 220);
 }

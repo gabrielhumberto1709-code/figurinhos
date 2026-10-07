@@ -1,6 +1,7 @@
 // Partida ao vivo: campinho com os botões se mexendo, narração, placar, estatísticas e substituições.
 import { criarPartida, passo, acabou, resultado, substituir, trocarEsquema, trocarEstilo, FORMACOES, COORD_Y, ESTILOS } from './motor/partida.js';
 import { clamp } from './motor/util.js';
+import { penaltis } from './motor/copa.js';
 
 let H; // utilidades da interface (app, clube, esc, imgEscudo, $)
 export const configurar = h => { H = h; };
@@ -55,7 +56,7 @@ export function tela(V) {
   const { app, clube, esc, imgEscudo } = H, m = V.R.meu, cs = cores(clube(m.h), clube(m.a));
   V.cores = cs;
   return `<div class="vivo" style="--c0:${cs[0].fundo};--a0:${cs[0].anel};--t0:${cs[0].txt};--b0:${cs[0].barra};--c1:${cs[1].fundo};--a1:${cs[1].anel};--t1:${cs[1].txt};--b1:${cs[1].barra}">
-    <div class="vivo-barra"><span class="tag-comp">Série ${m.d} · ${V.R.rd + 1}ª rodada</span>
+    <div class="vivo-barra"><span class="tag-comp">${esc(V.R.titulo || `Série ${m.d} · ${V.R.rd + 1}ª rodada`)}</span>
       <div class="chips">${[1, 2, 4].map(v => `<button class="chip" type="button" data-acao="vivo-vel" data-v="${v}" aria-pressed="${V.vel === v}">${v}×</button>`).join('')}
         <button class="chip" type="button" data-acao="vivo-pausa" id="vivo-pausa">${V.pausado ? 'Seguir' : 'Pausar'}</button>
         <button class="chip" type="button" data-acao="vivo-pular" id="vivo-pular">Pular</button></div></div>
@@ -111,9 +112,13 @@ function painelHtml(V) {
     <button class="botao" type="button" data-acao="vivo-painel">Voltar ao jogo</button></section>`;
 }
 
+// mata-mata da copa: empate no jogo (ou no agregado da final) vai para os pênaltis, com a mesma semente da súmula
 function fimHtml(V) {
-  const g = V.P.gols, eu = V.humano, res = g[0] === g[1] ? 'Empate' : (g[eu] > g[1 - eu] ? 'Vitória' : 'Derrota');
-  return `<section class="resultado-vivo ${res.toLowerCase()}"><strong>${res}</strong><button class="botao" type="button" data-acao="vivo-fim">Continuar</button></section>`;
+  const g = V.P.gols, eu = V.humano, m = V.R.meu, ag = m.agg || [0, 0];
+  const pen = m.mataMata && g[0] + ag[0] === g[1] + ag[1] ? penaltis(m.seed) : null;
+  const res = pen ? (pen[eu] > pen[1 - eu] ? 'Vitória' : 'Derrota') : g[0] === g[1] ? 'Empate' : (g[eu] > g[1 - eu] ? 'Vitória' : 'Derrota');
+  const sub = pen ? `<small>Pênaltis: ${pen[0]} a ${pen[1]}</small>` : m.mataMata && (ag[0] || ag[1]) ? `<small>Agregado: ${g[0] + ag[0]} a ${g[1] + ag[1]}</small>` : '';
+  return `<section class="resultado-vivo ${res.toLowerCase()}"><strong>${res}</strong>${sub}<button class="botao" type="button" data-acao="vivo-fim">Continuar</button></section>`;
 }
 
 // ---------- atualização sem redesenhar a tela ----------

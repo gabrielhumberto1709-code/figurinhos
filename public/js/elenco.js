@@ -118,12 +118,14 @@ function telaNumeros() {
 }
 
 function telaBase() {
-  return `<section class="cartao em-breve-card"><h3>Categorias de base</h3><p>Garotos da base, peneiras e promoção ao profissional chegam no marco "Elenco vivo", junto com a evolução dos jogadores.</p></section>`;
+  const s = H.app.s, jovens = H.app.base.elencos[s.tecnico.clube].filter(j => j.idade <= 20).sort((a, b) => b.pot - a.pot || b.ovr - a.ovr);
+  return `<section class="cartao"><h3>Categorias de base</h3><p class="mudo">Todo começo de temporada sobem três garotos da base para as posições mais carentes. Até uns 23 anos eles crescem rápido rumo ao potencial; depois dos 30 o overall começa a cair.</p></section>
+    ${jovens.length ? `<div class="album">${jovens.map(j => H.figurinha(j)).join('')}</div>` : '<section class="cartao"><p class="mudo">Nenhum jogador de até 20 anos no elenco. Os primeiros garotos sobem na virada da temporada.</p></section>'}`;
 }
 
 function telaTreino() {
   const s = H.app.s, t = s.treino || 'normal';
-  const OP = [['leve', 'Leve', 'Recupera a condição 25% mais rápido. Bom em semana com dois jogos.'], ['normal', 'Normal', 'O equilíbrio: recuperação padrão.'], ['intenso', 'Intenso', 'Recupera 20% mais devagar. Quando a evolução dos jogadores chegar, é o que mais faz crescer.']];
+  const OP = [['leve', 'Leve', 'Recupera a condição 25% mais rápido. Bom em semana com dois jogos.'], ['normal', 'Normal', 'O equilíbrio: recuperação padrão.'], ['intenso', 'Intenso', 'Recupera 20% mais devagar. Só vale em semana de um jogo.']];
   return `<section class="cartao"><h3>Intensidade do treino</h3><div class="opcoes">${OP.map(([k, n, d]) => `<label class="opcao"><input type="radio" name="treino" data-tatica="treino" value="${k}" ${t === k ? 'checked' : ''}><strong>${n}</strong><small>${d}</small></label>`).join('')}</div>
     <p class="mudo" style="font-size:.95rem">A condição de cada jogador cai durante o jogo (mais nos estilos intensos e nos veteranos) e volta nos dias entre uma rodada e outra.</p></section>`;
 }

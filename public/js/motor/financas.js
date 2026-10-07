@@ -48,7 +48,7 @@ export const garantirFinancas = (base, s) => (s.fin = s.fin || financasIniciais(
 // lança no extrato e mexe no caixa
 export function lancar(s, tipo, desc, valor, rodada = s.rodada) {
   s.caixa = Math.round(s.caixa + valor);
-  s.fin.extrato.unshift({ r: rodada, tipo, desc, valor: Math.round(valor) });
+  s.fin.extrato.unshift({ r: rodada, a: s.ano, tipo, desc, valor: Math.round(valor) });
   if (s.fin.extrato.length > 400) s.fin.extrato.length = 400;
 }
 
@@ -157,6 +157,6 @@ export function contasDaRodada(base, s, rd, jogoCasa, tab) {
 // balanço da temporada por categoria
 export function balanco(s) {
   const tot = {};
-  for (const e of s.fin.extrato) tot[e.tipo] = (tot[e.tipo] || 0) + e.valor;
+  for (const e of s.fin.extrato) if ((e.a ?? s.anoInicial ?? s.ano) === s.ano) tot[e.tipo] = (tot[e.tipo] || 0) + e.valor;
   return tot;
 }
