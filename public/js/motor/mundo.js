@@ -4,6 +4,7 @@ import { pontosCorridos } from './calendario.js';
 import { simular, melhorTime, bancoAuto, FORMACOES, encaixe, fatorCond } from './partida.js';
 import { fragilidade, indisponiveis, posJogo, TREINO_LES } from './dm.js';
 import { garantirCarreira, torcidaAposJogo, aposRodada, tituloDeCopa } from './carreira.js';
+import { evoluir } from './treino.js';
 import { TORNEIOS, PREMIO_SUP, FASES_CONT, dataCont, dataSup, novaCont, contDevida, naCont, supDevida, jogosDaFase, decidirCont, avancarCont, timeFora, jogadorCont } from './continental.js';
 import { gerarNoticias } from './noticias.js';
 import { resolverMercado, garantirMercado } from './mercado.js';
@@ -78,16 +79,28 @@ export class Base {
     j.ovr = e.ovr; j.idade = e.idade; j.fora = e.fora;
     for (const k in j.attOrig) j.att[k] = Math.max(20, Math.min(99, j.attOrig[k] + d));
     j.valor = Math.round(j.valorOrig * 1.14 ** d * (j.idade > 30 ? 0.85 ** Math.min(Math.max(anos, 0), j.idade - 30) : 1));
+    j.ovrBase = j.ovr; j.attBase = { ...j.att }; j.valorBase = j.valor;
+  }
+  // ganho do treino no dia a dia (s.evo) por cima da evolução do ano
+  aplicarEvo(id, v) {
+    const j = this.jog.get(+id); if (!j || j.ovrBase == null) return;
+    const d = Math.max(0, Math.min(Math.floor(v || 0), Math.max(j.pot, j.ovrBase) - j.ovrBase)); // treino não passa do potencial
+    j.ovr = Math.min(99, j.ovrBase + d); j.valor = Math.round(j.valorBase * 1.14 ** d);
+    for (const k in j.attBase) j.att[k] = Math.max(20, Math.min(99, j.attBase[k] + d));
+    (this._comEvo ||= new Set()).add(j.id); this._forca = null;
   }
   // cada save carrega por cima da base original: ano (idade e evolução), divisões, garotos da base, transferências e contratos
-  aplicar({ transf = {}, contratos = {}, divs = {}, jovens = [], ano = this.dados.ano } = {}) {
+  aplicar({ transf = {}, contratos = {}, divs = {}, jovens = [], ano = this.dados.ano, evo = {} } = {}) {
     const chaveJovens = `${jovens.length}:${jovens[0]?.[0]}:${jovens.at(-1)?.[0]}`;
     if (this._chaveJovens !== chaveJovens) {
       for (const id of this._extras || []) this.jog.delete(id);
       for (const r of jovens) { const j = this.novo(r.slice(0, 14), r[14]); this.jog.set(j.id, j); }
       this._extras = jovens.map(r => r[0]); this._chaveJovens = chaveJovens; this._ano = null;
     }
-    if (this._ano !== ano) { for (const j of this.jog.values()) this.envelhecer(j, ano); this._ano = ano; }
+    if (this._ano !== ano) { for (const j of this.jog.values()) this.envelhecer(j, ano); this._ano = ano; this._comEvo = null; }
+    for (const id of this._comEvo || []) { const j = this.jog.get(id); if (j) { j.ovr = j.ovrBase; j.valor = j.valorBase; Object.assign(j.att, j.attBase); } }
+    this._comEvo = null;
+    for (const [id, v] of Object.entries(evo)) this.aplicarEvo(id, v);
     this.clubes.forEach((c, i) => { c.div = divs[i] ?? c.divOrig; });
     for (const j of this.jog.values()) { j.clube = transf[j.id] ?? j.clubeOrig; j.contrato = contratos[j.id] ?? estica(j.contratoOrig, ano); }
     this.elencos = this.clubes.map(() => []);
@@ -240,6 +253,7 @@ function aposJogo(base, s, h, a, sim) {
   // quem é dos 14 melhores e fica 3 jogos sem entrar perde moral
   const ci = s.tecnico.clube;
   if (ci === h || ci === a) {
+    for (const n of evoluir(base, s, ci, sim.notas[ci === h ? 0 : 1])) s.noticias.unshift({ rodada: s.rodada, div: base.clubes[ci].div, clube: ci, ...n });
     const jogou = new Set(Object.keys(sim.notas[ci === h ? 0 : 1]).map(Number));
     for (const j of base.elencos[ci].slice().sort((x, y) => y.ovr - x.ovr).slice(0, 14)) {
       if (jogou.has(j.id)) { delete s.semJogar[j.id]; continue; }

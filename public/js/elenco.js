@@ -2,7 +2,8 @@
 import { FORMACOES, POSICOES, ESTILOS, encaixe, forcaSetores, fatorCond } from './motor/partida.js';
 import { escalacao, escalar, trocarFormacao, definirCapitao, liderNatural, TATICA_PADRAO, compProxima } from './motor/mundo.js';
 import { LESOES, CATEGORIA, COMP_NOME, COMP_DE, fragilidade, indisponivel, pendurado, infilInfo, infiltrar } from './motor/dm.js';
-import { POS_NOME, POS_ORDEM, SETOR, cartaDe, fmtDinheiro } from './motor/util.js';
+import { POS_NOME, POS_ORDEM, SETOR, cartaDe, fmtDinheiro, estrelas } from './motor/util.js';
+import { ganho, idadeF, alternarFoco, MAX_FOCO } from './motor/treino.js';
 import { media } from './motor/noticias.js';
 import { urlBoneco, urlBandeira } from './pixel.js';
 
@@ -159,10 +160,19 @@ function telaBase() {
 }
 
 function telaTreino() {
-  const s = H.app.s, t = s.treino || 'normal';
-  const OP = [['leve', 'Leve', 'Recupera a condição 25% mais rápido. Bom em semana com dois jogos.'], ['normal', 'Normal', 'O equilíbrio: recuperação padrão.'], ['intenso', 'Intenso', 'Recupera 20% mais devagar. Só vale em semana de um jogo.']];
+  const { app, esc } = H, s = app.s, t = s.treino || 'normal', ci = s.tecnico.clube;
+  const OP = [['leve', 'Leve', 'Recupera 25% mais rápido e machuca menos. Evolução mais lenta (×0,6).'], ['normal', 'Normal', 'O equilíbrio: recuperação, lesões e evolução no padrão.'], ['intenso', 'Intenso', 'Evolui mais rápido (×1,45), mas recupera 20% mais devagar e machuca mais.']];
+  const emEvo = app.base.elencos[ci].filter(j => j.pot > j.ovr && idadeF(j.idade) > 0).sort((a, b) => ganho(s, b, 7) - ganho(s, a, 7));
+  const foco = s.foco || [];
   return `<section class="cartao"><h3>Intensidade do treino</h3><div class="opcoes">${OP.map(([k, n, d]) => `<label class="opcao"><input type="radio" name="treino" data-tatica="treino" value="${k}" ${t === k ? 'checked' : ''}><strong>${n}</strong><small>${d}</small></label>`).join('')}</div>
-    <p class="mudo" style="font-size:.95rem">A condição de cada jogador cai durante o jogo (mais nos estilos intensos e nos veteranos) e volta nos dias entre uma rodada e outra.</p></section>`;
+    <p class="mudo" style="font-size:.95rem">A condição cai durante o jogo e volta nos dias entre uma partida e outra. A evolução acontece a cada jogo do clube: quem é jovem e tem margem até o potencial cresce, mais ainda se jogar e for bem.</p></section>
+    <section class="cartao"><div class="titulo-linha"><h3>Em evolução</h3><span class="mudo">Foco individual ${foco.length}/${MAX_FOCO}</span></div>
+      ${emEvo.length ? `<ul class="lista-banco lista-dm">${emEvo.map(j => { const ev = s.evo?.[j.id] || 0, f = foco.includes(j.id);
+        return `<li class="evo-linha"><span class="pos-mini">${j.pos}</span>${boneco(j, j.pos === 'GOL')}<span class="le-nome"><b>${esc(j.curto)} ${chip(j.ovr, j.ovr)}</b><small>${j.idade} anos · potencial ${'★'.repeat(estrelas(j.pot))} · ${ev >= 1 ? `+${Math.floor(ev)} no clube · ` : ''}próximo ponto</small>
+          <span class="dm-barra"><b style="width:${Math.max(4, Math.round((ev % 1) * 100))}%"></b></span></span>
+          <button type="button" class="botao peq ${f ? '' : 'sec'}" data-acao="foco" data-id="${j.id}" aria-pressed="${f}">${f ? 'Em foco' : 'Focar'}</button></li>`; }).join('')}</ul>`
+        : '<p class="mudo">Ninguém com margem para crescer no elenco.</p>'}
+      <p class="mudo" style="font-size:.95rem">Foco individual: até ${MAX_FOCO} jogadores evoluem 80% mais rápido. Depois dos 30 ninguém cresce no treino, e o potencial é o teto.</p></section>`;
 }
 
 // ---------- ações ----------
@@ -182,6 +192,7 @@ export const acoes = {
   },
   'usar-salva': el => { const s = H.app.s, e = s.escSalvas[+el.dataset.i]; Object.assign(s, { formacao: e.formacao, estilo: e.estilo, xi: e.xi.slice(), banco: e.banco ? e.banco.slice() : null, gatilhos: JSON.parse(JSON.stringify(e.gatilhos || {})) }); H.aviso(`${e.nome} em campo.`); H.render(); H.salvar(); },
   'apagar-salva': el => { H.app.s.escSalvas.splice(+el.dataset.i, 1); H.render(); H.salvar(); },
+  foco: el => { const m = alternarFoco(H.app.s, +el.dataset.id); if (m) H.aviso(m); H.render(); H.salvar(); },
   infiltrar: el => { const m = infiltrar(H.app.s, +el.dataset.id); if (m) H.aviso(m); H.render(); H.salvar(); },
   desinfiltrar: el => { infiltrar(H.app.s, +el.dataset.id, false); H.render(); H.salvar(); },
   'banco-auto': () => { H.app.s.banco = null; H.render(); H.salvar(); },

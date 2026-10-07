@@ -633,3 +633,4 @@ b.pos { color: var(--gramado); } b.neg { color: var(--cartao); }
 .col-ef .sobe { color: var(--gramado); } .col-ef .desce { color: var(--cartao); }
 .col-log { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
 .col-q { color: var(--texto-2); font-size: .95rem; } .col-r { font-weight: 700; }
+.evo-linha { grid-template-columns: 30px 24px 1fr auto !important; } .evo-linha .dm-barra { margin-top: 4px; height: 8px; } .aviso-ficha.evo { border-left-color: var(--gramado); }

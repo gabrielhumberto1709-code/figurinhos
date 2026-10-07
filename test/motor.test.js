@@ -409,3 +409,24 @@ test('coletiva: 3 perguntas do jogo, respostas mexem nas plateias e viram notíc
   rodada(s);
   assert.notEqual(abrirColetiva(base, s), C);
 });
+
+import { ganho, alternarFoco } from '../public/js/motor/treino.js';
+test('treino: jovem com margem evolui jogando, treino intenso e foco aceleram, e o ganho fica no save', () => {
+  const s = novoJogo(base, cfg(51)), ci = s.tecnico.clube;
+  const jovem = base.elencos[ci].filter(j => j.idade <= 21 && j.pot - j.ovr >= 6).sort((a, b) => a.idade - b.idade)[0];
+  const veterano = base.elencos[ci].find(j => j.idade >= 31);
+  assert.ok(jovem, 'sem jovem no elenco');
+  const g0 = ganho(s, jovem, 7);
+  assert.ok(g0 > ganho(s, jovem, null) && ganho(s, jovem, 7.5) > ganho(s, jovem, 6));
+  if (veterano) assert.equal(ganho(s, veterano, 8), 0);
+  s.treino = 'intenso'; assert.ok(ganho(s, jovem, 7) > g0);
+  alternarFoco(s, jovem.id); assert.ok(ganho(s, jovem, 7) > g0 * 1.4);
+  const o0 = jovem.ovr;
+  ate(s, 20);
+  assert.ok(s.evo[jovem.id] > 0.5, `evo ${s.evo[jovem.id]}`);
+  assert.equal(jovem.ovr, Math.min(o0 + Math.floor(s.evo[jovem.id]), Math.max(jovem.pot, o0)));
+  // recarregar o save mantém; carreira nova volta ao original
+  const salvo = JSON.parse(JSON.stringify(paraSalvar(s)));
+  novoJogo(base, cfg(52)); assert.equal(jovem.ovr, o0);
+  aplicarSave(base, salvo); assert.equal(jovem.ovr, Math.min(o0 + Math.floor(salvo.evo[jovem.id]), Math.max(jovem.pot, o0)));
+});
