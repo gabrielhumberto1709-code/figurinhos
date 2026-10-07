@@ -3,6 +3,7 @@
 import { tabela, dataRodada } from './motor/mundo.js';
 import { SETOR, cartaDe } from './motor/util.js';
 import { urlBoneco, urlRosto } from './pixel.js';
+import { banca, cronica } from './motor/jornais.js';
 
 let H; // { app, clube, esc, imgEscudo, render }
 export const configurar = h => { H = h; };
@@ -51,6 +52,7 @@ function capa() {
     <div class="jb-foto">${boneco(j, 72)}<span class="jb-escudo">${H.imgEscudo(j.clube, 24, 26)}</span>${m?.nota ? `<span class="chip-nota ${cartaDe(m.nota * 10).k}">${nota(m.nota)}</span>` : ''}</div>
     <h2 class="jb-manchete">${H.esc(titulo)}</h2>
     <p class="jb-sub">${H.esc(sub)}</p>
+    ${m && s.ultima ? `<p class="jb-cronica"><b>Crônica do jogo do ${H.esc(H.clube(ci).n)}.</b> ${H.esc(cronica(H.app.base, s) || '')}</p>` : ''}
     ${furos.length ? `<div class="jb-furos">${furos.map(n => `<p class="jb-furo"><span>${INSIDER}</span>${grifa(n.texto, n.jogador != null && jog(n.jogador))}</p>`).join('')}</div>` : ''}
     <div class="jb-class"><p>Classificação · Série ${d}</p><ol>${linhas.map(([i, l]) => `<li class="${l.clube === ci ? 'meu' : ''}"><span>${i + 1}</span>${H.esc(H.clube(l.clube).n)} <b>${l.p}</b></li>`).join('')}</ol></div>
   </article>`;
@@ -81,7 +83,9 @@ function cartao(n, ci) {
 export function tela() {
   const { app } = H, s = app.s, ci = s.tecnico.clube, f = app.filtroNoticias || 'tudo';
   const lista = s.noticias.filter(n => f === 'tudo' || CATS[f](n, ci)), qtos = app.qtasNoticias || 25;
+  const B = s.ultima ? banca(app.base, s) : null;
   return `${capa()}
+    ${B ? `<section class="banca" aria-label="Nas bancas"><h3>Nas bancas</h3>${B.map(b => `<article class="jornal-${b.k}"><p class="bj-nome">${b.nome}</p><p class="bj-tit">${H.esc(b.titulo)}</p><p class="bj-linha">${b.linha}</p></article>`).join('')}</section>` : ''}
     <div class="titulo-linha jb-titulo"><h2>Notícias</h2><span class="linha-botoes">${s.convocados?.bra?.length ? `<button type="button" class="botao sec peq" data-acao="ver-convocacao" aria-pressed="${!!app.verConv}">Convocação</button>` : ''}<button type="button" class="botao sec peq" data-acao="ver-selecao" aria-pressed="${!!app.verSelecao}">Seleção da rodada</button></span></div>
     ${app.verConv && s.convocados?.bra?.length ? convocacao() : ''}${app.verSelecao ? selecao() : ''}
     <div class="chips" role="group" aria-label="Filtrar notícias">${FILTROS.map(([k, t]) => `<button type="button" class="chip" data-acao="filtro-noticias" data-f="${k}" aria-pressed="${f === k}">${t}</button>`).join('')}</div>

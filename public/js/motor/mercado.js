@@ -427,7 +427,7 @@ function negociosIA(base, s, rd, r, add) {
       && vendedorAguenta(base, s, j) && precoPedido(base, s, j) <= caixa && vontade(base, s, j, ci) >= 50 && (!rivais(base, j.clube, ci) || r() < 0.03));
     if (!cands.length) continue;
     const j = pickW(r, cands, x => x.ovr - min + 1), valor = precoPedido(base, s, j), de = mover(j, ci, valor);
-    add(ehLivre(base, de) ? `Mercado: ${nome(ci)} contrata ${j.curto}, que estava sem clube.` : `Mercado: ${j.curto} deixa o ${nome(de)} e acerta com o ${nome(ci)} por ${fmt(valor)}.`, 'mercado', base.clubes[ci].div, { jogador: j.id });
+    add(ehLivre(base, de) ? `Mercado: ${nome(ci)} contrata ${j.curto}, que estava sem clube.` : `${valor >= 5e6 ? 'HERE WE GO! ' : 'Mercado: '}${j.curto} deixa o ${nome(de)} e acerta com o ${nome(ci)} por ${fmt(valor)}.`, 'mercado', base.clubes[ci].div, { jogador: j.id });
   }
   // quem está em fase boa num clube menor é disputado pelos maiores
   let quentes = 0;
@@ -439,7 +439,7 @@ function negociosIA(base, s, rd, r, add) {
     const para = pickW(r, ops, ci => base.clubes[ci].fan), valor = arred(precoPedido(base, s, j) * (1 + r() * 0.2));
     if (caixaDe(base, s, para) * (base.clubes[para].div === 'X' ? 3 : 0.6) < valor) continue;
     const de = mover(j, para, valor); quentes++;
-    add(`Mercado: em grande fase, ${j.curto} deixa o ${nome(de)} e acerta com o ${nome(para)} por ${fmt(valor)}.`, 'mercado', base.clubes[de].div, { jogador: j.id });
+    add(`${valor >= 5e6 ? 'HERE WE GO! Em' : 'Mercado: em'} grande fase, ${j.curto} deixa o ${nome(de)} e acerta com o ${nome(para)} por ${fmt(valor)}.`, 'mercado', base.clubes[de].div, { jogador: j.id });
   }
   if (r() < 0.35) {
     const destaques = [...base.jog.values()].filter(j => base.clubes[j.clube].div === 'A' && j.clube !== meu && j.idade <= 27 && (j.ovr >= 78 || (j.ovr >= 75 && media(s.est[j.id]) >= 6.9)) && vendedorAguenta(base, s, j) && !preContratoDe(s, j.id) && !s.emprestimos[j.id]);
@@ -447,7 +447,7 @@ function negociosIA(base, s, rd, r, add) {
     const fora = j && interessados(base, j).filter(ci => base.clubes[ci].div === 'X');
     if (fora?.length) {
       const para = pickW(r, fora, ci => base.clubes[ci].fan), valor = arred(precoPedido(base, s, j) * (1 + r() * 0.3)), de = mover(j, para, valor);
-      add(`Venda para o exterior: ${j.curto} troca o ${nome(de)} pelo ${nome(para)} (${base.clubes[para].liga}) por ${fmt(valor)}.`, 'mercado', base.clubes[de].div, { jogador: j.id });
+      add(`HERE WE GO! Venda para o exterior: ${j.curto} troca o ${nome(de)} pelo ${nome(para)} (${base.clubes[para].liga}) por ${fmt(valor)}.`, 'mercado', base.clubes[de].div, { jogador: j.id });
     }
   }
 }
@@ -519,6 +519,7 @@ export function resolverMercado(base, s, rd) {
     else {
       if (t) { transferir(base, s, t, de, 0); s.historicoTransf[0].tipo = 'troca'; }
       transferir(base, s, j, meu, p.valor, { salario: p.salario, anos: p.anos });
+      add(`HERE WE GO! ${j.curto} é do ${nome(meu)}. ${tipo === 'livre' ? 'Chega sem custo' : pago}, contrato até ${s.ano + p.anos}.`, 'mercado', base.clubes[meu].div, { jogador: j.id, para: meu });
       add(tipo === 'livre' ? `Reforço: ${j.curto}, que estava sem clube, assina até ${s.ano + p.anos}.` : `Reforço: ${j.curto} chega do ${nome(de)} (${pago}).`);
     }
   }

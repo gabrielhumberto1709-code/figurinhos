@@ -2,6 +2,7 @@
 // Rumor só sai quando faz sentido de futebol: clube maior, carência na posição e reforço de verdade.
 import { rivais } from './rivais.js';
 import { rng, pick, pickW, SETOR, nivelDiv } from './util.js';
+import { matematicos, alfinetadas, aposentadorias } from './jornais.js';
 
 const DIVS = ['A', 'B', 'C'];
 export const media = e => e && e[0] ? e[3] / e[0] / 10 : 0;
@@ -96,6 +97,10 @@ export function gerarNoticias(base, s, rd, jogos, tabs) {
       else if (agora >= 5 && Math.floor(antes / 5) < Math.floor(agora / 5) && (agora >= 10 || top3.includes(j.id))) add('destaque', d, `${j.curto} chega a ${agora} gols na Série ${d}${top3[0] === j.id ? ' e lidera a artilharia' : ''}.`, { jogador: j.id });
     }
   }
+
+  matematicos(base, s, tabs, add);
+  alfinetadas(base, s, jogos, add, r);
+  aposentadorias(base, s, rd, add);
 
   // rumores: quem está jogando bem desperta interesse de quem precisa
   if (rd >= 3) {

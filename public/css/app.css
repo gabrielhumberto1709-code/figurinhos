@@ -713,3 +713,21 @@ b.pos { color: var(--gramado); } b.neg { color: var(--cartao); }
 .conv-setor { display: flex; flex-wrap: wrap; gap: 4px 10px; align-items: center; margin: 6px 0; }
 .conv-setor b { min-width: 2.6em; }
 .conv-setor span { display: inline-flex; align-items: center; gap: 4px; }
+
+/* banca: três jornais, três linhas editoriais; crônica na capa */
+.jb-cronica { font-family: Georgia, 'Times New Roman', serif; font-size: .98rem; line-height: 1.4; text-align: justify; hyphens: auto; }
+.jb-cronica b { font-family: var(--f-pixel); font-size: .75rem; text-transform: uppercase; letter-spacing: .03em; color: var(--tinta); }
+.banca { display: grid; gap: 8px; margin-top: 14px; }
+.banca h3 { margin: 0; }
+.banca article { padding: 10px 12px; border: 2px solid var(--linha); border-radius: 4px; background: var(--cartao-bg); box-shadow: 3px 3px 0 var(--linha); }
+.bj-nome { font-family: var(--f-placar); font-size: 1.5rem; line-height: .9; text-transform: uppercase; }
+.bj-tit { margin: 6px 0 4px; font-weight: 700; line-height: 1.15; }
+.bj-linha { font-family: var(--f-pixel); font-size: .68rem; text-transform: uppercase; letter-spacing: .03em; color: var(--texto-2); }
+.jornal-bola .bj-tit { font-family: Georgia, 'Times New Roman', serif; font-size: 1.1rem; }
+.jornal-chutao { background: #C8102E !important; border-color: #1B1F2A !important; }
+.jornal-chutao .bj-nome { color: #FFE14D; text-shadow: 2px 2px 0 #1B1F2A; }
+.jornal-chutao .bj-tit { color: #fff; font-size: 1.15rem; font-style: italic; text-transform: uppercase; }
+.jornal-chutao .bj-linha { color: #FFD7DD; }
+.jornal-gramado .bj-nome { color: var(--gramado); }
+.jornal-gramado .bj-tit { font-family: var(--f-placar); font-weight: 400; font-size: 1.35rem; line-height: 1; }
+@media (min-width: 760px) { .banca { grid-template-columns: repeat(3, 1fr); } .banca h3 { grid-column: 1 / -1; } }

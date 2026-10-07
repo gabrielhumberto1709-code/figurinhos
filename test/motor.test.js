@@ -543,6 +543,7 @@ test('mercado extras: troca, trava de 14 jogos, acordo com janela fechada, 3 rec
   const p = s.propostas[0];
   assert.equal(p.estado, 'concluida', p.motivo);
   assert.equal(alvo.clube, ci); assert.equal(t.clube, de);
+  assert.ok(s.noticias.some(n => n.texto.startsWith('HERE WE GO') && n.jogador === alvo.id), 'Zeca Furo crava');
   assert.ok(s.fin.extrato.some(e => e.tipo === 'compra' && e.valor === -p.valor) && !s.fin.extrato.some(e => e.tipo === 'venda'), 'paga só a parte em dinheiro');
   // trava: quem chegou não sai nem vai à lista
   assert.ok(travado(s, alvo.id) > 10);
@@ -648,4 +649,21 @@ test('data FIFA: Brasil convoca 26 por posição (máx 5 por clube), convocado d
   assert.ok(s.noticias.some(n => n.texto.startsWith('Data FIFA')));
   ate(s, DATAS_FIFA[0] + 2);
   assert.ok(!naSelecao(s, id));
+});
+
+import { banca, cronica, matematicos } from '../public/js/motor/jornais.js';
+test('jornais: três manchetes com linhas diferentes, crônica com os gols e título/queda matemáticos', () => {
+  const s = novoJogo(base, cfg(100)); ate(s, 3);
+  const B = banca(base, s);
+  assert.equal(B.length, 3); assert.equal(new Set(B.map(b => b.titulo)).size, 3);
+  assert.equal(B[1].titulo, B[1].titulo.toUpperCase(), 'tabloide grita');
+  const c = cronica(base, s), gols = s.ultima.eventos.filter(e => e.tipo === 'gol');
+  assert.ok(c.length > 60 && gols.every(e => c.includes(`${e.min}'`)));
+  if (gols.length) assert.ok(c.includes('abriu o placar'));
+  // tabela forjada: líder disparado a 2 rodadas do fim
+  const N = [], add = (tipo, div, texto) => N.push(texto), tab = (p0) => Array.from({ length: 20 }, (_, i) => ({ clube: i, p: i ? 80 - 3 * i : p0, j: 36 }));
+  s.mat = null; matematicos(base, s, { A: tab(90), B: tab(84), C: tab(80) }, add);
+  assert.ok(N.some(t => t.startsWith('É CAMPEÃO') && t.includes('Série A')) && !N.some(t => t.startsWith('É CAMPEÃO') && t.includes('Série C')));
+  assert.ok(N.some(t => t.startsWith('Rebaixado')));
+  const n = N.length; matematicos(base, s, { A: tab(90), B: tab(84), C: tab(80) }, add); assert.equal(N.length, n, 'avisa uma vez só');
 });
