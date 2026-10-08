@@ -16,12 +16,13 @@ export const POSICOES = {
   '5-3-2': [['GOL', 50, 90], ['LE', 9, 62], ['ZAG', 29, 74], ['ZAG', 50, 77], ['ZAG', 71, 74], ['LD', 91, 62], ['MC', 26, 46], ['VOL', 50, 52], ['MC', 74, 46], ['CA', 36, 18], ['SA', 64, 20]],
 };
 export const FORMACOES = Object.fromEntries(Object.entries(POSICOES).map(([f, v]) => [f, v.map(x => x[0])]));
-// faixa lateral de cada vaga (0 = esquerda do time, 100 = direita), para a bola andar pelo lado certo
-export const COORD_Y = Object.fromEntries(Object.entries(POSICOES).map(([f, v]) => [f, v.map(x => x[1])]));
 // formação personalizada: cada vaga pode mudar de posição e anda para o lugar típico dela no campo
 export const PERS = 'Personalizada';
 const PROF_POS = { GOL: 90, ZAG: 74, LE: 66, LD: 66, VOL: 56, MC: 48, ME: 44, MD: 44, MEI: 36, PE: 24, PD: 24, SA: 22, CA: 15 };
-export function usarFormacao(slots) { POSICOES[PERS] = slots; FORMACOES[PERS] = slots.map(x => x[0]); COORD_Y[PERS] = slots.map(x => x[1]); }
+// posições de um time: a formação pelo nome, ou as vagas personalizadas que o próprio time carrega (nada global:
+// dois técnicos com formação própria no mesmo jogo, ou no modo online, não se atropelam)
+export const posicoesDe = (formacao, pers) => (formacao === PERS && pers) || POSICOES[formacao] || POSICOES['4-3-3'];
+const slotsDe = (formacao, pers) => posicoesDe(formacao, pers).map(x => x[0]);
 export function vagaPara([antiga, x, y0], pos, outras = []) {
   const x0 = x;
   const esq = ['LE', 'ME', 'PE'], dir = ['LD', 'MD', 'PD'];
@@ -60,8 +61,8 @@ export const fatorCond = c => 1 - 0.35 * ((100 - (c ?? 100)) / 100) ** 1.5;
 export const fatorMoral = m => 0.95 + 0.1 * (m ?? 62) / 100;
 
 // melhor escalação: cada vaga com quem rende mais nela (cansado rende menos e vira reserva)
-export function melhorTime(jogadores, formacao = '4-3-3', indisponiveis = new Set(), cond = {}, fase = () => 0) {
-  const slots = FORMACOES[formacao];
+export function melhorTime(jogadores, formacao = '4-3-3', indisponiveis = new Set(), cond = {}, fase = () => 0, pers = null) {
+  const slots = slotsDe(formacao, pers);
   const livres = jogadores.filter(j => !indisponiveis.has(j.id));
   const usados = new Set(), xi = Array(slots.length).fill(null);
   const peso = j => { const c = cond[j.id] ?? 100; return fatorCond(c) ** 1.6 * (c < 60 ? 0.93 : 1); };
@@ -70,7 +71,7 @@ export function melhorTime(jogadores, formacao = '4-3-3', indisponiveis = new Se
   slots.forEach((sl, i) => { for (const j of livres) pares.push([(j.ovr + fase(j.id)) * encaixe(j.pos, sl) * peso(j), i, j]); });
   pares.sort((a, b) => b[0] - a[0]);
   for (const [, i, j] of pares) if (!xi[i] && !usados.has(j.id)) { xi[i] = j; usados.add(j.id); }
-  return { formacao, xi, banco: bancoAuto(livres.filter(j => !usados.has(j.id)), cond) };
+  return { formacao, pers: formacao === PERS ? pers : null, xi, banco: bancoAuto(livres.filter(j => !usados.has(j.id)), cond) };
 }
 // banco automático: 8 de linha mais o melhor goleiro reserva
 export function bancoAuto(resto, cond = {}) {
@@ -83,8 +84,8 @@ export function bancoAuto(resto, cond = {}) {
 const QTD_SETOR = 1.5;
 const PONTAS = new Set(['PE', 'PD', 'ME', 'MD', 'LE', 'LD']);
 function forca(P, t) {
-  const time = P.times[t], slots = FORMACOES[time.formacao];
-  const acc = { GOL: [], DEF: [], MEI: [], ATA: [] }, meio = [], largo = [], outros = [], conta = { DEF: 0, MEI: 0, ATA: 0 }, pos = POSICOES[time.formacao];
+  const time = P.times[t], pos = posicoesDe(time.formacao, time.pers), slots = time.slots || pos.map(x => x[0]);
+  const acc = { GOL: [], DEF: [], MEI: [], ATA: [] }, meio = [], largo = [], outros = [], conta = { DEF: 0, MEI: 0, ATA: 0 };
   time.xi.forEach((j, i) => {
     const slot = slots[i], s = SETOR[slot];
     if (s !== 'GOL') conta[s === 'DEF' && (pos?.[i]?.[2] ?? 70) < 60 ? 'MEI' : s]++; // ala avançado conta como meio
@@ -113,7 +114,7 @@ function narrador(P) {
   const rn = P.rn, L = [];
   const lado = (t, prog) => t === 0 ? prog * 100 : 100 - prog * 100;
   const quemNaFaixa = (t, prog) => pickW(rn, P.emCampo(t).filter(j => P.slotDe(t, j) !== 'GOL'), j => { const s = SETOR[P.slotDe(t, j)]; return prog < 0.35 ? (s === 'DEF' ? 3 : s === 'MEI' ? 2 : 0.5) : prog < 0.65 ? (s === 'MEI' ? 3 : 1.2) : (s === 'ATA' ? 3 : s === 'MEI' ? 2 : 0.6); });
-  const yDe = (t, j) => { const i = P.times[t].xi.indexOf(j), c = COORD_Y[P.times[t].formacao]?.[i] ?? 50; return clamp((t === 0 ? c : 100 - c) + (rn() - 0.5) * 18, 6, 94); };
+  const yDe = (t, j) => { const i = P.times[t].xi.indexOf(j), c = posicoesDe(P.times[t].formacao, P.times[t].pers)[i]?.[1] ?? 50; return clamp((t === 0 ? c : 100 - c) + (rn() - 0.5) * 18, 6, 94); };
   const add = (t, txt, prog, j, tipo = 'passe', extra = {}) => { const b = P.bola = { t, x: lado(t, prog), y: j ? yDe(t, j) : 50, j: j?.id ?? null }; L.push({ min: P.min, t, txt, tipo, x: b.x, y: b.y, j: b.j, ...extra }); };
   return {
     L,
@@ -143,7 +144,7 @@ const GATILHO_TXT = { vencendo2: 'vencendo por 2', perdendo60: 'perdendo depois 
 // condição só de quem está no jogo (copiar a do save inteiro era o que mais pesava na simulação)
 const condDe = (times, cond) => { const c = {}; for (const t of times) for (const j of [...t.xi, ...(t.banco || [])]) if (j && cond[j.id] != null) c[j.id] = cond[j.id]; return c; };
 export function criarPartida(casa, fora, seed, opts = {}) {
-  const copia = t => ({ formacao: t.formacao, xi: t.xi.slice(), banco: (t.banco || []).slice(), estilo: t.estilo || 'equilibrado', gatilhos: t.gatilhos || {}, cobrador: t.cobrador ?? null });
+  const copia = t => ({ formacao: t.formacao, pers: t.pers || null, slots: slotsDe(t.formacao, t.pers), xi: t.xi.slice(), banco: (t.banco || []).slice(), estilo: t.estilo || 'equilibrado', gatilhos: t.gatilhos || {}, cobrador: t.cobrador ?? null });
   const P = {
     times: [copia(casa), copia(fora)], min: 0, fim: 90, gols: [0, 0], ev: [], lances: [],
     st: [0, 1].map(() => ({ posse: 0, chutes: 0, noAlvo: 0, xg: 0, faltas: 0, amarelos: 0, vermelhos: 0, escanteios: 0, defesas: 0 })),
@@ -157,7 +158,7 @@ export function criarPartida(casa, fora, seed, opts = {}) {
   // quem está em campo muda só em troca, expulsão, lesão ou esquema (todos passam por recalcular, que limpa o cache)
   P._ec = [null, null];
   P.emCampo = t => P._ec[t] ||= P.times[t].xi.filter(j => j && !P.expulsos[t].has(j.id));
-  P.slotDe = (t, j) => FORMACOES[P.times[t].formacao][P.times[t].xi.indexOf(j)];
+  P.slotDe = (t, j) => P.times[t].slots[P.times[t].xi.indexOf(j)];
   for (const t of [0, 1]) for (const j of P.times[t].xi) if (j) { P.notas[t].set(j.id, 6.2 + (P.r() - 0.5) * 0.6); P.cond[j.id] = P.cond[j.id] ?? 100; }
   // dia bom/ruim: ninguém joga sempre igual
   P.dia = [0, 1].map(() => (P.r() + P.r() + P.r() - 1.5) * 4);
@@ -349,8 +350,8 @@ export function substituir(P, t, saiId, entraId) {
 // muda o esquema no meio do jogo com os mesmos jogadores em campo
 export function trocarEsquema(P, t, formacao) {
   const time = P.times[t];
-  const novo = melhorTime(time.xi.filter(Boolean), formacao, new Set(), P.cond);
-  time.formacao = formacao; time.xi = novo.xi;
+  const novo = melhorTime(time.xi.filter(Boolean), formacao, new Set(), P.cond, undefined, time.pers);
+  time.formacao = formacao; time.xi = novo.xi; time.slots = slotsDe(formacao, time.pers);
   recalcular(P);
 }
 

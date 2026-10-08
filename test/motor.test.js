@@ -788,7 +788,8 @@ test('tática: muda a posição de uma vaga e o time joga com a formação perso
   const s = novoJogo(base, cfg(105)); s.formacao = '4-3-3';
   assert.ok(editarVaga(base, s, 0, 'CA'), 'goleiro não muda');
   assert.equal(editarVaga(base, s, 7, 'PE'), null);
-  assert.equal(s.formacao, 'Personalizada'); assert.equal(FORM.Personalizada[7], 'PE'); assert.equal(FORM['4-3-3'][7], 'MEI');
+  assert.equal(s.formacao, 'Personalizada'); assert.equal(s.formPers[7][0], 'PE'); assert.equal(FORM['4-3-3'][7], 'MEI');
+  assert.equal(FORM.Personalizada, undefined, 'a formação personalizada fica no save, não numa tabela global');
   assert.equal(escalacao(base, s, s.tecnico.clube).xi.length, 11);
   rodada(s); assert.equal(s.rodada, 1);
 });

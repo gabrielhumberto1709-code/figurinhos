@@ -1,7 +1,7 @@
 // Estado do jogo: cria a carreira, avança rodadas e calcula tabelas.
 import { rng, pick, jogador } from './util.js';
 import { pontosCorridos, dataRodada, dataAmistoso as diaAmistoso } from './calendario.js';
-import { simular, melhorTime, bancoAuto, FORMACOES, POSICOES, PERS, usarFormacao, vagaPara, encaixe, fatorCond, forcaSetores } from './partida.js';
+import { simular, melhorTime, bancoAuto, posicoesDe, PERS, vagaPara, encaixe, fatorCond, forcaSetores } from './partida.js';
 import { fragilidade, indisponiveis, posJogo, TREINO_LES } from './dm.js';
 import { garantirCarreira, torcidaAposJogo, aposRodada, tituloDeCopa } from './carreira.js';
 import { evoluir } from './treino.js';
@@ -236,7 +236,6 @@ export function pagarMedo(base, s, id) {
   return null;
 }
 export function escalacao(base, s, ci, comp = compProxima(base, s), poupa = 0) {
-  if (s.formPers) usarFormacao(s.formPers);
   const elenco = base.elencos[ci], cond = s.cond || {}, fora = indisponiveis(s, elenco, comp);
   // time alternativo (IA nos regionais): os melhores descansam
   if (poupa && ci !== s.tecnico.clube) for (const j of elenco.filter(j => !fora.has(j.id)).sort((a, b) => b.ovr - a.ovr).slice(0, poupa)) fora.add(j.id);
@@ -246,7 +245,7 @@ export function escalacao(base, s, ci, comp = compProxima(base, s), poupa = 0) {
   if (s.xi?.length === 11) {
     const porId = new Map(elenco.map(j => [j.id, j])), xi = s.xi.map(id => porId.get(id));
     if (xi.every(Boolean)) {
-      const usados = new Set(xi.filter(j => !fora.has(j.id)).map(j => j.id)), slots = FORMACOES[s.formacao];
+      const usados = new Set(xi.filter(j => !fora.has(j.id)).map(j => j.id)), slots = posicoesDe(s.formacao, s.formPers).map(x => x[0]);
       const rende = (j, slot) => j.ovr * encaixe(j.pos, slot) * fatorCond(cond[j.id]);
       time = { formacao: s.formacao, xi: xi.map((j, i) => {
         if (!fora.has(j.id)) return j;
@@ -256,10 +255,10 @@ export function escalacao(base, s, ci, comp = compProxima(base, s), poupa = 0) {
       }) };
     }
   }
-  time = time || melhorTime(elenco, s.formacao, fora, cond, bonusFase(s));
+  time = time || melhorTime(elenco, s.formacao, fora, cond, bonusFase(s), s.formPers);
   const usados = new Set(time.xi.filter(Boolean).map(j => j.id)), resto = elenco.filter(j => !usados.has(j.id) && !fora.has(j.id));
   const banco = s.banco ? s.banco.map(id => resto.find(j => j.id === id)).filter(Boolean).slice(0, 9) : bancoAuto(resto, cond);
-  return { formacao: time.formacao, xi: time.xi, banco, estilo: s.estilo || 'equilibrado', gatilhos: s.gatilhos || {}, cobrador: s.cobrador, capitao: capitaoDe(base, s, time.xi.filter(Boolean)), trocados, fora };
+  return { formacao: time.formacao, pers: time.formacao === PERS ? s.formPers : null, xi: time.xi, banco, estilo: s.estilo || 'equilibrado', gatilhos: s.gatilhos || {}, cobrador: s.cobrador, capitao: capitaoDe(base, s, time.xi.filter(Boolean)), trocados, fora };
 }
 // quem tem histórico de lesão, idade e treino puxado se machuca mais
 const fase = s => bonusFase(s);
@@ -336,26 +335,24 @@ export function escalar(base, s, vaga, id) {
 export const POS_VAGA = ['ZAG', 'LE', 'LD', 'VOL', 'MC', 'ME', 'MD', 'MEI', 'PE', 'PD', 'SA', 'CA'];
 // muda a posição de uma vaga (a formação vira "Personalizada"; quem está na vaga continua nela)
 export function editarVaga(base, s, i, pos) {
-  if (s.formPers) usarFormacao(s.formPers);
   if (!(i > 0 && i < 11) || !POS_VAGA.includes(pos)) return 'Essa vaga não muda.';
-  const slots = (POSICOES[s.formacao] || POSICOES['4-3-3']).map(x => x.slice());
+  const slots = posicoesDe(s.formacao, s.formPers).map(x => x.slice());
   slots[i] = vagaPara(slots[i], pos, slots.filter((_, k) => k !== i));
-  s.formPers = slots; usarFormacao(slots); s.formacao = PERS;
+  s.formPers = slots; s.formacao = PERS;
   return null;
 }
 // empurra a vaga no campo (setas no modo de editar posições)
 export function moverVaga(base, s, i, dx, dy) {
-  if (s.formPers) usarFormacao(s.formPers);
   if (!(i > 0 && i < 11)) return 'O goleiro não sai do gol.';
-  const slots = (POSICOES[s.formacao] || POSICOES['4-3-3']).map(x => x.slice());
+  const slots = posicoesDe(s.formacao, s.formPers).map(x => x.slice());
   slots[i][1] = Math.max(6, Math.min(94, slots[i][1] + dx)); slots[i][2] = Math.max(10, Math.min(84, slots[i][2] + dy));
-  s.formPers = slots; usarFormacao(slots); s.formacao = PERS;
+  s.formPers = slots; s.formacao = PERS;
   return null;
 }
 export function trocarFormacao(base, s, formacao) {
   const atuais = s.xi ? escalacao(base, s, s.tecnico.clube).xi : null;
   s.formacao = formacao;
-  if (atuais) s.xi = melhorTime(atuais, formacao, new Set(), s.cond || {}).xi.map(j => j.id);
+  if (atuais) s.xi = melhorTime(atuais, formacao, new Set(), s.cond || {}, undefined, s.formPers).xi.map(j => j.id);
 }
 
 // estatísticas da temporada por jogador: [jogos, gols, assistências, soma das notas x10, amarelos, vermelhos]

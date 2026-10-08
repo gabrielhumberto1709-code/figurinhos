@@ -1,5 +1,5 @@
 // Aba Elenco: Jogadores, Escalação (campo, capitão, estilo, planos, banco), Números, DM, Base e Treino.
-import { FORMACOES, POSICOES, ESTILOS, encaixe, forcaSetores, fatorCond } from './motor/partida.js';
+import { FORMACOES, posicoesDe, PERS, ESTILOS, encaixe, forcaSetores, fatorCond } from './motor/partida.js';
 import { escalacao, escalar, trocarFormacao, definirCapitao, liderNatural, TATICA_PADRAO, compProxima, editarVaga, moverVaga, POS_VAGA } from './motor/mundo.js';
 import { LESOES, CATEGORIA, COMP_NOME, COMP_DE, fragilidade, indisponivel, pendurado, infilInfo, infiltrar } from './motor/dm.js';
 import { POS_NOME, POS_ORDEM, SETOR, cartaDe, fmtDinheiro, estrelas } from './motor/util.js';
@@ -66,7 +66,7 @@ function telaJogadores() {
 
 // ---------- escalação ----------
 function telaEscalacao() {
-  const { app, clube, esc } = H, s = app.s, ci = s.tecnico.clube, time = escalacao(app.base, s, ci), slots = FORMACOES[time.formacao];
+  const { app, clube, esc } = H, s = app.s, ci = s.tecnico.clube, time = escalacao(app.base, s, ci), pos = posicoesDe(time.formacao, time.pers), slots = pos.map(x => x[0]);
   const vaga = app.vaga, slotSel = vaga != null ? slots[vaga] : null, titulares = new Set(time.xi.map(j => j.id));
   const rende = (j, slot) => Math.round(j.ovr * encaixe(j.pos, slot) * fatorCond(s.cond[j.id]));
   const elenco = app.base.elencos[ci].slice().sort((a, b) => POS_ORDEM.indexOf(a.pos) - POS_ORDEM.indexOf(b.pos) || b.ovr - a.ovr);
@@ -81,13 +81,13 @@ function telaEscalacao() {
       <div class="salvas">${s.escSalvas.map((e, i) => `<div class="salva"><button type="button" class="salva-usar" data-acao="usar-salva" data-i="${i}"><b>${esc(e.nome)}</b><small>${e.formacao} · ${ESTILOS[e.estilo]?.nome || ''}</small></button><button type="button" class="salva-x" data-acao="apagar-salva" data-i="${i}" aria-label="Apagar ${esc(e.nome)}">×</button></div>`).join('')}
       ${s.escSalvas.length < 3 ? '<button type="button" class="salva nova" data-acao="salvar-escalacao">+ Salvar atual</button>' : ''}</div></section>
     <section class="cartao"><h3>Formação</h3>
-      <div class="chips" role="group" aria-label="Formação">${Object.keys(FORMACOES).map(f => `<button type="button" class="chip" data-acao="formacao" data-f="${f}" aria-pressed="${time.formacao === f}">${f}</button>`).join('')}</div>
+      <div class="chips" role="group" aria-label="Formação">${[...Object.keys(FORMACOES), ...(s.formPers ? [PERS] : [])].map(f => `<button type="button" class="chip" data-acao="formacao" data-f="${f}" aria-pressed="${time.formacao === f}">${f}</button>`).join('')}</div>
       <div class="linha-botoes"><button type="button" class="chip" data-acao="editar-pos" aria-pressed="${!!app.editPos}">Editar posições</button></div>
       <p class="dica" role="status">${app.editPos ? (slotSel && vaga > 0 ? `Nova posição para a vaga de <b>${esc(time.xi[vaga].curto)}</b> (hoje ${slotSel}):` : 'Toque numa vaga do campo para mudar a posição dela (o goleiro não muda).') : slotSel ? `Quem entra no lugar de <b>${esc(time.xi[vaga].curto)}</b> (${slotSel})? Toque na figurinha. <button class="link" data-acao="vaga" data-i="${vaga}" type="button">Cancelar</button>` : 'Toque num jogador do campo para trocar.'}</p>
       ${app.editPos && slotSel && vaga > 0 ? `<div class="chips" role="group" aria-label="Posição da vaga">${POS_VAGA.map(p => `<button type="button" class="chip" data-acao="pos-vaga" data-p="${p}" aria-pressed="${slotSel === p}">${p}</button>`).join('')}</div>
         <div class="chips setas-vaga" role="group" aria-label="Mover a vaga no campo">${[['←', -6, 0, 'esquerda'], ['→', 6, 0, 'direita'], ['↑', 0, -6, 'para a frente'], ['↓', 0, 6, 'para trás']].map(([s2, dx, dy, rot]) => `<button type="button" class="chip" data-acao="mover-vaga" data-dx="${dx}" data-dy="${dy}" aria-label="Mover ${rot}">${s2}</button>`).join('')}</div>` : ''}
       <div class="campo campo-esc"><span class="area cima"></span><span class="area baixo"></span><span class="meio"></span><span class="roda"></span>
-        ${time.xi.map((j, i) => { const [, x, y] = POSICOES[time.formacao][i], r = rende(j, slots[i]), fora = encaixe(j.pos, slots[i]) < 0.9;
+        ${time.xi.map((j, i) => { const [, x, y] = pos[i], r = rende(j, slots[i]), fora = encaixe(j.pos, slots[i]) < 0.9;
           return `<button class="jog-campo ${vaga === i ? 'sel' : ''}" style="left:${x}%;top:${y}%" data-acao="vaga" data-i="${i}" type="button" aria-label="${esc(j.curto)}, ${slots[i]}, rende ${r}">
             <span class="jc-fig">${boneco(j, slots[i] === 'GOL')}${carinha(s.mor[j.id])}${j.id === cap ? '<i class="braco">C</i>' : ''}</span>
             <span class="jc-nome ${fora ? 'fora' : ''}">${esc(j.curto)}${seloFase(s, j.id)}</span>${chip(`${slots[i]} · ${r}`, r)}${barraCond(s.cond[j.id] ?? 100)}</button>`; }).join('')}
@@ -195,10 +195,10 @@ export const acoes = {
   estilo: el => { H.app.s.estilo = el.dataset.e; H.render(); H.salvar(); },
   'salvar-escalacao': () => {
     const { app } = H, s = app.s, time = escalacao(app.base, s, s.tecnico.clube);
-    s.escSalvas.push({ nome: `Escalação ${s.escSalvas.length + 1}`, formacao: time.formacao, estilo: s.estilo, xi: time.xi.map(j => j.id), banco: s.banco, gatilhos: JSON.parse(JSON.stringify(s.gatilhos || {})) });
+    s.escSalvas.push({ nome: `Escalação ${s.escSalvas.length + 1}`, formacao: time.formacao, pers: time.pers || null, estilo: s.estilo, xi: time.xi.map(j => j.id), banco: s.banco, gatilhos: JSON.parse(JSON.stringify(s.gatilhos || {})) });
     H.aviso('Escalação salva.'); H.render(); H.salvar();
   },
-  'usar-salva': el => { const s = H.app.s, e = s.escSalvas[+el.dataset.i]; Object.assign(s, { formacao: e.formacao, estilo: e.estilo, xi: e.xi.slice(), banco: e.banco ? e.banco.slice() : null, gatilhos: JSON.parse(JSON.stringify(e.gatilhos || {})) }); H.aviso(`${e.nome} em campo.`); H.render(); H.salvar(); },
+  'usar-salva': el => { const s = H.app.s, e = s.escSalvas[+el.dataset.i]; Object.assign(s, { formacao: e.formacao, ...(e.pers ? { formPers: e.pers } : {}), estilo: e.estilo, xi: e.xi.slice(), banco: e.banco ? e.banco.slice() : null, gatilhos: JSON.parse(JSON.stringify(e.gatilhos || {})) }); H.aviso(`${e.nome} em campo.`); H.render(); H.salvar(); },
   'apagar-salva': el => { H.app.s.escSalvas.splice(+el.dataset.i, 1); H.render(); H.salvar(); },
   foco: el => { const m = alternarFoco(H.app.s, +el.dataset.id); if (m) H.aviso(m); H.render(); H.salvar(); },
   infiltrar: el => { const m = infiltrar(H.app.s, +el.dataset.id); if (m) H.aviso(m); H.render(); H.salvar(); },

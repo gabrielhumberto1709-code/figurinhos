@@ -95,7 +95,7 @@ function escalacoesHtml(V) {
   const { clube, esc } = H, P = V.P, m = V.R.meu;
   const marcas = (t, id) => P.ev.filter(e => e.time === t && (e.jogador === id || (e.tipo === 'sub' && e.sai === id))).map(e => e.tipo === 'gol' && e.jogador === id ? '⚽' : e.tipo === 'amarelo' ? '🟨' : e.tipo === 'vermelho' ? '🟥' : e.tipo === 'lesao' ? '✚' : e.tipo === 'sub' ? (e.sai === id ? '↓' : '↑') : '').join('');
   const lista = t => {
-    const time = P.times[t], slots = FORMACOES[time.formacao];
+    const time = P.times[t], slots = time.slots;
     const saiu = P.ev.filter(e => e.tipo === 'sub' && e.time === t).map(e => e.sai);
     return time.xi.map((j, i) => `<li class="${P.expulsos[t].has(j.id) ? 'expulso' : ''}"><span class="num-c">${j.num || ''}</span><span class="nm">${esc(j.curto)} ${marcas(t, j.id)}</span><span class="nota-mini">${(P.notas[t].get(j.id) || 6).toFixed(1).replace('.', ',')}</span><span class="slot">${slots[i]}</span></li>`).join('')
       + saiu.map(id => { const orig = m[t ? 'ta' : 'th'], j = [...orig.xi, ...orig.banco].find(x => x.id === id); return j ? `<li class="saiu"><span class="num-c">${j.num || ''}</span><span class="nm">${esc(j.curto)} ↓</span><span class="nota-mini">${(P.notas[t].get(id) || 6).toFixed(1).replace('.', ',')}</span><span class="slot">—</span></li>` : ''; }).join('');
@@ -104,7 +104,7 @@ function escalacoesHtml(V) {
 }
 
 function painelHtml(V) {
-  const { esc } = H, P = V.P, t = V.humano, time = P.times[t], slots = FORMACOES[time.formacao];
+  const { esc } = H, P = V.P, t = V.humano, time = P.times[t], slots = time.slots;
   const resta = 5 - P.subs[t];
   return `<section class="cartao painel-vivo"><div class="titulo-linha"><h3>Mexer no time</h3><span class="mudo">${resta} troca${resta === 1 ? '' : 's'} restante${resta === 1 ? '' : 's'}</span></div>
     <div class="chips" role="group" aria-label="Esquema">${Object.keys(FORMACOES).map(f => `<button class="chip" type="button" data-acao="vivo-esquema" data-f="${f}" aria-pressed="${time.formacao === f}">${f}</button>`).join('')}</div>

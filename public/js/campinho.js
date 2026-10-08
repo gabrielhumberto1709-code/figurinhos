@@ -1,7 +1,7 @@
 // Campinho ao vivo em canvas. Os botões correm o tempo todo atrás de um alvo (a forma do time
 // empurrada pela bola); cada lance do motor vira um passe, chute ou parada com a bola viajando de verdade.
 // Coordenadas do campo: x 0→100 no comprimento (o mandante ataca para a direita), y 0→100 na largura.
-import { FORMACOES, COORD_Y } from './motor/partida.js';
+import { posicoesDe } from './motor/partida.js';
 import { clamp } from './motor/util.js';
 
 // profundidade de cada vaga (0 = própria meta, 1 = meta adversária)
@@ -19,13 +19,13 @@ export const criar = () => ({ sp: new Map(), bola: { x: 50, y: 50, z: 0 }, dono:
 function sync(cp, P) {
   const vivos = new Set(), novo = !cp.sp.size;
   for (const t of [0, 1]) {
-    const f = P.times[t].formacao, slots = FORMACOES[f];
+    const T = P.times[t], f = T.formacao, slots = T.slots, pos = posicoesDe(f, T.pers);
     P.times[t].xi.forEach((j, i) => {
       if (!j || P.expulsos[t].has(j.id)) return;
       vivos.add(j.id);
       let s = cp.sp.get(j.id);
       if (!s) { s = { id: j.id, t, x: 50, y: 104, vx: 0, vy: 0, h: hashN(j.id) }; cp.sp.set(j.id, s); }
-      Object.assign(s, { f, i, slot: slots[i], gk: slots[i] === 'GOL', num: j.num || '', nome: j.curto, sai: false });
+      Object.assign(s, { f, i, slot: slots[i], lat: pos[i]?.[1] ?? 50, gk: slots[i] === 'GOL', num: j.num || '', nome: j.curto, sai: false });
     });
   }
   for (const s of cp.sp.values()) if (!vivos.has(s.id) && !s.sai) { s.sai = true; if (cp.dono === s.id) cp.dono = null; }
@@ -39,7 +39,7 @@ function alvos(cp) {
     s.mult = 1;
     if (s.sai) { s.tx = s.x; s.ty = 106; s.mult = 0.7; continue; }
     const t = s.t, ataca = cp.posse === t, bf = t === 0 ? b.x : 100 - b.x, by = t === 0 ? b.y : 100 - b.y;
-    const casa = PROF[s.slot] ?? 0.4, lat0 = COORD_Y[s.f]?.[s.i] ?? 50;
+    const casa = PROF[s.slot] ?? 0.4, lat0 = s.lat ?? 50;
     let d, lat;
     if (s.gk) { d = 0.03 + (ataca ? clamp((bf - 50) / 100, 0, 0.5) * 0.14 : 0); lat = clamp(50 + (by - 50) * 0.3, 42, 58); }
     else if (cp.saida) { d = Math.min(casa, 0.47); lat = lat0; }
