@@ -7,7 +7,7 @@ import { nomeTecnico, pilares } from './carreira.js';
 import { proximoEvento, compProxima, janelaAberta, tabela, barradoMedo, multaMedo } from './mundo.js';
 import { indisponivel, pendurado, LESOES, COMP_DE } from './dm.js';
 import { faseDe } from './forma.js';
-import { orcamento, metaDiretoria, salarioDia } from './financas.js';
+import { orcamento, metaDiretoria, salarioDia, fairPlay, registroBloqueado, LIMITE_FPF, ANO_FPF, ANO_EQUILIBRIO } from './financas.js';
 import { precoPedido, textoVontade, resumoCl, ABRE_PRE } from './mercado.js';
 import { fimDeTemporada } from './temporada.js';
 
@@ -122,6 +122,15 @@ export function correio(base, s) {
     if (v <= ult - 8 || (ult >= 55 && v < 55) || (ult >= 40 && v < 40)) { enviar(s, 'diretor', `pilar-${k}-${s.ano}-${rd}`, DICA[k][0], `${DICA[k][0]}: ${v} de 100 (era ${ult}). ${v < 40 ? 'Está perigoso, professor. ' : ''}${DICA[k][1]}`, { link: '#/carreira' }); av[k] = v; }
     else if (v > ult) av[k] = v;
   }
+  // fair play financeiro: o diretor avisa antes de a CBF punir
+  if (rd >= 6) {
+    const fp = fairPlay(base, s), pct = Math.round(fp.razao * 100), adapt = s.ano < ANO_FPF;
+    if (fp.razao > LIMITE_FPF) enviar(s, 'diretor', `fpf-70-${s.ano}-${Math.floor(rd / 10)}`, 'Fair play financeiro: acima do limite', `O custo do elenco (salários do ano mais compras) está em ${pct}% da receita, acima dos 70% da CBF. ${adapt ? `Até ${ANO_FPF - 1} é adaptação e a CBF só cobra um plano de ajuste, mas em ${ANO_FPF} isso vira punição.` : 'Se fecharmos o ano assim, vem punição: plano de correção, multa, bloqueio de registro e até perda de pontos.'} Vender ou cortar folha resolve.`, { link: '#/financas' });
+    else if (fp.razao > 0.6) enviar(s, 'diretor', `fpf-60-${s.ano}`, 'Fair play financeiro: atenção', `O custo do elenco chegou a ${pct}% da receita. O teto da CBF é 70%. Cuidado com contratação cara.`, { link: '#/financas' });
+    if (s.ano >= ANO_EQUILIBRIO - 1 && fp.resultado < 0 && rd >= 20) enviar(s, 'diretor', `fpf-eq-${s.ano}`, 'Fair play financeiro: equilíbrio', `${s.ano >= ANO_EQUILIBRIO ? 'Pela regra de equilíbrio' : `A partir de ${ANO_EQUILIBRIO}, pela regra de equilíbrio`}, a temporada não pode fechar no vermelho. Hoje o ano está em ${fmtDinheiro(fp.resultado)}.`, { link: '#/financas' });
+    const ban = registroBloqueado(s); if (ban) enviar(s, 'diretor', `fpf-ban-${s.ano}-${ban}`, 'Registro bloqueado', `A CBF bloqueou o registro de jogadores até a ${ban + 1}ª rodada. Nada de contratação até lá.`, { link: '#/financas' });
+  }
+  if (s.fin?.atraso === 1) enviar(s, 'diretor', `fpf-div-${s.ano}-${rd}`, 'Fair play financeiro: dívida', 'Salário atrasado conta como dívida com credor relevante no fair play financeiro. Se não acertarmos na próxima rodada, a CBF começa a punir: plano de correção, multa, bloqueio de registro e perda de pontos.', { link: '#/financas' });
   if (rd === 1) enviar(s, 'presidente', `meta-${s.ano}-${ci}`, `A meta para ${s.ano}`, `Boa sorte nesta temporada. A meta da diretoria é ${metaDiretoria(base, s).txt}. Dentro dela, você tem todo o meu apoio.`, { link: '#/carreira' });
   // fase dos jogadores
   for (const j of el) { const f = faseDe(s, j.id);

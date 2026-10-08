@@ -651,6 +651,7 @@ export function tabela(base, s, d) {
     else if (g[0] < g[1]) { A.v++; A.p += 3; H.d++; H.ultimos.push('D'); A.ultimos.push('V'); }
     else { H.e++; A.e++; H.p++; A.p++; H.ultimos.push('E'); A.ultimos.push('E'); }
   }
+  for (const [c, p] of Object.entries(s.puni || {})) if (linhas.has(+c)) linhas.get(+c).p -= p; // pontos perdidos no fair play financeiro
   return [...linhas.values()].map(l => ({ ...l, sg: l.gp - l.gc, ultimos: l.ultimos.slice(-5) }))
     .sort((x, y) => y.p - x.p || y.v - x.v || y.sg - x.sg || y.gp - x.gp || base.clubes[x.clube].n.localeCompare(base.clubes[y.clube].n));
 }

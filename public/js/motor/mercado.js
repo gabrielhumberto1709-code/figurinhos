@@ -11,7 +11,7 @@ import { rng, clamp, pickW, shuffle, SETOR, nivelDiv, estrelas, continenteDe } f
 import { temperamento, tratar } from './vestiario.js';
 import { interessados, media } from './noticias.js';
 import { janelaAberta, caixaInicial, aplicarSave, evolucao } from './mundo.js';
-import { orcamento, lancar, garantirFinancas, salarioDia, salarioBase, diasRestantes } from './financas.js';
+import { orcamento, lancar, garantirFinancas, salarioDia, salarioBase, diasRestantes, registroBloqueado } from './financas.js';
 
 const arred = v => Math.max(50000, Math.round(v / 10000) * 10000);
 const arredSal = v => Math.max(10, Math.round(v / 10) * 10);
@@ -142,6 +142,7 @@ export function tiposPossiveis(base, s, j) {
 export function bloqueioProposta(base, s, j, o) {
   const meu = s.tecnico.clube, janela = janelaAberta(s.ano, s.rodada);
   if (j.clube === meu) return 'Ele já é seu.';
+  const ban = registroBloqueado(s); if (ban) return `Registro de jogadores bloqueado pelo fair play financeiro até a ${ban + 1}ª rodada.`;
   if (s.propostas.some(p => p.jogador === j.id && ['aguardando', 'contraproposta'].includes(p.estado))) return 'Você já tem uma proposta por ele.';
   if (emAcordo(s, j.id)) return 'Já existe um acordo por ele.';
   const fx = conversaFechada(s, j.id);

@@ -1,7 +1,7 @@
 // Finanças do seu clube: salários por dia, bilheteria, TV, patrocínio, prêmios, extrato, diretoria e socorro.
 import { clamp } from './util.js';
 import { rivais } from './rivais.js';
-import { dataRodada } from './mundo.js';
+import { dataRodada, tabela } from './mundo.js';
 import { liberar } from './mercado.js';
 
 const DIA = 864e5;
@@ -156,6 +156,7 @@ export function contasDaRodada(base, s, rd, jogoCasa, tab) {
         for (const j of pedem) (s.querSair ||= {})[j.id] = { de: ci, rodada: rd, motivo: 'está com o salário atrasado' };
         if (pedem.length) N.push(`Com o salário atrasado, ${pedem.map(j => j.curto).join(' e ')} ${pedem.length > 1 ? 'pedem' : 'pede'} para ser negociado${pedem.length > 1 ? 's' : ''}.`);
       }
+      if (f.atraso >= 2) N.push(punirFPF(base, s, 'salários atrasados são dívida com credor relevante'));
       if (f.atraso >= 3 && base.elencos[ci].length > 18 && caros[0]) {
         const j = caros[0];
         f.mauPagador = s.ano;
@@ -182,6 +183,35 @@ export function dicasFinanceiras(base, s) {
   if ((bal.bilheteria || 0) < entra * 0.08 && s.fin.ingresso !== 'barato') D.push('A bilheteria rende pouco. Ingresso mais barato enche o estádio e ajuda o time em casa.');
   if (!D.length) D.push('Contas equilibradas. Siga de olho na folga da folha antes de contratar.');
   return D;
+}
+
+// ---------- fair play financeiro (Sistema de Sustentabilidade Financeira da CBF) ----------
+// Custo do elenco (salários do ano + compras) até 70% da receita: 2026-2028 é adaptação (só aviso), de 2029 em diante
+// pune. Dívida com credor relevante (salário atrasado) pune na hora, em escada: plano de correção, multa, registro de
+// jogadores bloqueado, perda de pontos. De 2028 em diante a temporada também não pode fechar no vermelho.
+export const LIMITE_FPF = 0.7, ANO_FPF = 2029, ANO_EQUILIBRIO = 2028;
+export function fairPlay(base, s) {
+  garantirFinancas(base, s);
+  const ci = s.tecnico.clube, c = base.clubes[ci], bal = balanco(s), b = bilheteria(base, s, ci, ci, [], 10, s.fin.ingresso);
+  // receita do ano: TV, patrocínio, bilheteria, prêmio da liga pela posição de hoje, prêmios de copa e vendas
+  const pos = s.rodada ? tabela(base, s, c.div).findIndex(l => l.clube === ci) + 1 : base.clubes.map((x, i) => i).filter(i => base.clubes[i].div === c.div).sort((x, y) => base.forca(y) - base.forca(x)).indexOf(ci) + 1;
+  const premiosCopa = s.fin.extrato.filter(e => e.a === s.ano && e.tipo === 'premio' && !/Premiação da Série/.test(e.desc)).reduce((a, e) => a + e.valor, 0);
+  const receita = cotaTV(c) + patrocinio(c, ci).valor + b.renda * 19 + premioLiga(c.div, pos) + premiosCopa + Math.max(0, bal.venda || 0);
+  // custo do elenco: salários da temporada e compras amortizadas em 3 anos
+  const custo = folhaDia(base, s) * (diasEntre(s, 0, 37) + 10) + (s.fin.temporada.compras || 0) / 3;
+  const resultado = Object.values(bal).reduce((a, v) => a + v, 0);
+  return { receita, custo, razao: custo / Math.max(1, receita), resultado, divida: (s.fin.atraso || 0) > 0 };
+}
+export const registroBloqueado = s => s.fpf?.ban?.ano === s.ano && s.rodada < s.fpf.ban.ate ? s.fpf.ban.ate : 0;
+// um degrau na escada de punições (devolve o texto da notícia)
+export function punirFPF(base, s, motivo) {
+  const ci = s.tecnico.clube, F = (s.fpf ||= { degrau: 0 }), f = fairPlay(base, s);
+  F.degrau = Math.min(4, (F.degrau || 0) + 1);
+  if (F.degrau === 1) { s.fin.diretoria = clamp(s.fin.diretoria - 3, 0, 100); return `Fair play financeiro: a CBF exige um plano de correção do ${base.clubes[ci].n} (${motivo}).`; }
+  if (F.degrau === 2) { const v = Math.round(f.receita * 0.02 / 10000) * 10000; lancar(s, 'multa', 'Multa do fair play financeiro', -v); return `Fair play financeiro: multa de ${fmt(v)} para o ${base.clubes[ci].n} (${motivo}).`; }
+  if (F.degrau === 3) { F.ban = { ano: s.ano, ate: Math.min(38, s.rodada + 10) }; return `Fair play financeiro: o ${base.clubes[ci].n} está proibido de registrar jogadores até a ${F.ban.ate + 1}ª rodada (${motivo}).`; }
+  (s.puni ||= {})[ci] = (s.puni[ci] || 0) + 3;
+  return `Fair play financeiro: o ${base.clubes[ci].n} perde 3 pontos no Brasileirão (${motivo}).`;
 }
 
 // balanço da temporada por categoria

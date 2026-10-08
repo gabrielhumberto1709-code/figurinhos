@@ -5,7 +5,7 @@ import { garantirCarreira, pilares, aceitarOferta, recusarOferta, pedirDemissao 
 import { virarTemporada, fimDeTemporada } from './motor/temporada.js';
 import { campanha } from './motor/copa.js';
 import * as Torneios from './torneios.js';
-import { garantirFinancas, orcamento, socorro, metaDiretoria, balanco, bilheteria, pedirVerba, dicasFinanceiras, PRECOS, NOME_PRECO } from './motor/financas.js';
+import { garantirFinancas, orcamento, socorro, metaDiretoria, balanco, bilheteria, pedirVerba, dicasFinanceiras, fairPlay, registroBloqueado, LIMITE_FPF, ANO_FPF, PRECOS, NOME_PRECO } from './motor/financas.js';
 import { garantirMercado } from './motor/mercado.js';
 import * as Mercado from './mercado.js';
 import * as AoVivo from './aovivo.js';
@@ -366,6 +366,7 @@ telas.financas = () => {
   const pctSal = o.maxSal > o.folha ? Math.round((o.salarios - o.folha) / (o.maxSal - o.folha) * 100) : 0;
   return topo + `
     <section class="cartao aviso-fin ${sc.ok ? 'ok' : 'nao'}"><p><b>${sc.ok ? 'Socorro disponível' : 'Socorro bloqueado'}:</b> se o caixa ficar negativo, a TV adianta a cota e os salários saem em dia. Perde esse direito quem comprar mais do que vender na temporada ou aumentar a folha em mais de 10% (regra da ANRESF).${sc.ok ? '' : ` Agora está bloqueado porque ${esc(sc.motivo)}.`}</p></section>
+    ${(fp => `<section class="cartao aviso-fin ${fp.razao > LIMITE_FPF || fp.divida ? 'nao' : 'ok'}"><p><b>Fair play financeiro:</b> custo do elenco em <b>${Math.round(fp.razao * 100)}%</b> da receita (teto da CBF: 70%${s.ano < ANO_FPF ? `, punição a partir de ${ANO_FPF}` : ''}).${fp.divida ? ' Salário atrasado é dívida com credor relevante: a CBF pune na hora.' : ''}${registroBloqueado(s) ? ` Registro de jogadores bloqueado até a ${registroBloqueado(s) + 1}ª rodada.` : ''}${s.fpf?.degrau ? ` Situação na CBF: ${['', 'plano de correção', 'multado', 'registro bloqueado', 'perda de pontos'][s.fpf.degrau]}.` : ''}</p></section>`)(fairPlay(app.base, s))}
     <section class="cartao"><div class="titulo-linha"><h3>Diretoria</h3><span class="conf"><b class="num">${Math.round(f.diretoria)}</b>/100 de confiança</span></div>
       <p>Meta: <b>${meta.txt}</b>. ${s.rodada ? `Hoje: ${pos}º.` : ''}</p>
       <div class="linha-botoes"><button class="botao sec" type="button" data-acao="pedir-verba">Pedir verba</button></div></section>

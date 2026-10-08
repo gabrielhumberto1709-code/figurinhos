@@ -3,7 +3,7 @@
 import { rng, pick, clamp, PERFIL } from './util.js';
 import { tabela, aplicarSave } from './mundo.js';
 import { FASES, novaCopa, campanha } from './copa.js';
-import { metaDiretoria, folhaDia, lancar, cotaTV, garantirFinancas } from './financas.js';
+import { metaDiretoria, folhaDia, lancar, cotaTV, garantirFinancas, fairPlay, punirFPF, LIMITE_FPF, ANO_FPF, ANO_EQUILIBRIO } from './financas.js';
 import { garantirMercado, cumprirAcordos, fimDosEmprestimos } from './mercado.js';
 import { viradaDM } from './dm.js';
 import { novaCont, campanhaCont } from './continental.js';
@@ -53,6 +53,12 @@ export function virarTemporada(base, s) {
   const add = (texto, tipo = 'clube') => N.push({ rodada: 0, tipo, div: base.clubes[ci].div, texto });
   const tabs = Object.fromEntries(DIVS.map(d => [d, tabela(base, s, d)]));
   const pos = tabs[div].findIndex(l => l.clube === ci) + 1, meta = metaDiretoria(base, s);
+  // fair play financeiro fecha o ano: custo do elenco acima de 70% (a partir de 2029) ou temporada no vermelho (2028+)
+  const fp = fairPlay(base, s), fpN = [];
+  s.puni = {}; // pontos perdidos valem só na temporada da punição (a tabela deste ano já foi fechada acima)
+  if (fp.razao > LIMITE_FPF && s.ano >= ANO_FPF) fpN.push(punirFPF(base, s, `custo do elenco em ${Math.round(fp.razao * 100)}% da receita`));
+  else if (fp.resultado < 0 && s.ano >= ANO_EQUILIBRIO) fpN.push(punirFPF(base, s, 'temporada fechou no vermelho'));
+  else if (s.fpf && fp.razao <= LIMITE_FPF && !fp.divida) s.fpf.degrau = Math.max(0, (s.fpf.degrau || 0) - 1); // ano limpo alivia a escada
   const premiacao = arquivarGala(base, s, gala(base, s)); // antes de acesso, transferências e da estatística zerada
   const revisao = revisarPotencial(base, s), meusPot = revisao.filter(([j]) => j.clube === ci);
   // histórico de cada jogador no jogo: [ano, clube, jogos, gols, assistências, nota média × 10]
@@ -138,6 +144,7 @@ export function virarTemporada(base, s) {
   novaCopa(base, s);
   novaCont(base, s);
   moralDosPremiados(base, s);
+  for (const t of fpN) add(t, 'crise');
   if (meusPot.length) {
     const linha = ([j, d]) => `${j.curto} ${d > 0 ? 'sobe' : 'cai'} ${Math.abs(d)} (agora ${'★'.repeat(estrelas(j.pot))}${'☆'.repeat(5 - estrelas(j.pot))})`;
     const sobe = meusPot.filter(x => x[1] > 0), cai = meusPot.filter(x => x[1] < 0);

@@ -830,3 +830,19 @@ test('renovação: IA renova cedo quem tem nível, deixa sair quem não tem ou q
   virarTemporada(base, s);
   assert.ok(sai.filter(x => !x.fora).every(x => base.clubes[x.clube].div === 'L' || x.clube === ci || s.historicoTransf.some(h => h.jogador === x.id)));
 });
+
+import { fairPlay, punirFPF, registroBloqueado } from '../public/js/motor/financas.js';
+test('fair play financeiro: razão custo/receita, escada de punição (multa, registro bloqueado, perda de pontos) e aviso do diretor', () => {
+  const s = novoJogo(base, cfg(108)), ci = s.tecnico.clube; ate(s, 8);
+  const fp = fairPlay(base, s); assert.ok(fp.receita > 0 && fp.razao > 0);
+  const cx = s.caixa; punirFPF(base, s, 'teste'); punirFPF(base, s, 'teste');
+  assert.ok(s.caixa < cx, 'multa');
+  punirFPF(base, s, 'teste');
+  const outro = base.elencos[(ci + 3) % 20][0];
+  assert.ok(registroBloqueado(s) && /bloqueado/.test(bloqueioProposta(base, s, outro, { tipo: 'compra', valor: 1e6, salario: 1000, anos: 2 })));
+  const p0 = tabela(base, s, base.clubes[ci].div).find(l => l.clube === ci).p;
+  punirFPF(base, s, 'teste');
+  assert.equal(tabela(base, s, base.clubes[ci].div).find(l => l.clube === ci).p, p0 - 3);
+  s.fin.salarioBudget = null; s.fin.temporada.compras = fp.receita; correioF(base, s);
+  assert.ok(s.msgs.some(m => m.assunto.startsWith('Fair play financeiro')));
+});
