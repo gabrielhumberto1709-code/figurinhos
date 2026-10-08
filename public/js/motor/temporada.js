@@ -137,7 +137,7 @@ export function virarTemporada(base, s) {
   viradaDM(base, s);
   s.forma = {}; s.afast = {}; s.julgamentos = [];
   for (const id in s.trato || {}) s.trato[id] = Math.trunc(s.trato[id] / 2); // a mágoa diminui com o tempo
-  Object.assign(s, { rodada: 0, res: { A: {}, B: {}, C: {} }, est: {}, ultima: null, lider: {}, rumores: {}, destaques: {}, ultimaData: null, recuperado: null, cond: {}, mor: {}, semJogar: {}, xi: null, banco: null, recebidas: [], preContratos: [] });
+  Object.assign(s, { rodada: 0, res: { A: {}, B: {}, C: {} }, cart: {}, est: {}, ultima: null, lider: {}, rumores: {}, destaques: {}, ultimaData: null, recuperado: null, cond: {}, mor: {}, semJogar: {}, xi: null, banco: null, recebidas: [], preContratos: [] });
   delete s._cal;
   s.propostas = s.propostas.filter(p => !['aguardando', 'contraproposta'].includes(p.estado)).slice(0, 30);
   s.listas = { venda: s.listas.venda.filter(id => base.jog.get(id)?.clube === ci), emprestimo: s.listas.emprestimo.filter(id => base.jog.get(id)?.clube === ci) };

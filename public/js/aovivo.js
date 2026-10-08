@@ -24,11 +24,25 @@ function cores(casa, fora) {
   return [{ fundo: c1, anel: a0, txt: claro(c1) ? '#1B1F2A' : '#FFFFFF', barra: claro(c1) ? (claro(a0) ? '#1B1F2A' : a0) : c1 }, { fundo: op, anel, txt: claro(op) ? '#1B1F2A' : '#FFFFFF', barra: claro(op) ? (claro(anel) ? '#1B1F2A' : anel) : op }];
 }
 
-export function novaPartidaAoVivo(R) {
+// salvo = estado guardado no save (semente, minuto e o que o técnico mexeu): o jogo é refeito igual até ali e segue
+export function novaPartidaAoVivo(R, salvo) {
   const { th, ta, seed, humano, opts } = R.meu;
   let vel = 1; try { vel = +localStorage.getItem('fig.vel') || 1; } catch { }
-  return { R, P: criarPartida(th, ta, seed, { ...opts, narrar: true, humano }), humano, fila: [], vel, pausado: false, painel: false, fim: false, k: 0, placar: [0, 0], min: 0, ult: null, sel: null, historico: [], cp: Campinho.criar() };
+  const V = { R, P: criarPartida(th, ta, seed, { ...opts, narrar: true, humano }), humano, fila: [], vel, pausado: false, painel: false, fim: false, k: 0, placar: [0, 0], min: 0, ult: null, sel: null, historico: [], acoes: [], cp: Campinho.criar() };
+  if (salvo?.seed === seed && salvo.xi === xiDe(R)) retomar(V, salvo);
+  return V;
 }
+const xiDe = R => [R.meu.th, R.meu.ta].map(t => t.xi.map(j => j?.id).join(',')).join('|');
+const APLICA = { sub: (P, t, [a, b]) => substituir(P, t, a, b), estilo: (P, t, [e]) => trocarEstilo(P, t, e), esquema: (P, t, [f]) => trocarEsquema(P, t, f) };
+function retomar(V, salvo) {
+  const P = V.P, faz = () => { for (const a of salvo.acoes) if (a.min === P.min) APLICA[a.a](P, V.humano, a.x); };
+  while (P.min < salvo.min && !acabou(P)) { faz(); passo(P); }
+  faz();
+  Object.assign(V, { acoes: salvo.acoes.slice(), placar: P.gols.slice(), min: P.min, k: P.lances.length, historico: P.lances.filter(l => NOTAVEIS.has(l.tipo)).reverse(), ult: P.lances.at(-1) || null, pausado: true });
+}
+// o que vai no save para retomar depois
+export const estado = V => ({ seed: V.R.meu.seed, xi: xiDe(V.R), min: V.P.min, acoes: V.acoes });
+const registrar = (V, a, x) => { V.acoes.push({ min: V.P.min, a, x }); H.guardar?.(); };
 
 // ---------- tela ----------
 export function tela(V) {
@@ -140,6 +154,7 @@ function proximo(V) {
   if (!V.fila.length) {
     if (acabou(V.P)) return encerrar(V);
     V.fila.push(...passo(V.P));
+    if (V.P.min % 10 === 0) H.guardar?.();
     if (!V.fila.length) { V.min = V.P.min; H.$('#vivo-min').textContent = `${V.min}'`; V.cp.espera = 0.09; return; }
   }
   const l = V.fila.shift(); V.k++;
@@ -188,10 +203,10 @@ export const acoes = {
   'vivo-sai': el => { const V = H.app.vivo; V.sel = +el.dataset.id; H.$('#vivo-painel').innerHTML = painelHtml(V); },
   'vivo-entra': el => {
     const V = H.app.vivo;
-    if (substituir(V.P, V.humano, V.sel, +el.dataset.id)) { const l = V.P.lances[V.P.lances.length - 1]; V.sel = null; mostrar(V, { ...l, x: V.ult?.x ?? 50, y: V.ult?.y ?? 50 }); }
+    if (substituir(V.P, V.humano, V.sel, +el.dataset.id)) { registrar(V, 'sub', [V.sel, +el.dataset.id]); const l = V.P.lances[V.P.lances.length - 1]; V.sel = null; mostrar(V, { ...l, x: V.ult?.x ?? 50, y: V.ult?.y ?? 50 }); }
     H.$('#vivo-painel').innerHTML = painelHtml(V);
     H.$('[data-acao=vivo-painel]').textContent = `Mexer no time (${5 - V.P.subs[V.humano]} trocas)`;
   },
-  'vivo-estilo': el => { const V = H.app.vivo; trocarEstilo(V.P, V.humano, el.dataset.e); H.$('#vivo-painel').innerHTML = painelHtml(V); },
-  'vivo-esquema': el => { const V = H.app.vivo; trocarEsquema(V.P, V.humano, el.dataset.f); H.$('#vivo-painel').innerHTML = painelHtml(V); H.$('#vivo-esc').innerHTML = escalacoesHtml(V); },
+  'vivo-estilo': el => { const V = H.app.vivo; trocarEstilo(V.P, V.humano, el.dataset.e); registrar(V, 'estilo', [el.dataset.e]); H.$('#vivo-painel').innerHTML = painelHtml(V); },
+  'vivo-esquema': el => { const V = H.app.vivo; trocarEsquema(V.P, V.humano, el.dataset.f); registrar(V, 'esquema', [el.dataset.f]); H.$('#vivo-painel').innerHTML = painelHtml(V); H.$('#vivo-esc').innerHTML = escalacoesHtml(V); },
 };

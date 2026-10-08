@@ -34,12 +34,13 @@ const TERNO = { n: 'Técnico', c: ['#1B1F2A', '#F3EBDD'], pat: 'solid' };
 async function api(metodo, rota, corpo) {
   const headers = { 'content-type': 'application/json' };
   if (app.conta) headers.authorization = 'Bearer ' + app.conta.token;
-  let r;
-  try { r = await fetch('/api' + rota, { method: metodo, headers, body: corpo && JSON.stringify(corpo) }); }
+  let r; const body = corpo && JSON.stringify(corpo);
+  // keepalive deixa o envio terminar mesmo com a aba fechando (o navegador só aceita corpo pequeno)
+  try { r = await fetch('/api' + rota, { method: metodo, headers, body, keepalive: !!body && body.length < 60000 }); }
   catch { throw new Error('Sem conexão com o servidor.'); }
   const d = await r.json().catch(() => ({}));
   if (r.status === 401 && app.conta && !rota.startsWith('/entrar')) { sairDaConta(); throw new Error(d.erro || 'Faça login de novo.'); }
-  if (!r.ok) throw new Error(d.erro || 'Algo deu errado.');
+  if (!r.ok) throw Object.assign(new Error(d.erro || 'Algo deu errado.'), { status: r.status, dados: d });
   return d;
 }
 
@@ -56,21 +57,49 @@ async function descompacta(txt) {
   return JSON.parse(await new Response(new Blob([bytes]).stream().pipeThrough(new DecompressionStream('gzip'))).text());
 }
 
-// salva na nuvem; uma cópia local garante que nada se perde se a internet cair
-async function salvar() {
-  if (!app.s) return;
-  const s = app.s, slot = app.slot;
+// save em fila: várias chamadas seguidas viram um envio só (2 s depois da última); sair da página manda na hora.
+// Versão do save = 'atualizado' que o servidor devolveu (app.ver). Se outro aparelho salvou depois, o servidor responde 409.
+// A cópia local guarda a versão em que se baseou e se ainda falta subir (sujo), para o Continuar decidir sem olhar relógio.
+const fila = { t: 0, sujo: false, rodando: null };
+function salvar() { if (!app.s) return; fila.sujo = true; clearTimeout(fila.t); fila.t = setTimeout(descarregar, 2000); }
+async function descarregar() {
+  clearTimeout(fila.t);
+  while (fila.rodando) await fila.rodando;
+  if (!fila.sujo || !app.s) return;
+  fila.sujo = false;
+  fila.rodando = enviarSave(app.s, app.slot).finally(() => { fila.rodando = null; });
+  await fila.rodando;
+}
+const chaveLocal = slot => `fig.backup.${app.conta.apelido}.${slot}`;
+async function enviarSave(s, slot) {
   s.salvoEm = Date.now();
-  const dados = await compacta(paraSalvar(s));
-  const chaveLocal = `fig.backup.${app.conta.apelido}.${slot}`;
-  guardado.gravar(chaveLocal, { quando: s.salvoEm, dados });
+  const dados = await compacta(paraSalvar(s)), base = app.ver ?? 0;
+  guardado.gravar(chaveLocal(slot), { quando: s.salvoEm, dados, base, sujo: true });
   app.salvando = 'salvando'; desenhaTopo();
   try {
-    await api('PUT', `/saves/${slot}`, { nome: `${s.tecnico.nome} · ${app.base.clubes[s.tecnico.clube].n}`, resumo: resumo(app.base, s), dados });
-    app.salvando = 'salvo';
-  } catch { app.salvando = 'falhou'; }
+    const r = await api('PUT', `/saves/${slot}`, { nome: `${s.tecnico.nome} · ${app.base.clubes[s.tecnico.clube].n}`, resumo: resumo(app.base, s), dados, base });
+    app.ver = r.atualizado; app.salvando = 'salvo';
+    guardado.gravar(chaveLocal(slot), { quando: s.salvoEm, dados, base: r.atualizado, sujo: false });
+  } catch (e) {
+    if (e.status === 409) { app.salvando = 'conflito'; app.verNuvem = e.dados.atualizado; aviso('Esta carreira foi salva em outro aparelho. Toque em "Conflito" no topo.'); }
+    else { app.salvando = 'falhou'; fila.sujo = true; }
+  }
   desenhaTopo();
 }
+// conflito: ficar com o progresso deste aparelho (sobrescreve a nuvem) ou carregar o da nuvem
+async function resolverConflito() {
+  if (confirm('Esta carreira foi salva em outro aparelho depois do seu último save.\n\nOK = manter o progresso DESTE aparelho (substitui o da nuvem)\nCancelar = carregar o que está na nuvem')) {
+    app.ver = app.verNuvem; fila.sujo = true; return descarregar();
+  }
+  const { dados, atualizado } = await api('GET', `/saves/${app.slot}`);
+  app.s = migrar(await descompacta(dados)); app.ver = atualizado; app.salvando = 'salvo';
+  guardado.gravar(chaveLocal(app.slot), { quando: Date.now(), dados, base: atualizado, sujo: false });
+  ir('#/clube'); render();
+}
+// jogo ao vivo em andamento vai no save (semente, minuto e mexidas) para retomar se o celular fechar a aba
+function guardarVivo() { if (app.vivo && !app.vivo.fim && app.s) { app.s.vivo = AoVivo.estado(app.vivo); salvar(); } }
+addEventListener('pagehide', () => { guardarVivo(); descarregar(); });
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') { guardarVivo(); descarregar(); } });
 
 async function carregarBase() {
   if (app.base) return app.base;
@@ -80,7 +109,7 @@ async function carregarBase() {
 }
 
 const ir = rota => { if (location.hash === rota) render(); else location.hash = rota; };
-function sairDaConta() { app.conta = null; app.s = null; guardado.tirar('fig.conta'); ir('#/entrar'); }
+async function sairDaConta() { await descarregar().catch(() => { }); app.conta = null; app.s = null; guardado.tirar('fig.conta'); ir('#/entrar'); }
 
 function aviso(msg) {
   const el = $('#aviso'); el.textContent = msg; el.classList.add('on');
@@ -147,10 +176,10 @@ function desenhaTopo() {
   topo.hidden = abas.hidden = !emJogo;
   if (!emJogo) return;
   const s = app.s, ci = s.tecnico.clube;
-  const estado = { salvando: 'Salvando…', salvo: 'Salvo', falhou: 'Não salvou · tentar' }[app.salvando] || '';
+  const estado = { salvando: 'Salvando…', salvo: 'Salvo', falhou: 'Não salvou · tentar', conflito: 'Conflito · resolver' }[app.salvando] || '';
   topo.innerHTML = `<div class="topo-in">${imgEscudo(ci, 36, 39)}
     <div class="info"><div class="clube-nome">${esc(clube(ci).n)}</div><small>Série ${clube(ci).div} · Rodada ${Math.min(s.rodada + 1, 38)}${s.rodada ? ` · ${posicaoNaTabela(ci)}º` : ''}</small></div>
-    <button class="estado ${app.salvando}" data-acao="salvar" type="button" ${app.salvando === 'falhou' ? '' : 'tabindex="-1"'} style="background:none;border:0;cursor:pointer">${estado}</button>
+    <button class="estado ${app.salvando}" data-acao="salvar" type="button" ${['falhou', 'conflito'].includes(app.salvando) ? '' : 'tabindex="-1"'} style="background:none;border:0;cursor:pointer">${estado}</button>
     ${botaoTema('botao peq')}<button class="botao peq" data-acao="menu" type="button">Sair</button></div>`;
   const pend = (s.recebidas || []).length + (s.propostas || []).filter(p => p.estado === 'contraproposta').length;
   const ativa = { calendario: 'clube', partida: 'clube', financas: 'clube', carreira: 'clube' }[app.aba] || app.aba;
@@ -338,7 +367,7 @@ telas.clube = () => {
         <span class="ingresso-local">${ev.neutro ? 'Estádio neutro' : esc(clube(jogo[0]).est[0])}</span>
         ${(p => `<span class="previa" title="Chance pelo que os elencos rendem hoje"><b>V ${p.vitoria}%</b><b>E ${p.empate}%</b><b>D ${p.derrota}%</b></span>`)(previa(app.base, s, ev))}
         ${ev.tipo === 'amistoso' ? '' : `<span class="retro-ingresso">${esc(textoConfronto(confronto(s, ci, jogo[0] === ci ? jogo[1] : jogo[0])))}</span>`}
-        <button class="botao grande" data-acao="jogar" type="button">Jogar</button></div></section>`}
+        <button class="botao grande" data-acao="jogar" type="button">${s.vivo ? `Retomar o jogo (${s.vivo.min}')` : 'Jogar'}</button></div></section>`}
     ${s.demitido || fim ? '' : prelecaoHtml()}${s.demitido ? '' : desfalques(ci, fim)}${ofertasHtml()}${recados()}
     ${acabando.length && !fim ? `<a class="cartao aviso-contratos" href="#/elenco"><b>${acabando.length} ${acabando.length > 1 ? 'contratos acabam' : 'contrato acaba'} no fim da temporada</b><span>${acabando.slice(0, 5).map(j => esc(j.curto)).join(', ')}${acabando.length > 5 ? '…' : ''}. Quem não renovar sai de graça, e outro clube pode assinar pré-contrato.</span></a>` : ''}
     <nav class="atalhos" aria-label="Atalhos do clube">${ATALHOS.map(([ic, t, href, cor]) => {
@@ -491,7 +520,7 @@ telas.partida = () => {
   const classe = n => n >= 7.5 ? 'alta' : n < 5.5 ? 'baixa' : '';
   const notasTime = t => Object.entries(u.notas[t]).map(([id, n]) => [+id, n]).sort((a, b) => b[1] - a[1]);
   const resultado = u.pen ? ((u.pen[0] > u.pen[1]) === (u.casa === ci) ? 'Vitória nos pênaltis' : 'Derrota nos pênaltis') : u.gols[0] === u.gols[1] ? 'Empate' : (u.gols[0] > u.gols[1]) === (u.casa === ci) ? 'Vitória' : 'Derrota';
-  return `<div class="titulo-linha"><h2>${resultado}</h2><span class="mudo">${u.copa ? `Copa do Brasil · ${u.copa}` : `${u.rodada + 1}ª rodada`}</span></div>
+  return `<div class="titulo-linha"><h2>${resultado}</h2><span class="mudo">${u.div === 'copa' ? `Copa do Brasil · ${u.copa}` : u.copa || `${u.rodada + 1}ª rodada`}</span></div>
     <section class="placar"><div class="lado">${imgEscudo(u.casa, 60, 65)}<span>${esc(clube(u.casa).n)}</span></div>
       <span class="gols" aria-label="${u.gols[0]} a ${u.gols[1]}">${u.gols[0]}-${u.gols[1]}</span>
       <div class="lado">${imgEscudo(u.fora, 60, 65)}<span>${esc(clube(u.fora).n)}</span></div>
@@ -525,6 +554,7 @@ function migrar(s) {
 telas['ao-vivo'] = () => AoVivo.tela(app.vivo);
 function concluirAoVivo() {
   const V = app.vivo; if (!V) return;
+  delete app.s.vivo;
   if (!V.fim) AoVivo.pular(V);
   (V.R.amistoso ? concluirAmistoso : V.R.copa ? concluirCopa : V.R.cont ? concluirCont : V.R.reg ? concluirReg : V.R.sup ? concluirSup : concluirRodada)(app.base, app.s, V.R, AoVivo.resultadoFinal(V));
   app.vivo = null;
@@ -536,7 +566,8 @@ function comecarJogo() {
   const R = ev?.tipo === 'amistoso' ? iniciarAmistoso(b, s) : ev?.tipo === 'copa' ? iniciarCopa(b, s) : ev?.tipo === 'cont' ? iniciarCont(b, s, ev.k) : ev?.tipo === 'reg' ? iniciarReg(b, s, ev.k) : ev?.tipo === 'sup' ? iniciarSup(b, s) : iniciarRodada(b, s);
   if (!R) return;
   if (!R.meu) { concluirRodada(app.base, app.s, R, null); salvar(); ir('#/clube'); return render(); }
-  app.vivo = AoVivo.novaPartidaAoVivo(R);
+  app.vivo = AoVivo.novaPartidaAoVivo(R, app.s.vivo);
+  if (app.vivo.min) aviso(`Jogo retomado no minuto ${app.vivo.min}. Toque em Seguir.`);
   ir('#/ao-vivo');
 }
 
@@ -544,7 +575,11 @@ function comecarJogo() {
 async function render() {
   const rota = location.hash.replace(/^#\/?/, '') || (app.conta ? 'saves' : 'entrar');
   if (rota !== 'coletiva') app.colPre = false;
-  if (app.vivo && rota !== 'ao-vivo') concluirAoVivo(); // saiu no meio do jogo: termina na hora
+  // saiu da tela do jogo (voltar do celular, por exemplo): pergunta antes; confirmando, o resto é simulado na hora
+  if (app.vivo && rota !== 'ao-vivo') {
+    if (!app.vivo.fim && !confirm('Sair agora encerra o jogo: o resto é simulado na hora. Sair mesmo?')) { history.replaceState(null, '', '#/ao-vivo'); return; }
+    concluirAoVivo();
+  }
   if (rota === 'ao-vivo' && !app.vivo) { location.hash = app.s ? '#/clube' : '#/saves'; return; }
   if (rota === 'tabela') { location.hash = '#/torneios'; return; }
   if (rota === 'base' || rota === 'treino' || rota === 'dm') { app.abaElenco = rota; location.hash = '#/elenco'; return; }
@@ -574,8 +609,8 @@ async function render() {
 const acoes = {
   recarregar: () => render(),
   sair: async () => { await api('POST', '/sair').catch(() => { }); sairDaConta(); },
-  menu: () => { app.s = null; ir('#/saves'); },
-  salvar: () => { if (app.salvando === 'falhou') salvar(); },
+  menu: async () => { await descarregar(); app.s = null; app.salvando = ''; ir('#/saves'); },
+  salvar: () => { if (app.salvando === 'conflito') resolverConflito().catch(e => aviso(e.message)); else if (app.salvando === 'falhou') { fila.sujo = true; descarregar(); } },
   ficha: el => abrirFicha(el.dataset.id),
 
   novo: el => { app.slot = +el.dataset.slot; app.novo = { passo: 1, tecnico: { nome: '', rosto: rostoAleatorio(), nat: 'BRA', reputacao: 1 }, dificuldade: 'normal', modo: 'escolher', abaDiv: 'A', clube: null }; ir('#/novo'); },
@@ -594,7 +629,7 @@ const acoes = {
     el.disabled = true;
     app.base.aplicarTransferencias({});
     app.s = novoJogo(app.base, { tecnico: { ...n.tecnico, nome: n.tecnico.nome.trim() }, modo: n.modo, clube: n.clube, divisao: n.abaDiv, dificuldade: n.dificuldade });
-    app.novo = null;
+    app.novo = null; app.ver = 0;
     ir('#/clube');
     if (n.modo !== 'escolher') aviso(`Você vai treinar o ${clube(app.s.tecnico.clube).n}!`);
     salvar();
@@ -606,10 +641,14 @@ const acoes = {
     try {
       await carregarBase();
       const { dados, atualizado } = await api('GET', `/saves/${slot}`);
-      const local = guardado.ler(`fig.backup.${app.conta.apelido}.${slot}`);
-      const usarLocal = local && local.quando > atualizado;
+      const local = guardado.ler(chaveLocal(slot));
+      // cópia local que não subiu: se a nuvem ainda está na versão em que ela se baseou, é só continuar dela;
+      // se a nuvem mudou (outro aparelho), pergunta. Cópia antiga (sem versão) cai na comparação de horário.
+      let usarLocal = !!local && (local.base == null ? local.quando > atualizado : local.sujo);
+      if (usarLocal && local.base != null && local.base !== atualizado)
+        usarLocal = confirm('Este aparelho tem progresso que não subiu, mas outro aparelho salvou esta carreira depois.\n\nOK = continuar do progresso DESTE aparelho\nCancelar = continuar do que está na nuvem');
       app.s = migrar(await descompacta(usarLocal ? local.dados : dados));
-      app.slot = slot;
+      app.slot = slot; app.ver = atualizado; app.salvando = '';
       ir('#/clube');
       if (usarLocal) { aviso('Recuperei um progresso que não tinha subido.'); salvar(); }
     } catch (e) { el.disabled = false; aviso(e.message); }
@@ -617,7 +656,7 @@ const acoes = {
   apagar: async el => {
     if (el.dataset.confirma !== '1') { el.dataset.confirma = '1'; el.textContent = 'Apagar mesmo?'; return; }
     await api('DELETE', `/saves/${el.dataset.slot}`).catch(e => aviso(e.message));
-    guardado.tirar(`fig.backup.${app.conta.apelido}.${el.dataset.slot}`);
+    guardado.tirar(chaveLocal(el.dataset.slot));
     render();
   },
 
@@ -698,7 +737,7 @@ document.addEventListener('submit', async e => {
   for (const b of f.querySelectorAll('button')) b.disabled = true;
   try {
     const r = await api('POST', modo === 'cadastro' ? '/cadastro' : '/entrar', { apelido, pin });
-    app.conta = { token: r.token, apelido: r.apelido, admin: r.admin };
+    app.conta = { token: r.token, apelido: r.apelido };
     guardado.gravar('fig.conta', app.conta);
     ir('#/saves');
   } catch (err) {
@@ -707,7 +746,7 @@ document.addEventListener('submit', async e => {
   }
 });
 
-AoVivo.configurar({ app, clube, esc, imgEscudo, $ });
+AoVivo.configurar({ app, clube, esc, imgEscudo, $, guardar: guardarVivo });
 Torneios.configurar({ app, clube, esc, imgEscudo, render: () => render() });
 Coletiva.configurar({ app, clube, esc, render: () => render(), salvar: () => salvar(), jogar: () => comecarJogo() });
 Gala.configurar({ app, clube, esc, imgEscudo, render: () => render() });

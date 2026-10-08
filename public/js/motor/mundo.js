@@ -695,7 +695,7 @@ export function concluirRodada(base, s, R, simMeu) {
   if (R.meu) jogos.push({ d: R.meu.d, h: R.meu.h, a: R.meu.a, sim: simMeu });
   if (R.meu && simMeu) simMeu.capitao = R.meu.capitao;
   const dmN = [];
-  for (const { d, h, a, sim } of jogos) { s.res[d][chave(h, a)] = sim.gols; registrar(s.est, sim); aposJogo(base, s, h, a, sim); dmN.push(...posJogo(base, s, h, a, sim, 'L')); }
+  for (const { d, h, a, sim } of jogos) { s.res[d][chave(h, a)] = sim.gols; registrar(s.est, sim); cartoesDoTime(s, d, h, a, sim); aposJogo(base, s, h, a, sim); dmN.push(...posJogo(base, s, h, a, sim, 'L')); }
   const m = R.meu;
   s.ultima = m ? { rodada: R.rd, div: m.d, casa: m.h, fora: m.a, ...simMeu, xi: [m.th.xi.map(j => j.id), m.ta.xi.map(j => j.id)] } : null;
   if (m) registrarConfronto(base, s);
@@ -728,6 +728,28 @@ export function avancar(base, s) {
   return concluirRodada(base, s, R, R.meu ? simular(R.meu.th, R.meu.ta, R.meu.seed, R.meu.opts) : null);
 }
 
+// cartões de cada clube no campeonato (desempate da CBF): s.cart[div][clube] = [amarelos, vermelhos]
+function cartoesDoTime(s, d, h, a, sim) {
+  const C = ((s.cart ||= {})[d] ||= {});
+  for (const e of sim.eventos) if (e.tipo === 'amarelo' || e.tipo === 'vermelho') { const x = (C[e.time ? a : h] ||= [0, 0]); x[e.tipo === 'vermelho' ? 1 : 0]++; }
+}
+// critérios da CBF: pontos, vitórias, saldo, gols pró, confronto direto (só empate entre dois), menos vermelhos, menos amarelos, sorteio
+function desempate(base, s, d, linhas, res) {
+  const C = s.cart?.[d] || {}, sorteio = c => rng(`sorteio${s.seed}${s.ano}${c}`)();
+  const chaveT = l => `${l.p}|${l.v}|${l.sg}|${l.gp}`;
+  const direto = (x, y) => { let p = 0; for (const [h, a, sx] of [[x, y, 1], [y, x, -1]]) { const g = res[chave(h, a)]; if (g) p += sx * Math.sign(g[0] - g[1]); } return p; }; // >0: x levou a melhor
+  linhas.sort((x, y) => y.p - x.p || y.v - x.v || y.sg - x.sg || y.gp - x.gp);
+  for (let i = 0; i < linhas.length;) {
+    let k = i + 1; while (k < linhas.length && chaveT(linhas[k]) === chaveT(linhas[i])) k++;
+    if (k - i > 1) {
+      const grupo = linhas.slice(i, k), dois = grupo.length === 2;
+      grupo.sort((x, y) => (dois ? direto(y.clube, x.clube) : 0) || (C[x.clube]?.[1] || 0) - (C[y.clube]?.[1] || 0) || (C[x.clube]?.[0] || 0) - (C[y.clube]?.[0] || 0) || sorteio(x.clube) - sorteio(y.clube));
+      linhas.splice(i, k - i, ...grupo);
+    }
+    i = k;
+  }
+  return linhas;
+}
 export function tabela(base, s, d) {
   const linhas = new Map(base.clubes.map((c, i) => i).filter(i => base.clubes[i].div === d).map(i => [i, { clube: i, p: 0, j: 0, v: 0, e: 0, d: 0, gp: 0, gc: 0, ultimos: [] }]));
   const res = (s.res && s.res[d]) || {};
@@ -741,8 +763,7 @@ export function tabela(base, s, d) {
     else { H.e++; A.e++; H.p++; A.p++; H.ultimos.push('E'); A.ultimos.push('E'); }
   }
   for (const [c, p] of Object.entries(s.puni || {})) if (linhas.has(+c)) linhas.get(+c).p -= p; // pontos perdidos no fair play financeiro
-  return [...linhas.values()].map(l => ({ ...l, sg: l.gp - l.gc, ultimos: l.ultimos.slice(-5) }))
-    .sort((x, y) => y.p - x.p || y.v - x.v || y.sg - x.sg || y.gp - x.gp || base.clubes[x.clube].n.localeCompare(base.clubes[y.clube].n));
+  return desempate(base, s, d, [...linhas.values()].map(l => ({ ...l, sg: l.gp - l.gc, ultimos: l.ultimos.slice(-5) })), res);
 }
 
 // o save leva só o necessário (calendário e cache saem)

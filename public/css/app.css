@@ -106,8 +106,8 @@ input[type=text], input[type=password], select {
 .topo-in small { color: var(--barra-texto-2); font-size: .95rem; white-space: nowrap; }
 .topo-in .clube-nome { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .topo-in .estado { font-family: var(--f-pixel); font-size: .8rem; color: var(--barra-texto-2); }
-.topo-in .estado.falhou { color: var(--placar); }
-@media (max-width: 440px) { .topo-in .estado:not(.falhou) { display: none; } }
+.topo-in .estado.falhou, .topo-in .estado.conflito { color: var(--placar); }
+@media (max-width: 440px) { .topo-in .estado:not(.falhou):not(.conflito) { display: none; } }
 .topo-in .botao { background: transparent; color: var(--barra-texto); border-color: var(--barra-borda); box-shadow: none; min-height: 40px; }
 #abas { position: fixed; bottom: 0; left: 0; right: 0; z-index: 5; background: var(--barra); padding-bottom: env(safe-area-inset-bottom); }
 #abas ul { list-style: none; margin: 0 auto; padding: 0; max-width: 980px; display: grid; grid-template-columns: repeat(5, 1fr); }
@@ -334,6 +334,8 @@ tr.z-sul td.pos { border-left-color: var(--gramado); } tr.z-sobe td.pos { border
 .pos-mini { font-family: var(--f-pixel); font-size: .7rem; color: var(--texto-2); }
 
 /* ---------- partida ao vivo ---------- */
+/* jogo ao vivo: puxar a tela para baixo no celular não recarrega a página */
+html:has(.vivo), body:has(.vivo) { overscroll-behavior-y: contain; }
 .vivo { display: flex; flex-direction: column; gap: 12px; }
 .vivo-barra { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
 .tag-comp { font-family: var(--f-pixel); font-size: .8rem; font-weight: 700; text-transform: uppercase; background: var(--placar); color: #1B1F2A; padding: 3px 8px; border-radius: 3px; }
