@@ -9,7 +9,7 @@ const DIVS = ['A', 'B', 'C'];
 const PRIMEIROS = ['Renato', 'Marcelo', 'Paulo', 'Luiz', 'Roberto', 'Sérgio', 'Carlos', 'Márcio', 'Ricardo', 'Fábio', 'Eduardo', 'Jorge', 'Antônio', 'Cláudio', 'Gilson', 'Wagner', 'Adilson', 'Hélio', 'Marcos', 'Celso', 'Dário', 'Osvaldo', 'Nelson', 'Toninho', 'Vadão', 'Joel', 'Zé Carlos', 'Mário', 'Gustavo', 'Rui'];
 const SOBRENOMES = ['Moreira', 'Barros', 'Teixeira', 'Rangel', 'Pacheco', 'Nogueira', 'Fontes', 'Bastos', 'Siqueira', 'Lacerda', 'Prates', 'Valente', 'Medeiros', 'Quintana', 'Arruda', 'Peixoto', 'Brandão', 'Coutinho', 'Furtado', 'Guedes', 'Leitão', 'Mattos', 'Rezende', 'Sampaio', 'Tavares'];
 export const nomeTecnico = r => `${pick(r, PRIMEIROS)} ${pick(r, SOBRENOMES)}`;
-const ULT_PONTOS = { 4: 6, 6: 6, 10: 5, 12: 5, 16: 4 };
+const ULT_PONTOS = { 4: 6, 6: 6, 8: 5, 10: 5, 12: 5, 16: 4, 18: 4 };
 
 export function garantirCarreira(base, s) {
   s.torcida ??= 55;
@@ -112,6 +112,13 @@ function demitir(base, s, motivo, add, pediu = false) {
   s.cargo.st = pediu ? 'saiu' : 'demitido'; s.cargo.ult = null;
   s.ofertas = ofertasPraQuemSai(base, s, ci).map(c => ({ clube: c, tipo: 'demitido', ano: s.ano }));
   add(pediu ? `${s.tecnico.nome} pede demissão e deixa o ${nome}. ${novo} assume.` : `${nome} demite ${s.tecnico.nome}. ${motivo} ${novo} assume o time.`, { imprensa: true });
+}
+// clube caiu para a Série D (fora do jogo): o técnico sai com propostas de quem fica nas séries
+export function saidaPorQueda(base, s) {
+  garantirCarreira(base, s);
+  const N = [];
+  demitir(base, s, 'O clube caiu para a Série D e a diretoria desfez a comissão técnica.', (texto, extra) => N.push({ tipo: 'clube', clube: s.tecnico.clube, texto, ...extra }));
+  s.noticias.unshift(...N.map(n => ({ rodada: 0, div: 'C', ...n })));
 }
 export function pedirDemissao(base, s) {
   garantirCarreira(base, s);

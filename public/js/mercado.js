@@ -2,18 +2,18 @@
 // Propostas e Histórico. Também o bloco de mercado e contrato da ficha do jogador.
 import { janelaAberta, dataRodada, barradoMedo, pagarMedo, multaMedo } from './motor/mundo.js';
 import * as M from './motor/mercado.js';
-import { orcamento, salarioDia, salarioBase } from './motor/financas.js';
+import { orcamento, salarioDia, salarioBase, tetoSalarial } from './motor/financas.js';
 import { faseDe } from './motor/forma.js';
 import { POS_NOME, POS_ORDEM, SETOR, cartaDe, estrelas, fmtDinheiro, CONTINENTES, continenteDe } from './motor/util.js';
 import { urlRosto } from './pixel.js';
-import { dataAmistoso } from './motor/calendario.js';
+import { dataAmistoso, JANELAS, doAno } from './motor/calendario.js';
 
 let H; // { app, clube, esc, imgEscudo, render, salvar, aviso, $ }
 export const configurar = h => { H = h; };
 const S = () => H.app.s, B = () => H.app.base;
 
 const ABAS = [['buscar', 'Buscar'], ['favoritos', 'Favoritos'], ['listas', 'Listas'], ['livres', 'Livres'], ['pre', 'Pré-contrato'], ['olheiros', 'Olheiros'], ['propostas', 'Propostas'], ['historico', 'Histórico']];
-const RAPIDOS = [['bolso', 'Cabem no bolso'], ['barganha', 'Barganhas'], ['jovem', 'Jovens promessas'], ['contrato', 'Contrato acabando']];
+const RAPIDOS = [['teto', 'Cabem no teto'], ['bolso', 'Cabem no bolso'], ['barganha', 'Barganhas'], ['jovem', 'Jovens promessas'], ['contrato', 'Contrato acabando']];
 const DIVS = [['A', 'Série A'], ['B', 'Série B'], ['C', 'Série C'], ['X', 'Exterior']];
 const GRUPOS = [['', 'Todos'], ['GOL', 'GOL'], ['DEF', 'DEF'], ['MEI', 'MEI'], ['ATA', 'ATA']];
 const SITUACOES = [['todos', 'Todos'], ['favoritos', 'Favoritos'], ['livres', 'Livres'], ['pre', 'Pré-contrato'], ['venda', 'Lista de transferências'], ['emprestimo', 'Lista de empréstimo'], ['fim', 'Contrato no fim']];
@@ -41,7 +41,7 @@ const filtrosAtivos = f => (!H.app.sitFixa && f.sit !== 'todos') + (f.pos.length
 // ---------- busca ----------
 const ligaDe = c => c.div === 'X' ? c.liga : `Série ${c.div}`;
 function filtrar(f = filtro(), sit = H.app.sitFixa || f.sit) {
-  const s = S(), b = B(), meu = s.tecnico.clube, L = M.listasIA(b, s), o = orcamento(b, s), divMeu = b.clubes[meu].div, q = norm(f.q), ligas = f.ligas || [];
+  const s = S(), b = B(), meu = s.tecnico.clube, L = M.listasIA(b, s), o = orcamento(b, s), divMeu = b.clubes[meu].div, q = norm(f.q), ligas = f.ligas || [], teto = tetoSalarial(b, s).teto;
   const out = [];
   for (const j of b.jog.values()) {
     if (j.clube === meu) continue;
@@ -63,6 +63,7 @@ function filtrar(f = filtro(), sit = H.app.sitFixa || f.sit) {
     if (q && !norm(j.nome + ' ' + c.n).includes(q)) continue;
     if (f.rapido === 'bolso' && (M.precoPedido(b, s, j) > o.compras || Math.max(sal, salarioBase(divMeu, j.valor)) > o.folga)) continue;
     if (f.rapido === 'barganha' && !(livre || M.precoPedido(b, s, j) <= valor * 0.75)) continue;
+    if (f.rapido === 'teto' && Math.max(sal, salarioBase(divMeu, j.valor)) * 1.1 > teto) continue; // estimativa do que ele pediria
     out.push(j);
   }
   const ord = { ovr: (a, b2) => b2.ovr - a.ovr, 'valor-': (a, b2) => b2.valor - a.valor, 'valor+': (a, b2) => a.valor - b2.valor || b2.ovr - a.ovr, idade: (a, b2) => a.idade - b2.idade || b2.ovr - a.ovr, sal: (a, b2) => salarioDia(b, s, b2) - salarioDia(b, s, a), nome: (a, b2) => a.curto.localeCompare(b2.curto) }[f.ord] || ((a, b2) => b2.ovr - a.ovr);
@@ -79,11 +80,14 @@ function linha(j, extra = '') {
 const lista = (js, vazio, extra) => js.length ? `<ul class="lista-mercado">${js.map(j => linha(j, extra?.(j))).join('')}</ul>` : `<section class="cartao"><p class="mudo">${vazio}</p></section>`;
 const chips = (rot, itens, acao, ativo, extra = '') => `<div class="chips" role="group" aria-label="${rot}">${itens.map(([k, t]) => `<button type="button" class="chip" data-acao="${acao}" data-v="${k}" aria-pressed="${ativo(k)}" ${extra}>${t}</button>`).join('')}</div>`;
 
+// janelas reais (5/jan a 3/mar e 20/jul a 11/set): quanto falta para fechar ou abrir, contando de hoje (último jogo do calendário)
 function janelaInfo(s) {
-  // pré-temporada e regionais: aberta até a estreia no Brasileirão
-  if (s.rodada === 0) { const d = dataRodada(s.ano, 2), hoje = s.ultimaData ?? +dataAmistoso(s.ano, 0); return { aberta: true, dias: Math.max(0, Math.round((d - hoje) / 864e5)), data: d }; }
-  const aberta = janelaAberta(s.ano, s.rodada), hoje = dataRodada(s.ano, Math.min(s.rodada, 37));
-  for (let r = s.rodada + 1; r <= 37; r++) if (janelaAberta(s.ano, r) !== aberta) { const d = dataRodada(s.ano, r); return { aberta, dias: Math.round((d - hoje) / 864e5), data: d }; }
+  const aberta = janelaAberta(s.ano, s.rodada), hoje = s.ultimaData ?? +dataAmistoso(s.ano, 0);
+  for (const [a, b] of JANELAS) {
+    const ini = doAno(s.ano, a), fim = doAno(s.ano, b);
+    if (aberta && +fim >= hoje) return { aberta, dias: Math.max(0, Math.round((fim - hoje) / 864e5)), data: fim };
+    if (!aberta && +ini > hoje) return { aberta, dias: Math.round((ini - hoje) / 864e5), data: ini };
+  }
   return { aberta, dias: null };
 }
 const ddmm = d => `${String(d.getUTCDate()).padStart(2, '0')}/${String(d.getUTCMonth() + 1).padStart(2, '0')}`;
@@ -291,7 +295,8 @@ export function blocoFicha(j) {
           <label>Jogador na troca <select name="troca"><option value="">Sem troca</option>${b.elencos[s.tecnico.clube].filter(t => !s.emprestimos[t.id] && !M.travado(s, t.id) && !M.preContratoDe(s, t.id)).sort((x, y) => y.ovr - x.ovr).map(t => `<option value="${t.id}" data-v="${M.valorNaTroca(b, s, t, j.clube)}">${H.esc(t.curto)} · ${t.pos} ${t.ovr} · abate ~${fmtDinheiro(M.valorNaTroca(b, s, t, j.clube))}</option>`).join('')}</select></label></div>` : ''}
         <div class="campos-2 nao-emprestimo"><label>Salário por dia (€) <input type="number" name="salario" inputmode="numeric" min="10" step="10" value="${pede}"></label>${anosSelect('anos')}</div>
         ${tipos.includes('emprestimo') ? formEmprestimo(j) : ''}${promessa}
-        <p class="mudo" style="font-size:.95rem">Ele deve pedir perto de ${euro(pede)}/dia. Folga na sua folha: ${euro(M.folgaPara(b, s, j))}/dia.${tipos.includes('pre') ? ` Pré-contrato: chega em janeiro de ${s.ano + 1}, sem pagar nada ao clube.` : ''}</p>
+        ${pede > tetoSalarial(b, s).teto ? `<p class="erro" style="font-size:.95rem">Ele deve pedir acima do teto salarial da diretoria (${euro(tetoSalarial(b, s).teto)}/dia). Só com empréstimo em que o outro clube paga parte do salário.</p>` : ''}
+        <p class="mudo" style="font-size:.95rem">Ele deve pedir perto de ${euro(pede)}/dia. Teto da diretoria: ${euro(tetoSalarial(b, s).teto)}/dia por jogador. Folga na sua folha: ${euro(M.folgaPara(b, s, j))}/dia.${tipos.includes('pre') ? ` Pré-contrato: chega em janeiro de ${s.ano + 1}, sem pagar nada ao clube.` : ''}</p>
         <p class="erro" role="alert">${geral ? H.esc(geral) : ''}</p><button class="botao" type="submit">Enviar proposta</button></form>`}
     ${rel ? `<p>Relatório do olheiro: ${potencialTxt(j)}</p>` : ''}${olheiro}</section>`;
 }

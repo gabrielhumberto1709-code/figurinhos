@@ -1,5 +1,5 @@
 // Interface do Figurinhos: telas, navegação por hash e saves na nuvem.
-import { Base, novoJogo, iniciarRodada, concluirRodada, iniciarCopa, concluirCopa, iniciarCont, concluirCont, iniciarSup, concluirSup, iniciarReg, concluirReg, iniciarAmistoso, concluirAmistoso, proximoEvento, copaSemVoce, tabela, rodadasDe, escalacao, paraSalvar, resumo, REPUTACOES, DIFICULDADES, dataRodada, janelaAberta, caixaInicial, aplicarSave, compProxima, longevo, previa, barradoMedo, multaMedo } from './motor/mundo.js';
+import { Base, novoJogo, iniciarRodada, concluirRodada, iniciarCopa, concluirCopa, iniciarCont, concluirCont, iniciarSup, concluirSup, iniciarReg, concluirReg, iniciarAmistoso, concluirAmistoso, iniciarLiga2, concluirLiga2, proximoEvento, pendentes, mundoAte, copaSemVoce, tabela, rodadasDe, feitas, acessoEQueda, escalacao, paraSalvar, resumo, REPUTACOES, DIFICULDADES, dataRodada, janelaAberta, caixaInicial, aplicarSave, compProxima, longevo, previa, barradoMedo, multaMedo } from './motor/mundo.js';
 import { LESOES, COMP_DE, indisponivel, pendurado } from './motor/dm.js';
 import { garantirCarreira, pilares, aceitarOferta, recusarOferta, pedirDemissao } from './motor/carreira.js';
 import { virarTemporada, fimDeTemporada } from './motor/temporada.js';
@@ -7,7 +7,7 @@ import { campanha } from './motor/copa.js';
 import { F_MATA, tabelaGrupo } from './motor/continental.js';
 import { REGIONAIS, fasesReg, tabelaReg } from './motor/regionais.js';
 import * as Torneios from './torneios.js';
-import { garantirFinancas, orcamento, socorro, metaDiretoria, balanco, bilheteria, pedirVerba, dicasFinanceiras, fairPlay, registroBloqueado, LIMITE_FPF, ANO_FPF, PRECOS, NOME_PRECO } from './motor/financas.js';
+import { garantirFinancas, orcamento, socorro, metaDiretoria, balanco, bilheteria, pedirVerba, dicasFinanceiras, fairPlay, registroBloqueado, tetoSalarial, LIMITE_FPF, ANO_FPF, PRECOS, NOME_PRECO } from './motor/financas.js';
 import { garantirMercado } from './motor/mercado.js';
 import * as Mercado from './mercado.js';
 import * as AoVivo from './aovivo.js';
@@ -131,7 +131,7 @@ function figurinha(j, extra = '', estatica = false, rendeNaVaga = null) {
 // posição de cada lado no ingresso, na competição do jogo (liga, grupo continental, regional); mata-mata não tem
 function posicaoNoJogo(ev, ci) {
   const s = app.s;
-  if (ev.tipo === 'liga') return s.rodada ? posicaoNaTabela(ci) : null;
+  if (ev.tipo === 'liga') return feitas(s, ev.d) ? posicaoNaTabela(ci) : null;
   if (ev.tipo === 'cont' && ev.fase < F_MATA && ev.fase > 0) { const T = s.cont[ev.k], g = T.grupos.findIndex(x => x.includes(ci)); return g < 0 ? null : tabelaGrupo(T, g).findIndex(l => l.clube === ci) + 1; }
   if (ev.tipo === 'reg') {
     const T = s.reg[ev.k], F = fasesReg(ev.k)[ev.fase], E = F && F.e != null && T.etapas[F.e];
@@ -178,7 +178,7 @@ function desenhaTopo() {
   const s = app.s, ci = s.tecnico.clube;
   const estado = { salvando: 'Salvando…', salvo: 'Salvo', falhou: 'Não salvou · tentar', conflito: 'Conflito · resolver' }[app.salvando] || '';
   topo.innerHTML = `<div class="topo-in">${imgEscudo(ci, 36, 39)}
-    <div class="info"><div class="clube-nome">${esc(clube(ci).n)}</div><small>Série ${clube(ci).div} · ${s.rodada ? `Rodada ${Math.min(s.rodada + 1, 38)} · ${posicaoNaTabela(ci)}º` : proximoEvento(app.base, s)?.tipo === 'liga' ? 'Rodada 1' : 'Pré-temporada'}</small></div>
+    <div class="info"><div class="clube-nome">${esc(clube(ci).n)}</div><small>${(d => { const k = feitas(s, d); return `Série ${d} · ${k ? `Rodada ${Math.min(k + 1, { C: 19 }[d] || 38)} · ${posicaoNaTabela(ci)}º` : proximoEvento(app.base, s)?.tipo === 'liga' ? 'Rodada 1' : 'Pré-temporada'}`; })(clube(ci).div)}</small></div>
     <button class="estado ${app.salvando}" data-acao="salvar" type="button" ${['falhou', 'conflito'].includes(app.salvando) ? '' : 'tabindex="-1"'} style="background:none;border:0;cursor:pointer">${estado}</button>
     ${botaoTema('botao peq')}<button class="botao peq" data-acao="menu" type="button">Sair</button></div>`;
   const pend = (s.recebidas || []).length + (s.propostas || []).filter(p => p.estado === 'contraproposta').length;
@@ -348,7 +348,7 @@ function demitidoHtml() {
 telas.clube = () => {
   const s = app.s, ci = s.tecnico.clube, c = clube(ci), d = c.div;
   garantirCarreira(app.base, s);
-  const ev = proximoEvento(app.base, s), fim = !ev;
+  const ev = proximoEvento(app.base, s), fim = !ev && fimDeTemporada(s), espera = !ev && !fim && pendentes(app.base, s)[0];
   const jogo = ev && [ev.h, ev.a];
   const tab = tabela(app.base, s, d), pos = tab.findIndex(l => l.clube === ci);
   const viz = tab.slice(Math.max(0, Math.min(pos - 2, tab.length - 5)), Math.max(5, pos + 3)).map(l => ({ ...l, n: tab.indexOf(l) + 1 }));
@@ -356,8 +356,8 @@ telas.clube = () => {
   const acabando = s.rodada >= 19 ? app.base.elencos[ci].filter(j => j.contrato <= s.ano && !s.preContratos?.some(p => p.jogador === j.id) && !s.emprestimos?.[j.id]) : [];
   const lado = ci2 => { const p = posicaoNoJogo(ev, ci2); return `<div class="lado">${imgEscudo(ci2, 64, 69)}<span>${esc(clube(ci2).n)}</span>${p ? `<small>${p}º</small>` : ''}</div>`; };
   return `<div class="status-clube"><span title="Dinheiro em caixa"><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">${ICONES.moeda}</svg>${fmtDinheiro(s.caixa ?? 0)}</span>
-      <span>${s.rodada ? `${pos + 1}º na Série ${d}` : `Série ${d}`}</span><span class="${janela ? 'aberta' : ''}">${janela ? 'Janela aberta' : 'Janela fechada'}</span>${cargoChip()}</div>
-    ${s.demitido ? demitidoHtml() : fim ? `<section class="cartao escuro fim-temporada"><h2>Fim da temporada ${s.ano}</h2><p>${esc(c.n)} terminou em <b>${pos + 1}º</b> na Série ${d}${pos < 4 && d !== 'A' ? ' e <b>subiu</b>' : pos >= 16 && d !== 'C' ? ' e <b>caiu</b>' : ''}. Campeão: <b>${esc(clube(tab[0].clube).n)}</b>.${s.copa?.campeao != null ? ` Copa do Brasil: <b>${esc(clube(s.copa.campeao).n)}</b>.` : ''}</p>
+      <span>${feitas(s, d) ? `${pos + 1}º na Série ${d}` : `Série ${d}`}</span><span class="${janela ? 'aberta' : ''}">${janela ? 'Janela aberta' : 'Janela fechada'}</span>${cargoChip()}</div>
+    ${s.demitido ? demitidoHtml() : espera ? esperaHtml(espera) : fim ? `<section class="cartao escuro fim-temporada"><h2>Fim da temporada ${s.ano}</h2>${(Q => { const p = Q.cl[d].indexOf(ci) + 1, subiu = Q.sobe.B.includes(ci) || Q.sobe.C.includes(ci), caiu = [...Q.cai.A, ...Q.cai.B, ...Q.cai.C].includes(ci); return `<p>${esc(c.n)} terminou em <b>${p}º</b> na Série ${d}${subiu ? ' e <b>subiu</b>' : caiu ? ' e <b>caiu</b>' : ''}. Campeão: <b>${esc(clube(d === 'C' ? (s.f2?.C?.campeao ?? Q.cl.C[0]) : tab[0].clube).n)}</b>.${s.copa?.campeao != null ? ` Copa do Brasil: <b>${esc(clube(s.copa.campeao).n)}</b>.` : ''}</p>`; })(acessoEQueda(app.base, s))}
       ${acabando.length ? `<p style="color:var(--placar)">Saem por fim de contrato: ${acabando.map(j => esc(j.curto)).join(', ')}. Ainda dá para renovar na ficha de cada um.</p>` : ''}
       <div class="linha-botoes"><a class="botao sec" href="#/gala">Premiação de gala</a><button class="botao grande" type="button" data-acao="virar">Começar a temporada ${s.ano + 1}</button></div></section>`
     : `<section class="ingresso ${ev.tipo !== 'liga' ? 'copa' : ''}" style="--cc:${c.c[0]};--cc2:${c.c[1] || '#fff'}">
@@ -368,7 +368,7 @@ telas.clube = () => {
         ${(p => `<span class="previa" title="Chance pelo que os elencos rendem hoje"><b>V ${p.vitoria}%</b><b>E ${p.empate}%</b><b>D ${p.derrota}%</b></span>`)(previa(app.base, s, ev))}
         ${ev.tipo === 'amistoso' ? '' : `<span class="retro-ingresso">${esc(textoConfronto(confronto(s, ci, jogo[0] === ci ? jogo[1] : jogo[0])))}</span>`}
         <button class="botao grande" data-acao="jogar" type="button">${s.vivo ? `Retomar o jogo (${s.vivo.min}')` : 'Jogar'}</button></div></section>`}
-    ${s.demitido || fim ? '' : prelecaoHtml()}${s.demitido ? '' : desfalques(ci, fim)}${ofertasHtml()}${recados()}
+    ${s.demitido || fim || espera ? '' : prelecaoHtml()}${s.demitido || espera ? '' : desfalques(ci, fim)}${ofertasHtml()}${recados()}
     ${acabando.length && !fim ? `<a class="cartao aviso-contratos" href="#/elenco"><b>${acabando.length} ${acabando.length > 1 ? 'contratos acabam' : 'contrato acaba'} no fim da temporada</b><span>${acabando.slice(0, 5).map(j => esc(j.curto)).join(', ')}${acabando.length > 5 ? '…' : ''}. Quem não renovar sai de graça, e outro clube pode assinar pré-contrato.</span></a>` : ''}
     <nav class="atalhos" aria-label="Atalhos do clube">${ATALHOS.map(([ic, t, href, cor]) => {
       const off = !href || (href === '#/partida' && !s.ultima);
@@ -382,6 +382,14 @@ telas.clube = () => {
       <table><thead><tr><th>#</th><th style="text-align:left">Clube</th><th>P</th><th>J</th><th>SG</th></tr></thead>
       <tbody>${viz.map(l => `<tr class="${l.clube === ci ? 'meu' : ''}"><td class="pos">${l.n}</td><td class="clube-cel"><span>${imgEscudo(l.clube, 20, 22)}${esc(clube(l.clube).n)}</span></td><td class="p">${l.p}</td><td>${l.j}</td><td>${l.sg}</td></tr>`).join('')}</tbody></table></section></div>`;
 };
+
+// sem jogo seu até o fim da temporada (ou por um tempo): o calendário anda até a próxima data, ou até o fim
+function esperaHtml(x) {
+  const dt = new Date(+x.data), dia = `${dt.getUTCDate()} de ${MESES[dt.getUTCMonth()].toLowerCase()}`;
+  return `<section class="cartao escuro fim-temporada"><h2>Sem jogos do ${esc(clube(app.s.tecnico.clube).n)} por agora</h2>
+    <p>O calendário segue sem o seu clube. Próxima data: <b>${dia}</b> · ${esc(x.titulo)}.${janelaAberta(app.s.ano, app.s.rodada) ? ' A janela de transferências está aberta.' : ''}</p>
+    <div class="linha-botoes"><button class="botao sec" type="button" data-acao="avancar-data">Avançar até ${dia}</button><button class="botao grande" type="button" data-acao="avancar-fim">Até o fim da temporada</button></div></section>`;
+}
 
 // ----- finanças -----
 const ROT_FIN = { bilheteria: 'Bilheteria', tv: 'Cota de TV', patrocinio: 'Patrocínio', premio: 'Prêmios', venda: 'Vendas', verba: 'Verba da diretoria', socorro: 'Socorro (adiantamentos)', salarios: 'Salários', compra: 'Compras', rescisao: 'Rescisões', emprestimo: 'Taxas de empréstimo', revenda: 'Percentual de revenda', minutagem: 'Multas de minutagem', medo: 'Cláusula do medo', multa: 'Multas de jogadores', investidor: 'Investidores', calote: 'Calotes', penhora: 'Penhoras', show: 'Shows no estádio', vaquinha: 'Vaquinha da torcida', reembolso: 'Reembolsos de empréstimo' };
@@ -403,7 +411,7 @@ telas.financas = () => {
       <section class="cartao"><p class="total">Resultado da temporada <b class="${soma(rec) + soma(desp) < 0 ? 'neg' : 'pos'}">${fmtDinheiro(soma(rec) + soma(desp))}</b></p></section>
       <section class="cartao"><h3>Dicas do diretor financeiro</h3><ul class="dicas">${dicasFinanceiras(app.base, s).map(d => `<li>${esc(d)}</li>`).join('')}</ul></section>`;
   }
-  const jogo = s.rodada < 38 ? rodadasDe(app.base, s, c.div)[s.rodada].find(([h, a]) => h === ci || a === ci) : null;
+  const jogo = rodadasDe(app.base, s, c.div)[feitas(s, c.div)]?.find(([h, a]) => h === ci || a === ci) || null;
   const tab = tabela(app.base, s, c.div), l = tab.find(x => x.clube === ci), pos = tab.indexOf(l) + 1;
   const advCasa = jogo && jogo[0] === ci ? jogo[1] : null;
   const prev = nivel => bilheteria(app.base, s, ci, advCasa ?? ci, l.ultimos, pos, nivel);
@@ -413,6 +421,7 @@ telas.financas = () => {
     ${(fp => `<section class="cartao aviso-fin ${fp.razao > LIMITE_FPF || fp.divida ? 'nao' : 'ok'}"><p><b>Fair play financeiro:</b> custo do elenco em <b>${Math.round(fp.razao * 100)}%</b> da receita (teto da CBF: 70%${s.ano < ANO_FPF ? `, punição a partir de ${ANO_FPF}` : ''}).${fp.divida ? ' Salário atrasado é dívida com credor relevante: a CBF pune na hora.' : ''}${registroBloqueado(s) ? ` Registro de jogadores bloqueado até a ${registroBloqueado(s) + 1}ª rodada.` : ''}${s.fpf?.degrau ? ` Situação na CBF: ${['', 'plano de correção', 'multado', 'registro bloqueado', 'perda de pontos'][s.fpf.degrau]}.` : ''}</p></section>`)(fairPlay(app.base, s))}
     <section class="cartao"><div class="titulo-linha"><h3>Diretoria</h3><span class="conf"><b class="num">${Math.round(f.diretoria)}</b>/100 de confiança</span></div>
       <p>Meta: <b>${meta.txt}</b>. ${s.rodada ? `Hoje: ${pos}º.` : ''}</p>
+      ${(T => `<p>Teto salarial: <b>€ ${T.teto.toLocaleString("pt-BR")}/dia</b> por jogador em contrato novo.${T.partes.length ? ` <span class="mudo">(${T.partes.map(([t, p]) => `${t} ${p > 0 ? '+' : ''}${p}%`).join(' · ')})</span>` : ''}</p><p class="mudo" style="font-size:.95rem">A diretoria sobe o teto com Libertadores ou Sul-Americana, campanha na Copa do Brasil, título regional e confiança alta; recém-promovido recebe menos. Quem já ganha acima continua, mas não renova nem ganha aumento acima do teto.</p>`)(tetoSalarial(app.base, s))}
       <div class="linha-botoes"><button class="botao sec" type="button" data-acao="pedir-verba">Pedir verba</button></div></section>
     <section class="cartao"><div class="titulo-linha"><h3>Salários × compras</h3></div>
       <div class="barra-orc"><div class="orc-sal" style="width:${Math.max(8, Math.min(92, 100 - (o.compras / Math.max(1, o.compras + o.salarios * o.dias)) * 100))}%"></div></div>
@@ -561,7 +570,7 @@ function concluirAoVivo() {
   const V = app.vivo; if (!V) return;
   delete app.s.vivo;
   if (!V.fim) AoVivo.pular(V);
-  (V.R.amistoso ? concluirAmistoso : V.R.copa ? concluirCopa : V.R.cont ? concluirCont : V.R.reg ? concluirReg : V.R.sup ? concluirSup : concluirRodada)(app.base, app.s, V.R, AoVivo.resultadoFinal(V));
+  (V.R.amistoso ? concluirAmistoso : V.R.copa ? concluirCopa : V.R.cont ? concluirCont : V.R.reg ? concluirReg : V.R.sup ? concluirSup : V.R.liga2 ? concluirLiga2 : concluirRodada)(app.base, app.s, V.R, AoVivo.resultadoFinal(V));
   app.vivo = null;
   salvar();
 }
@@ -571,10 +580,13 @@ const umQuadro = () => new Promise(r => requestAnimationFrame(() => setTimeout(r
 async function comecarJogo() {
   const bt = $('[data-acao=jogar]'); if (bt) { bt.disabled = true; bt.textContent = 'Simulando os outros jogos…'; }
   await umQuadro();
-  const ev = proximoEvento(app.base, app.s), b = app.base, s = app.s;
-  const R = ev?.tipo === 'amistoso' ? iniciarAmistoso(b, s) : ev?.tipo === 'copa' ? iniciarCopa(b, s) : ev?.tipo === 'cont' ? iniciarCont(b, s, ev.k) : ev?.tipo === 'reg' ? iniciarReg(b, s, ev.k) : ev?.tipo === 'sup' ? iniciarSup(b, s) : iniciarRodada(b, s);
+  const b = app.base, s = app.s, antes = proximoEvento(b, s);
+  if (!antes) return;
+  mundoAte(b, s, antes.data); // o que acontece antes (e no mesmo dia, sem você) anda primeiro
+  const ev = proximoEvento(b, s);
+  const R = ev?.tipo === 'amistoso' ? iniciarAmistoso(b, s) : ev?.tipo === 'copa' ? iniciarCopa(b, s) : ev?.tipo === 'cont' ? iniciarCont(b, s, ev.k) : ev?.tipo === 'reg' ? iniciarReg(b, s, ev.k) : ev?.tipo === 'sup' ? iniciarSup(b, s) : ev?.tipo === 'liga2' ? iniciarLiga2(b, s, ev.d) : iniciarRodada(b, s, ev?.d);
   if (!R) return;
-  if (!R.meu) { concluirRodada(app.base, app.s, R, null); salvar(); ir('#/clube'); return render(); }
+  if (!R.meu) { salvar(); ir('#/clube'); return render(); }
   app.vivo = AoVivo.novaPartidaAoVivo(R, app.s.vivo);
   if (app.vivo.min) aviso(`Jogo retomado no minuto ${app.vivo.min}. Toque em Seguir.`);
   ir('#/ao-vivo');
@@ -678,6 +690,8 @@ const acoes = {
   // Continuar: depois do jogo oficial vem a coletiva pós-jogo
   'vivo-fim': () => { concluirAoVivo(); const u = app.s.ultima; if (u && u.div !== 'AMI') { app.colPre = false; ir('#/coletiva'); } else ir('#/partida'); },
   'em-breve': el => aviso(`${el.dataset.t} chega numa próxima atualização.`),
+  'avancar-data': async el => { el.disabled = true; el.textContent = 'Simulando…'; await umQuadro(); const x = pendentes(app.base, app.s)[0]; if (x) mundoAte(app.base, app.s, x.data); render(); salvar(); },
+  'avancar-fim': async el => { el.disabled = true; el.textContent = 'Simulando o resto da temporada…'; await umQuadro(); for (let x; !proximoEvento(app.base, app.s) && (x = pendentes(app.base, app.s)[0]);) mundoAte(app.base, app.s, x.data); render(); salvar(); },
   'aba-fin': el => { app.abaFin = el.dataset.a; render(); },
   ingresso: el => { app.s.fin.ingresso = el.dataset.p; render(); salvar(); },
   'pedir-verba': () => { const s = app.s, c = clube(s.tecnico.clube), tab = tabela(app.base, s, c.div); const r = pedirVerba(app.base, s, tab.findIndex(l => l.clube === s.tecnico.clube) + 1); aviso(r.txt); render(); salvar(); },

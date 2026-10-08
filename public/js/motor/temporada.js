@@ -1,7 +1,9 @@
 // Virada de temporada: histórico, acesso e rebaixamento (4 sobem, 4 caem), contratos que acabam, empréstimos que
 // voltam, pré-contratos que se cumprem, aposentadorias, garotos da base e a Copa do Brasil do ano novo.
 import { rng, pick, clamp, PERFIL } from './util.js';
-import { tabela, aplicarSave, caixaInicial } from './mundo.js';
+import { tabela, aplicarSave, caixaInicial, acessoEQueda } from './mundo.js';
+import { FASES_CONT } from './continental.js';
+import { saidaPorQueda } from './carreira.js';
 import { FASES, novaCopa, campanha } from './copa.js';
 import { metaDiretoria, folhaDia, lancar, cotaTV, garantirFinancas, fairPlay, punirFPF, LIMITE_FPF, ANO_FPF, ANO_EQUILIBRIO } from './financas.js';
 import { garantirMercado, cumprirAcordos, fimDosEmprestimos } from './mercado.js';
@@ -14,7 +16,10 @@ import { enviar } from './correio.js';
 import { estrelas } from './util.js';
 
 const DIVS = ['A', 'B', 'C'];
-export const fimDeTemporada = s => s.rodada >= 38 && !(s.copa && s.copa.fase < FASES.length);
+// a temporada acaba com tudo jogado: Série A (relógio), B e C com a segunda fase, Copa do Brasil e as continentais
+const feito2 = (s, d, n) => s.f2?.[d]?.ano === s.ano && s.f2[d].i >= n;
+export const fimDeTemporada = s => s.rodada >= 38 && (s.feitas?.B ?? 38) >= 38 && (s.feitas?.C ?? 19) >= 19 && feito2(s, 'B', 2) && feito2(s, 'C', 8)
+  && !(s.copa && s.copa.fase < FASES.length) && ['LIB', 'SUL'].every(k => !s.cont?.[k] || s.cont.ano !== s.ano || s.cont[k].fase >= FASES_CONT.length);
 
 // ---------- garotos da base ----------
 const NOMES = ['Kauã', 'Gabriel', 'Davi', 'Pedro', 'Enzo', 'Arthur', 'Miguel', 'Heitor', 'Bernardo', 'Théo', 'Ryan', 'Kaique', 'Luan', 'Vitor', 'Igor', 'Caio', 'Rafael', 'Matheus', 'João', 'Lucas', 'Wesley', 'Yuri', 'Murilo', 'Thiago', 'Samuel', 'Breno', 'Otávio', 'Gustavo', 'Diego', 'Renan', 'Erick', 'Wallace', 'Jhonatan', 'Kelvin', 'Patrick', 'Nicolas', 'Ruan', 'Felipe', 'André', 'Leandro'];
@@ -46,14 +51,26 @@ export function gerarJovens(base, s, r) {
   return rows;
 }
 
+// elenco para quem sobe da Série D: 26 jogadores perto do nível de Série C (ids próprios, entram como "jovens" no save)
+function elencoDeAcesso(base, s, ci, r) {
+  const rows = [], usados = new Set(base.elencos[ci].map(j => j.num)), POS = Object.entries(IDEAL).flatMap(([p, n]) => Array(n).fill(p));
+  POS.forEach((pos, k) => {
+    const idade = 19 + Math.floor(r() * 14), ovr = clamp(Math.round(49 + (r() + r() + r() - 1.5) * 6), 40, 60), pot = clamp(Math.round(ovr + (idade <= 22 ? 4 + r() * 10 : r() * 3)), ovr, 75);
+    const nome = pick(r, NOMES), sob = pick(r, SOBRENOMES), curto = r() < 0.5 ? nome : sob;
+    let num = pos === 'GOL' ? 1 : 2; while (usados.has(num)) num++; usados.add(num);
+    rows.push([-(5e8 + (s.ano % 1000) * 1e5 + ci * 40 + k), `${nome} ${sob}`, curto, ci, pos, idade, 'BRA', ovr, Math.round(150 * 1.16 ** (ovr - 50)), s.ano + 1 + Math.floor(r() * 3), pot, PERFIL[pos].map(dlt => clamp(Math.round(ovr + dlt + (r() - 0.5) * 8), 20, 99)), rostoNovo(r), num, s.ano]);
+  });
+  return rows;
+}
+
 // ---------- virada ----------
 export function virarTemporada(base, s) {
   if (!fimDeTemporada(s)) return null;
   garantirMercado(s); garantirFinancas(base, s);
   const ci = s.tecnico.clube, div = base.clubes[ci].div, nome = c => base.clubes[c].n, N = [];
   const add = (texto, tipo = 'clube') => N.push({ rodada: 0, tipo, div: base.clubes[ci].div, texto });
-  const tabs = Object.fromEntries(DIVS.map(d => [d, tabela(base, s, d)]));
-  const pos = tabs[div].findIndex(l => l.clube === ci) + 1, meta = metaDiretoria(base, s);
+  const tabs = Object.fromEntries(DIVS.map(d => [d, tabela(base, s, d)])), AQ = acessoEQueda(base, s);
+  const pos = AQ.cl[div].indexOf(ci) + 1, meta = metaDiretoria(base, s);
   // fair play financeiro fecha o ano: custo do elenco acima de 70% (a partir de 2029) ou temporada no vermelho (2028+)
   const fp = fairPlay(base, s), fpN = [];
   s.puni = {}; // pontos perdidos valem só na temporada da punição (a tabela deste ano já foi fechada acima)
@@ -66,27 +83,31 @@ export function virarTemporada(base, s) {
   s.histJog ||= {};
   for (const [id, e] of Object.entries(s.est || {})) { const j = base.jog.get(+id); if (j && e[0]) (s.histJog[id] ||= []).push([s.ano, j.clube, e[0], e[1], e[2], Math.round(e[3] / e[0])]); }
   const artilheiro = d => { const t = Object.entries(s.est).map(([id, e]) => [base.jog.get(+id), e[1]]).filter(([j, g]) => j && g && base.clubes[j.clube].div === d).sort((a, b) => b[1] - a[1])[0]; return t ? { id: t[0].id, nome: t[0].curto, clube: t[0].clube, gols: t[1] } : null; };
-  const sobe = { B: tabs.B.slice(0, 4).map(l => l.clube), C: tabs.C.slice(0, 4).map(l => l.clube) }, cai = { A: tabs.A.slice(16).map(l => l.clube), B: tabs.B.slice(16).map(l => l.clube) };
+  const { sobe, cai } = AQ;
+  // Série D: os 2 últimos da C saem do jogo (viram clube de estadual) e sobem os 2 clubes de estadual mais fortes
+  const doD = base.clubes.map((c, i) => i).filter(i => base.clubes[i].div === 'R').sort((a, b) => (base.clubes[b].lvl || 0) - (base.clubes[a].lvl || 0) || a - b).slice(0, cai.C.length);
   s.historico ||= [];
   s.historico.unshift({
-    ano: s.ano, clube: ci, div, pos, pts: tabs[div][pos - 1].p, meta: meta.txt, bateuMeta: pos <= meta.pos,
-    campeoes: Object.fromEntries(DIVS.map(d => [d, tabs[d][0].clube])), art: Object.fromEntries(DIVS.map(d => [d, artilheiro(d)])),
+    ano: s.ano, clube: ci, div, pos, pts: tabs[div].find(l => l.clube === ci)?.p ?? 0, meta: meta.txt, bateuMeta: pos <= meta.pos,
+    campeoes: { A: tabs.A[0].clube, B: tabs.B[0].clube, C: s.f2?.C?.campeao ?? AQ.cl.C[0] }, art: Object.fromEntries(DIVS.map(d => [d, artilheiro(d)])),
     copa: s.copa ? { campeao: s.copa.campeao, vice: s.copa.vice, meu: campanha(s, ci) } : null,
     cont: s.cont ? { LIB: s.cont.LIB.campeao, SUL: s.cont.SUL.campeao, sup: s.cont.sup.jogo?.campeao ?? null, meu: ['LIB', 'SUL'].map(k => campanhaCont(s, k, ci) && `${k === 'LIB' ? 'Libertadores' : 'Sul-Americana'}: ${campanhaCont(s, k, ci).toLowerCase()}`).find(Boolean) || null } : null,
     reg: s.reg?.v === 2 && s.reg.ano === s.ano && !s.reg.pulado ? { campeoes: Object.fromEntries(Object.keys(REGIONAIS).map(k => [k, s.reg[k].campeao])), titulos: Object.values(s.reg).flatMap(T => Object.entries(T?.titulos || {})), meu: regsDe(s, ci).map(k => `${REGIONAIS[k].nome}: ${campanhaReg(s, k, ci).toLowerCase()}`) } : null,
-    sobem: { A: sobe.B, B: sobe.C }, caem: { B: cai.A, C: cai.B },
+    sobem: { A: sobe.B, B: sobe.C, C: doD }, caem: { B: cai.A, C: cai.B, D: cai.C }, repasses: s.repasses || [],
   });
   const f = s.fin;
   f.diretoria = clamp(f.diretoria + (pos <= meta.pos ? 10 : -12) + (s.copa?.campeao === ci ? 8 : 0), 0, 100);
   add(pos <= meta.pos ? `A diretoria comemora: meta da temporada cumprida (${meta.txt}).` : `A diretoria cobra: a meta era ${meta.txt} e o time terminou em ${pos}º.`);
 
-  // vagas da próxima temporada: tabela final da Série A e o campeão da Copa do Brasil
-  s.classif = { A: tabs.A.map(l => l.clube), copa: s.copa?.campeao ?? null };
+  // vagas da próxima temporada: tabela final da Série A, campeão e vice da Copa do Brasil e campeões continentais
+  // (quem já está classificado repassa a vaga ao próximo da tabela: continental.js vagasBR)
+  s.classif = { A: tabs.A.map(l => l.clube), copa: s.copa?.campeao ?? null, copaVice: s.copa?.vice ?? null, lib: s.cont?.LIB?.campeao ?? null, sul: s.cont?.SUL?.campeao ?? null };
   // acesso e rebaixamento
   s.divs ||= {};
-  for (const [lista, d] of [[cai.A, 'B'], [sobe.B, 'A'], [cai.B, 'C'], [sobe.C, 'B']]) for (const c of lista) { if (base.clubes[c].divOrig === d) delete s.divs[c]; else s.divs[c] = d; }
+  for (const [lista, d] of [[cai.A, 'B'], [sobe.B, 'A'], [cai.B, 'C'], [sobe.C, 'B'], [cai.C, 'R'], [doD, 'C']]) for (const c of lista) { if (base.clubes[c].divOrig === d) delete s.divs[c]; else s.divs[c] = d; }
   if (sobe.B.includes(ci) || sobe.C.includes(ci)) add(`ACESSO! O ${nome(ci)} vai disputar a Série ${sobe.B.includes(ci) ? 'A' : 'B'} em ${s.ano + 1}.`, 'destaque');
   if (cai.A.includes(ci) || cai.B.includes(ci)) add(`Rebaixado. O ${nome(ci)} cai para a Série ${cai.A.includes(ci) ? 'B' : 'C'}.`, 'crise');
+  const caiuParaD = cai.C.includes(ci);
 
   // empréstimos voltam (antes, as cláusulas de fim de temporada) e pré-contratos se cumprem
   fimDosEmprestimos(base, s, [...cai.A, ...cai.B], t => add(t));
@@ -128,7 +149,9 @@ export function virarTemporada(base, s) {
   for (const [id, o] of antes) { const j = base.jog.get(id); if (j.fora) add(`${j.curto} se aposentou aos ${j.idade} anos.`); else if (j.ovr >= o + 4) add(`${j.curto} evoluiu na pré-temporada: agora tem ${j.ovr} de overall.`); }
   for (const id of craques) { const j = base.jog.get(id); if (j.fora && !antes.has(id)) add(`${j.curto} anuncia a aposentadoria.`, 'destaque'); }
   const jovens = gerarJovens(base, s, rng(`base${s.seed}-${s.ano}`));
-  s.jovens = [...(s.jovens || []), ...jovens];
+  // quem sobe da Série D chega com elenco montado (no jogo eles só tinham o time gerado dos estaduais)
+  const doDRows = doD.flatMap(c => elencoDeAcesso(base, s, c, rng(`acesso${s.seed}-${s.ano}-${c}`)));
+  s.jovens = [...(s.jovens || []), ...jovens, ...doDRows];
   aplicarSave(base, s);
   const meus = jovens.filter(r => r[3] === ci);
   if (meus.length) add(`Subiram da base: ${meus.map(r => `${r[2]} (${r[4]}, ${r[5]} anos)`).join(', ')}.`);
@@ -139,7 +162,7 @@ export function virarTemporada(base, s) {
   viradaDM(base, s);
   s.forma = {}; s.afast = {}; s.julgamentos = [];
   for (const id in s.trato || {}) s.trato[id] = Math.trunc(s.trato[id] / 2); // a mágoa diminui com o tempo
-  Object.assign(s, { rodada: 0, res: { A: {}, B: {}, C: {} }, cart: {}, est: {}, ultima: null, lider: {}, rumores: {}, destaques: {}, ultimaData: null, recuperado: null, cond: {}, mor: {}, semJogar: {}, xi: null, banco: null, recebidas: [], preContratos: [] });
+  Object.assign(s, { rodada: 0, feitas: { ano: s.ano, B: 0, C: 0 }, f2: {}, res: { A: {}, B: {}, C: {} }, cart: {}, est: {}, ultima: null, lider: {}, rumores: {}, destaques: {}, ultimaData: null, recuperado: null, cond: {}, mor: {}, semJogar: {}, xi: null, banco: null, recebidas: [], preContratos: [] });
   delete s._cal;
   s.propostas = s.propostas.filter(p => !['aguardando', 'contraproposta'].includes(p.estado)).slice(0, 30);
   s.listas = { venda: s.listas.venda.filter(id => base.jog.get(id)?.clube === ci), emprestimo: s.listas.emprestimo.filter(id => base.jog.get(id)?.clube === ci) };
@@ -161,6 +184,8 @@ export function virarTemporada(base, s) {
   for (const n of premiacao) N.push({ rodada: 0, ...n });
   const h = s.historico[0];
   add(`Começa a temporada ${s.ano}. Sobem para a Série A: ${h.sobem.A.map(nome).join(', ')}. Caem para a B: ${h.caem.B.map(nome).join(', ')}.`, 'resultado');
+  for (const r of s.repasses || []) add(`Vaga repassada: o ${nome(r.de)} já estava na Libertadores pela tabela e a vaga de ${r.por} ficou com o ${nome(r.clube)} (${r.pos}º da Série A).`, 'resultado');
+  if (caiuParaD) saidaPorQueda(base, s);
   s.noticias = [...N, ...s.noticias].slice(0, 220);
   return h;
 }

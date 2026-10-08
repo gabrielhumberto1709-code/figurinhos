@@ -1,27 +1,28 @@
-// Libertadores e Sul-Americana: 32 clubes em 8 grupos de 4 (turno e returno), como na Conmebol; os 2 primeiros vão
-// às oitavas; oitavas, quartas e semi em ida e volta, com a volta na casa de quem fez mais pontos nos grupos; final
-// única em campo neutro.
+// Libertadores e Sul-Americana 2026: 32 clubes em 8 grupos de 4 (turno e returno). Na Libertadores os 2 primeiros vão
+// às oitavas e o 3º cai para o playoff da Sul-Americana; na Sul-Americana o 1º vai direto às oitavas e o 2º joga o
+// playoff contra um 3º da Libertadores (volta na casa de quem veio da Libertadores). Oitavas, quartas e semi em ida e
+// volta, com a volta na casa da melhor campanha; final única em campo neutro.
 // Em 2026 os grupos são os do sorteio real; depois, sorteio com potes pela força.
 // Supercopa do Brasil: campeão da Série A × campeão da Copa do Brasil, no começo de fevereiro (no meio dos estaduais).
 // Clubes de fora entram com o elenco real completado por jogadores gerados (só existem nesses jogos).
 import { rng, shuffle, pick, clamp, ATT, PERFIL } from './util.js';
 import { melhorTime } from './partida.js';
 import { penaltis } from './copa.js';
-import { APOS_CONT, dataCont as diaCont, dataSup as diaSup } from './calendario.js';
+import { dataCont as diaCont, dataSup as diaSup } from './calendario.js';
 
 export const TORNEIOS = {
   LIB: { nome: 'Libertadores', br: 6, premio: { grupos: 2.5e6, vitoria: 3e5, oit: 1e6, qua: 1.5e6, sem: 2.5e6, fin: 4e6, vice: 0, campeao: 12e6 } },
   SUL: { nome: 'Sul-Americana', br: 6, premio: { grupos: 9e5, vitoria: 1.2e5, oit: 4e5, qua: 6e5, sem: 1e6, fin: 1.5e6, vice: 0, campeao: 5e6 } },
 };
 export const PREMIO_SUP = { campeao: 3e6, vice: 1e6 };
-// 6 rodadas de grupos, mata-mata em ida e volta e final única, na quarta-feira livre depois da rodada "apos" do Brasileirão
+// 6 rodadas de grupos, playoff (só a Sul-Americana joga; a Libertadores pula), mata-mata em ida e volta e final única
 export const FASES_CONT = [
   ...[0, 1, 2, 3, 4, 5].map(i => ({ k: 'g', nome: `Grupos · ${i + 1}ª rodada`, curto: `Grupos ${i + 1}` })),
-  ...[['oit', 'Oitavas de final', 'Oitavas'], ['qua', 'Quartas de final', 'Quartas'], ['sem', 'Semifinal', 'Semi']].flatMap(([k, nome, curto]) => ['ida', 'volta'].map(perna => ({ k, perna, nome: `${nome} · ${perna}`, curto: `${curto} (${perna})` }))),
+  ...[['po', 'Playoff', 'Playoff'], ['oit', 'Oitavas de final', 'Oitavas'], ['qua', 'Quartas de final', 'Quartas'], ['sem', 'Semifinal', 'Semi']].flatMap(([k, nome, curto]) => ['ida', 'volta'].map(perna => ({ k, perna, nome: `${nome} · ${perna}`, curto: `${curto} (${perna})` }))),
   { k: 'fin', nome: 'Final', curto: 'Final' },
-].map((f, i) => ({ ...f, apos: APOS_CONT[i] }));
-export const F_MATA = 6, F_OIT = 6, F_QUA = 8, F_SEM = 10, F_FIN = 12, N_GRUPOS = 8;
-export const dataCont = (_, ano, i) => diaCont(ano, i);
+];
+export const F_MATA = 6, F_PO = 6, F_OIT = 8, F_QUA = 10, F_SEM = 12, F_FIN = 14, N_GRUPOS = 8;
+export const dataCont = (_, ano, i, k) => diaCont(ano, i, k);
 export const dataSup = (_, ano) => diaSup(ano);
 // cada par se enfrenta em casa e fora
 const RODADAS_G = [[[0, 1], [2, 3]], [[2, 0], [3, 1]], [[0, 3], [1, 2]], [[1, 0], [3, 2]], [[0, 2], [1, 3]], [[3, 0], [2, 1]]];
@@ -75,14 +76,23 @@ export function timeFora(base, s, ci) {
 }
 
 // ---------- sorteio e vagas ----------
-// 1ª temporada: pela força do elenco. Depois: tabela final da Série A do ano anterior; o campeão da Copa do Brasil
-// entra na Libertadores (se ainda não estiver).
-function vagasBR(base, s) {
-  const cl = s.classif, A = cl?.A?.filter(c => base.clubes[c].div === 'A' || c === cl.copa) || base.clubes.map((c, i) => i).filter(i => base.clubes[i].div === 'A').sort((a, b) => base.forca(b) - base.forca(a));
-  const lib = A.slice(0, 6);
-  if (cl?.copa != null && !lib.includes(cl.copa)) lib[5] = cl.copa;
-  const sul = A.filter(c => !lib.includes(c)).slice(0, 6);
-  return { LIB: lib, SUL: sul };
+// Regra de 2026: G5 da Série A na Libertadores (o 5º na pré, que aqui entra direto nos grupos), mais o campeão e o vice
+// da Copa do Brasil e os campeões brasileiros da Libertadores e da Sul-Americana. Quem já está classificado pela tabela
+// não ocupa duas vagas: a vaga dele passa para o próximo da Série A. Sul-Americana: os 6 seguintes da tabela.
+// 1ª temporada: pela força do elenco.
+export function vagasBR(base, s) {
+  const cl = s.classif, br = c => c != null && ['A', 'B', 'C'].includes(base.clubes[c].div);
+  const A = cl?.A || base.clubes.map((c, i) => i).filter(i => base.clubes[i].div === 'A').sort((a, b) => base.forca(b) - base.forca(a));
+  const lib = A.slice(0, 5), repasses = [];
+  const proximo = () => A.find(c => !lib.includes(c));
+  for (const [c, por] of [[cl?.lib, 'campeão da Libertadores'], [cl?.sul, 'campeão da Sul-Americana'], [cl?.copa, 'campeão da Copa do Brasil'], [cl?.copaVice, 'vice da Copa do Brasil']]) {
+    if (!br(c)) continue;
+    if (!lib.includes(c)) { lib.push(c); continue; }
+    const p = proximo(); if (p == null) continue;
+    lib.push(p); repasses.push({ clube: p, de: c, por, pos: A.indexOf(p) + 1 });
+  }
+  const sul = A.filter(c => !lib.includes(c) && base.clubes[c].div === 'A').slice(0, 6);
+  return { LIB: lib, SUL: sul, repasses };
 }
 // 4 potes de 8 pela força; cada pote espalha os clubes pelos 8 grupos evitando dois do mesmo país no grupo
 function sortear(base, s, k, clubes) {
@@ -107,7 +117,8 @@ function gruposReais(base, k) {
   return g.flat().every(i => i >= 0) ? g : null;
 }
 export function novaCont(base, s) {
-  const br = vagasBR(base, s), fora = sulAmericanos(base).sort((a, b) => (base.clubes[b].lvl + base.clubes[b].fan * 0.4) - (base.clubes[a].lvl + base.clubes[a].fan * 0.4));
+  const br = vagasBR(base, s); s.repasses = br.repasses;
+  const fora = sulAmericanos(base).sort((a, b) => (base.clubes[b].lvl + base.clubes[b].fan * 0.4) - (base.clubes[a].lvl + base.clubes[a].fan * 0.4));
   const reais = s.ano === 2026 && !s.classif;
   const torneio = (k, clubes) => ({ k, ano: s.ano, grupos: (reais && gruposReais(base, k)) || sortear(base, s, k, clubes), fase: 0, jogos: [], chaves: [], art: {}, campeao: null, vice: null });
   const cl = s.classif, Aord = base.clubes.map((c, i) => i).filter(i => base.clubes[i].div === 'A').sort((a, b) => base.forca(b) - base.forca(a));
@@ -119,10 +130,19 @@ export function novaCont(base, s) {
 }
 
 // ---------- andamento ----------
-export const contDevida = (s, k) => !!s.cont?.[k] && s.cont[k].fase < FASES_CONT.length && FASES_CONT[s.cont[k].fase].apos < s.rodada;
-export const naCont = (s, k, ci) => { const T = s.cont?.[k]; if (!T || T.fase >= FASES_CONT.length) return false; return T.fase < F_MATA ? T.grupos.some(g => g.includes(ci)) : T.chaves.some(c => c.includes(ci)); };
+// playoff da Sul-Americana: os 2º da Sula contra os 3º da Libertadores (que já fechou os grupos no mesmo dia, antes)
+function garantirPlayoff(s) {
+  const T = s.cont?.SUL, L = s.cont?.LIB;
+  if (!T || T.fase !== F_PO || T.chaves.length || !L || L.fase < F_MATA) return;
+  const r = rng(`playoff-${s.seed}-${s.ano}`), terceiros = shuffle(r, L.grupos.map((g, i) => tabelaGrupo(L, i)[2].clube)), segundos = T.grupos.map((g, i) => tabelaGrupo(T, i)[1].clube);
+  T.chaves = segundos.map((c, i) => [terceiros[i], c]); // [manda a volta, outro]
+  T.vindos = terceiros;
+}
+const ativa = (s, k) => !!s.cont?.[k] && s.cont.ano === s.ano && s.cont[k].fase < FASES_CONT.length;
+export const contDevida = (s, k, ate) => { garantirPlayoff(s); return ativa(s, k) && +diaCont(s.ano, s.cont[k].fase, k) <= +ate; };
+export const naCont = (s, k, ci) => { garantirPlayoff(s); const T = s.cont?.[k]; if (!ativa(s, k)) return false; return T.fase < F_MATA ? T.grupos.some(g => g.includes(ci)) : T.chaves.some(c => c.includes(ci)); };
 export const supDevida = s => !!s.cont?.sup && !s.cont.sup.jogo && s.cont.ano === s.ano;
-export const emQualCont = (s, ci) => ['LIB', 'SUL'].find(k => s.cont?.[k] && (s.cont[k].grupos.some(g => g.includes(ci)))) || null;
+export const emQualCont = (s, ci) => ['LIB', 'SUL'].find(k => s.cont?.[k] && (s.cont[k].grupos.some(g => g.includes(ci)) || s.cont[k].vindos?.includes(ci))) || null;
 
 // mata-mata: chave = [quem fez mais pontos nos grupos, outro]; o melhor manda a volta (e a ida fica com o outro)
 const mando = (f, [x, y]) => FASES_CONT[f].perna === 'ida' ? [y, x] : [x, y];
@@ -148,7 +168,7 @@ export function tabelaGrupo(T, g) {
   }
   return [...L.values()].map(l => ({ ...l, sg: l.gp - l.gc })).sort((a, b) => b.p - a.p || b.sg - a.sg || b.gp - a.gp || b.v - a.v || a.clube - b.clube);
 }
-const pontosGrupo = (T, c) => { for (let g = 0; g < T.grupos.length; g++) { const l = tabelaGrupo(T, g).find(x => x.clube === c); if (l) return l.p * 100 + l.sg; } return 0; };
+const pontosGrupo = (T, c) => { for (let g = 0; g < T.grupos.length; g++) { const l = tabelaGrupo(T, g).find(x => x.clube === c); if (l) return l.p * 100 + l.sg; } return T.vindos?.includes(c) ? 500 : 0; };
 
 // mata-mata: decide na volta pelo agregado (na final, o jogo único); empate vai para os pênaltis (mesma semente da súmula)
 export function decidirCont(T, fase, h, a, gols, seed, campo) {
@@ -158,26 +178,32 @@ export function decidirCont(T, fase, h, a, gols, seed, campo) {
   const pen = penaltis(seed, campo);
   return { vencedor: pen[0] > pen[1] ? h : a, perdedor: pen[0] > pen[1] ? a : h, pen: [pen[0], pen[1]], seq: pen.seq, agg };
 }
-// fecha a fase: grupos viram oitavas (1º de um grupo × 2º do vizinho: A×B, C×D...); depois os vencedores se cruzam;
-// a final (campo neutro) define o campeão
+// fecha a fase: na Libertadores os grupos viram oitavas (1º de um grupo × 2º do vizinho: A×B, C×D...); na Sula vem o
+// playoff e depois os líderes de grupo pegam os vencedores do playoff (líder manda a volta). Final em campo neutro.
 export function avancarCont(T, vencedores) {
   const f = T.fase++;
   if (f < F_MATA - 1 || FASES_CONT[f].perna === 'ida') return;
   const casa = (x, y) => pontosGrupo(T, x) >= pontosGrupo(T, y) ? [x, y] : [y, x];
   if (f === F_MATA - 1) {
     const t = T.grupos.map((g, i) => tabelaGrupo(T, i));
-    T.chaves = []; for (let g = 0; g < t.length; g += 2) T.chaves.push(casa(t[g][0].clube, t[g + 1][1].clube), casa(t[g + 1][0].clube, t[g][1].clube));
+    T.chaves = [];
+    if (T.k === 'SUL') { T.lideres = t.map(g => g[0].clube); return; } // o playoff é montado quando a Libertadores fechar os grupos
+    for (let g = 0; g < t.length; g += 2) T.chaves.push(casa(t[g][0].clube, t[g + 1][1].clube), casa(t[g + 1][0].clube, t[g][1].clube));
+    T.fase = F_OIT; // a Libertadores não tem playoff
     return;
   }
+  if (f === F_PO + 1) { T.chaves = T.lideres.map((c, i) => [c, vencedores[(i + 1) % vencedores.length]]); return; } // líder não reencontra o 2º do próprio grupo
   if (f === F_FIN) { T.campeao = vencedores[0]; T.vice = T.chaves[0].find(c => c !== T.campeao); T.chaves = []; return; }
   T.chaves = []; for (let i = 0; i < vencedores.length; i += 2) T.chaves.push(f === F_SEM + 1 ? [vencedores[i], vencedores[i + 1]] : casa(vencedores[i], vencedores[i + 1]));
 }
+// pontos de quem veio da Libertadores contam como os da Sula para o mando (fez campanha de grupo também)
 
 export function campanhaCont(s, k, ci) {
-  const T = s.cont?.[k]; if (!T || !T.grupos.some(g => g.includes(ci))) return null;
+  const T = s.cont?.[k]; if (!T || !(T.grupos.some(g => g.includes(ci)) || T.vindos?.includes(ci))) return null;
   if (T.campeao === ci) return 'Campeão';
   if (T.vice === ci) return 'Vice-campeão';
   if (naCont(s, k, ci)) return T.fase < F_MATA ? 'Fase de grupos' : `Na disputa (${FASES_CONT[T.fase].curto})`;
   const ult = T.jogos.filter(j => j.h === ci || j.a === ci).at(-1);
-  return ult && ult.fase >= F_MATA ? `Eliminado ${{ oit: 'nas oitavas', qua: 'nas quartas', sem: 'na semifinal' }[FASES_CONT[ult.fase].k]}` : 'Eliminado na fase de grupos';
+  if (k === 'LIB' && s.cont.SUL?.vindos?.includes(ci)) return 'Terceiro no grupo: foi para a Sul-Americana';
+  return ult && ult.fase >= F_MATA ? `Eliminado ${{ po: 'no playoff', oit: 'nas oitavas', qua: 'nas quartas', sem: 'na semifinal' }[FASES_CONT[ult.fase].k]}` : 'Eliminado na fase de grupos';
 }

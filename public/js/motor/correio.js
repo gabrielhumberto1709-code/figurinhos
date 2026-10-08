@@ -7,7 +7,7 @@ import { nomeTecnico, pilares } from './carreira.js';
 import { proximoEvento, compProxima, janelaAberta, tabela, barradoMedo, multaMedo } from './mundo.js';
 import { indisponivel, pendurado, LESOES, COMP_DE } from './dm.js';
 import { faseDe } from './forma.js';
-import { orcamento, metaDiretoria, salarioDia, fairPlay, registroBloqueado, LIMITE_FPF, ANO_FPF, ANO_EQUILIBRIO } from './financas.js';
+import { orcamento, metaDiretoria, salarioDia, fairPlay, registroBloqueado, tetoSalarial, LIMITE_FPF, ANO_FPF, ANO_EQUILIBRIO } from './financas.js';
 import { precoPedido, textoVontade, resumoCl, ABRE_PRE } from './mercado.js';
 import { fimDeTemporada } from './temporada.js';
 
@@ -139,7 +139,15 @@ export function correio(base, s) {
     const ban = registroBloqueado(s); if (ban) enviar(s, 'diretor', `fpf-ban-${s.ano}-${ban}`, 'Registro bloqueado', `A CBF bloqueou o registro de jogadores até a ${ban + 1}ª rodada. Nada de contratação até lá.`, { link: '#/financas' });
   }
   if (s.fin?.atraso === 1) enviar(s, 'diretor', `fpf-div-${s.ano}-${rd}`, 'Fair play financeiro: dívida', 'Salário atrasado conta como dívida com credor relevante no fair play financeiro. Se não acertarmos na próxima rodada, a CBF começa a punir: plano de correção, multa, bloqueio de registro e perda de pontos.', { link: '#/financas' });
-  if (rd === 1) enviar(s, 'presidente', `meta-${s.ano}-${ci}`, `A meta para ${s.ano}`, `Boa sorte nesta temporada. A meta da diretoria é ${metaDiretoria(base, s).txt}. Dentro dela, você tem todo o meu apoio.`, { link: '#/carreira' });
+  const T = tetoSalarial(base, s), teto = `€ ${T.teto.toLocaleString('pt-BR')}/dia`;
+  if (rd <= 1) enviar(s, 'presidente', `meta-${s.ano}-${ci}`, `A meta para ${s.ano}`, `Boa sorte nesta temporada. A meta da diretoria é ${metaDiretoria(base, s).txt}. Dentro dela, você tem todo o meu apoio. Para contratar, o teto salarial é de ${teto} por jogador${T.partes.some(([t]) => t.startsWith('recém')) ? ': acabamos de subir e o aporte é menor que o dos clubes que já estão na divisão' : ''}. Libertadores, Sul-Americana, campanha na Copa do Brasil e título regional fazem a diretoria abrir mais o cofre.`, { link: '#/financas' });
+  // teto mexeu (classificação continental, Copa do Brasil, título, confiança): o diretor avisa
+  if (s.tetoAviso?.ano !== s.ano || s.tetoAviso.clube !== ci) s.tetoAviso = { ano: s.ano, clube: ci, v: T.teto };
+  else if (T.teto >= s.tetoAviso.v * 1.04 || T.teto <= s.tetoAviso.v * 0.96) {
+    const sobe = T.teto > s.tetoAviso.v;
+    enviar(s, 'diretor', `teto-${s.ano}-${T.teto}`, sobe ? 'A diretoria subiu o teto salarial' : 'A diretoria baixou o teto salarial', `${sobe ? 'Boa notícia' : 'Má notícia'}: o teto para contrato novo agora é ${teto} por jogador (antes, € ${s.tetoAviso.v.toLocaleString('pt-BR')}/dia). ${T.partes.length ? `Conta: ${T.partes.map(([t, p]) => `${t} ${p > 0 ? '+' : ''}${p}%`).join(', ')}.` : ''}`, { link: '#/mercado' });
+    s.tetoAviso.v = T.teto;
+  }
   // fase dos jogadores
   for (const j of el) { const f = faseDe(s, j.id);
     if (f.k === 'excelente') enviar(s, 'diretor', `fase-${j.id}-${s.ano}-${Math.floor(rd / 8)}`, `${j.curto} está voando`, `${j.curto} vive fase excelente. Os olheiros dos grandes já estão de olho: prepare-se para propostas.`, { jogador: j.id });

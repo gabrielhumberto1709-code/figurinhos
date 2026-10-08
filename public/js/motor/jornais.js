@@ -1,6 +1,7 @@
 // Imprensa escrita: a banca com três jornais de linha editorial diferente (Jornal da Bola sério, O Chutão tabloide
 // e Diário do Gramado esportivo), a crônica do seu jogo, título/acesso/queda matemáticos, alfinetada depois do
 // clássico e aposentadoria anunciada no fim da temporada.
+import { N_LIGA } from './calendario.js';
 import { rng, pick } from './util.js';
 import { rivais } from './rivais.js';
 import { evolucao, tabela } from './mundo.js';
@@ -69,15 +70,18 @@ export function matematicos(base, s, tabs, add) {
   if (s.mat?.ano !== s.ano) s.mat = { ano: s.ano, k: [] };
   const uma = (k, f) => { if (!s.mat.k.includes(k)) { s.mat.k.push(k); f(); } };
   const ci = s.tecnico.clube, nome = c => base.clubes[c].n;
+  // 2026: A cai 4; B sobe 2 direto e do 3º ao 6º vão ao playoff, cai 4; C (turno único) leva 8 ao quadrangular e cai 2
   for (const d of ['A', 'B', 'C']) {
-    const tab = tabs[d], max = l => l.p + 3 * (38 - l.j), resta = 38 - tab[0].j;
+    const tab = tabs[d], n = N_LIGA[d], max = l => l.p + 3 * (n - l.j), resta = n - tab[0].j, cai = d === 'C' ? 2 : 4;
     const [l1, ...outros] = tab;
-    if (outros.every(l => max(l) < l1.p)) uma(`campeao-${d}`, () => add(l1.clube === ci ? 'clube' : 'destaque', d, `É CAMPEÃO! O ${nome(l1.clube)} conquista a Série ${d} ${resta ? `com ${resta} rodada${resta > 1 ? 's' : ''} de antecedência` : 'na última rodada'}.`, { clube: l1.clube }));
+    if (d !== 'C' && outros.every(l => max(l) < l1.p)) uma(`campeao-${d}`, () => add(l1.clube === ci ? 'clube' : 'destaque', d, `É CAMPEÃO! O ${nome(l1.clube)} conquista a Série ${d} ${resta ? `com ${resta} rodada${resta > 1 ? 's' : ''} de antecedência` : 'na última rodada'}.`, { clube: l1.clube }));
     for (const l of tab) {
-      const resto = tab.filter(x => x !== l);
-      if (d !== 'A' && resto.filter(x => max(x) >= l.p).length <= 3) uma(`acesso-${d}-${l.clube}`, () => add(l.clube === ci ? 'clube' : 'resultado', d, `Acesso garantido: o ${nome(l.clube)} está matematicamente na Série ${d === 'B' ? 'A' : 'B'} de ${s.ano + 1}.`, { clube: l.clube }));
-      if (d !== 'C' && resto.filter(x => x.p > max(l)).length >= 16) uma(`queda-${d}-${l.clube}`, () => add(l.clube === ci ? 'clube' : 'crise', d, `Rebaixado: o ${nome(l.clube)} não tem mais chance e cai para a Série ${d === 'A' ? 'B' : 'C'}.`, { clube: l.clube }));
-      if (l.clube === ci && d !== 'C' && resto.filter(x => max(x) < l.p).length >= 4) uma(`salvo-${d}-${ci}`, () => add('clube', d, `Missão cumprida: o ${nome(ci)} está matematicamente livre do rebaixamento.`, { clube: ci }));
+      const resto = tab.filter(x => x !== l), alcancam = resto.filter(x => max(x) >= l.p).length;
+      if (d === 'B' && alcancam <= 1) uma(`acesso-${d}-${l.clube}`, () => add(l.clube === ci ? 'clube' : 'resultado', d, `Acesso garantido: o ${nome(l.clube)} está matematicamente na Série A de ${s.ano + 1}.`, { clube: l.clube }));
+      else if (d === 'B' && alcancam <= 5) uma(`playoff-${d}-${l.clube}`, () => add(l.clube === ci ? 'clube' : 'resultado', d, `O ${nome(l.clube)} garante pelo menos o playoff de acesso da Série B.`, { clube: l.clube }));
+      if (d === 'C' && alcancam <= 7) uma(`quad-${d}-${l.clube}`, () => add(l.clube === ci ? 'clube' : 'resultado', d, `O ${nome(l.clube)} está garantido nos quadrangulares de acesso da Série C.`, { clube: l.clube }));
+      if (resto.filter(x => x.p > max(l)).length >= 20 - cai) uma(`queda-${d}-${l.clube}`, () => add(l.clube === ci ? 'clube' : 'crise', d, `Rebaixado: o ${nome(l.clube)} não tem mais chance e cai para a Série ${{ A: 'B', B: 'C', C: 'D' }[d]}.`, { clube: l.clube }));
+      if (l.clube === ci && resto.filter(x => max(x) < l.p).length >= cai) uma(`salvo-${d}-${ci}`, () => add('clube', d, `Missão cumprida: o ${nome(ci)} está matematicamente livre do rebaixamento.`, { clube: ci }));
     }
   }
 }

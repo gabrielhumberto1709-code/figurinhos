@@ -55,7 +55,9 @@ export function manchete(base, j, n, x, t, r = rng('manchete' + j.id)) {
   return { titulo, sub: `${fato ? `${fato} em ` : ''}${placar}. Nota ${n.toFixed(1).replace('.', ',')}.` };
 }
 
-export function gerarNoticias(base, s, rd, jogos, tabs) {
+// dv: a divisão da rodada (cada uma joga nas suas datas); só ela entra nas notícias de resultado, liderança e destaques
+export function gerarNoticias(base, s, rd, jogos, tabs, dv = null) {
+  const DIVS = dv ? [dv] : ['A', 'B', 'C'];
   const r = rng(`jornal${s.seed}-${rd}`), meu = s.tecnico.clube, N = [];
   const add = (tipo, div, texto, extra) => N.push({ rodada: rd + 1, tipo, div, texto, ...extra });
   const nome = ci => base.clubes[ci].n, curto = id => base.jog.get(+id)?.curto || '?';
@@ -100,10 +102,10 @@ export function gerarNoticias(base, s, rd, jogos, tabs) {
 
   matematicos(base, s, tabs, add);
   alfinetadas(base, s, jogos, add, r);
-  aposentadorias(base, s, rd, add);
+  if (DIVS.includes('A')) aposentadorias(base, s, rd, add);
 
-  // rumores: quem está jogando bem desperta interesse de quem precisa
-  if (rd >= 3) {
+  // rumores: quem está jogando bem desperta interesse de quem precisa (uma vez por rodada da Série A, o relógio)
+  if (rd >= 3 && DIVS.includes('A')) {
     s.rumores = s.rumores || {};
     const emAlta = [...base.jog.values()].filter(j => {
       const e = s.est[j.id];
@@ -123,7 +125,7 @@ export function gerarNoticias(base, s, rd, jogos, tabs) {
   }
 
   // craque e seleção da rodada de cada série
-  s.destaques = {};
+  s.destaques ||= {};
   for (const d of DIVS) {
     const notas = [];
     for (const x of jogos.filter(y => y.d === d)) for (const t of [0, 1]) for (const [id, n] of Object.entries(x.sim.notas[t])) notas.push([+id, n, x, t]);

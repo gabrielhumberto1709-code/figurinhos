@@ -2,7 +2,7 @@
 // reserva que reclama em público, motim liderado pelo capitão e faixas de protesto depois de derrotas seguidas.
 import { rng, clamp } from './util.js';
 import { proximoEvento, previa, escalacao, capitaoDe } from './mundo.js';
-import { salarioDia, salarioBase } from './financas.js';
+import { salarioDia, salarioBase, passaDoTeto } from './financas.js';
 import { faseDe } from './forma.js';
 
 export const TEMPERAMENTOS = {
@@ -77,7 +77,11 @@ export function responderAumento(base, s, id, sim) {
   const j = base.jog.get(p.jogador);
   s.pedidosAumento = s.pedidosAumento.filter(x => x !== p);
   if (!j || j.clube !== s.tecnico.clube) return null;
-  if (sim) { s.salarios[j.id] = p.valor; mexe(s, j.id, 10); tratar(s, j.id, 3); return `${j.curto} ganhou o aumento e está feliz da vida.`; }
+  if (sim) {
+    const teto = passaDoTeto(base, s, p.valor, s.salarios?.[j.id] || 0);
+    if (teto) { s.pedidosAumento.push(p); return teto; }
+    s.salarios[j.id] = p.valor; mexe(s, j.id, 10); tratar(s, j.id, 3); return `${j.curto} ganhou o aumento e está feliz da vida.`;
+  }
   mexe(s, j.id, temperamento(j) === 'ambicioso' ? -16 : -12); tratar(s, j.id, -3);
   if (temperamento(j) === 'ambicioso') (s.querSair ||= {})[j.id] = { de: j.clube, rodada: s.rodada, motivo: 'queria valorização' };
   s.noticias.unshift({ rodada: s.rodada, tipo: 'clube', imprensa: true, jogador: j.id, div: base.clubes[j.clube].div, texto: `${j.curto} fica insatisfeito: o clube negou o pedido de aumento.` });

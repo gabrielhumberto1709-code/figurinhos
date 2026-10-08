@@ -11,7 +11,7 @@ import { rng, clamp, pickW, shuffle, SETOR, nivelDiv, estrelas, continenteDe } f
 import { temperamento, tratar } from './vestiario.js';
 import { interessados, media } from './noticias.js';
 import { janelaAberta, caixaInicial, aplicarSave, evolucao } from './mundo.js';
-import { orcamento, lancar, garantirFinancas, salarioDia, salarioBase, diasRestantes, registroBloqueado } from './financas.js';
+import { orcamento, lancar, garantirFinancas, salarioDia, salarioBase, diasRestantes, registroBloqueado, passaDoTeto } from './financas.js';
 import { naSelecao } from './selecao.js';
 import { enviar } from './correio.js';
 
@@ -216,6 +216,7 @@ export function bloqueioProposta(base, s, j, o) {
   }
   if (!(o.salario > 0)) return 'Diga o salário por dia.';
   if (!(o.anos >= 1 && o.anos <= 5)) return 'Contrato de 1 a 5 anos.';
+  const teto = passaDoTeto(base, s, o.salario); if (teto) return teto;
   if (o.tipo !== 'pre') { const folga = folgaPara(base, s, j) + (t ? salarioDia(base, s, t) : 0); if (o.salario > folga) return `O salário passa da folga da folha (€ ${folga.toLocaleString('pt-BR')}/dia). Abra espaço em Finanças ou venda alguém.`; }
   return null;
 }
@@ -233,6 +234,7 @@ export function fazerProposta(base, s, j, o) {
 export function aceitarContraproposta(base, s, id) {
   const p = s.propostas.find(x => x.id === id && x.estado === 'contraproposta'); if (!p) return 'Proposta não existe mais.';
   const valor = p.contra ?? p.valor, salario = p.contraSal ?? p.salario;
+  const teto = passaDoTeto(base, s, salario); if (teto) return `${teto} Ele pede € ${salario.toLocaleString('pt-BR')}/dia.`;
   if (valor > s.caixa) return 'Não tem dinheiro em caixa para isso.';
   if (p.tipo !== 'pre' && salario > folgaPara(base, s, base.jog.get(p.jogador))) return 'O salário pedido não cabe na folha. Abra espaço em Finanças.';
   if (p.contra != null) p.clubeOk = true;
@@ -528,6 +530,7 @@ export function renovar(base, s, j, salario, anos) {
   if (emNovela(s, j.id)) return { ok: false, txt: `${j.curto} não quer saber de renovar (${s.novela[j.id].motivo}). A novela segue: venda enquanto dá ou ele sai de graça.` };
   if (ficar < 30) return { ok: false, txt: `${j.curto} não quer renovar. Está insatisfeito no clube.` };
   if (salario - salarioDia(base, s, j) > orcamento(base, s).folga) return { ok: false, txt: 'O aumento não cabe na folga da folha. Abra espaço em Finanças.' };
+  const teto = passaDoTeto(base, s, salario, salarioDia(base, s, j)); if (teto) return { ok: false, txt: teto };
   if (salario < pede) return { ok: false, pede, txt: `${j.curto} pede € ${pede.toLocaleString('pt-BR')}/dia por ${anos} ${anos > 1 ? 'anos' : 'ano'}.` };
   s.salarios[j.id] = arredSal(salario); s.contratos[j.id] = s.ano + anos; j.contrato = s.ano + anos;
   return { ok: true, txt: `Renovado: ${j.curto} assinou até ${s.ano + anos}.` };

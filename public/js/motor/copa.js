@@ -1,30 +1,36 @@
-// Copa do Brasil: 32 clubes (os 20 da Série A e os 12 mais fortes da B), mata-mata todo em ida e volta, com o mando
-// sorteado em cada confronto; empate no agregado vai para os pênaltis. Os jogos caem nas quartas livres do Brasileirão.
+// Copa do Brasil no formato de 2026: fases 1 a 4 em jogo único (Série B, Série C e clubes dos estaduais), a Série A
+// entra na 5ª fase; 5ª fase, oitavas, quartas e semi em ida e volta; final única em campo neutro (6 de dezembro).
+// Mandos e chaves por sorteio; na 5ª fase os 16 mais fortes pegam os 16 mais fracos. Empate (no jogo único ou no
+// agregado) vai para os pênaltis. O vice ganha vaga na Libertadores do ano seguinte.
 import { rng, shuffle } from './util.js';
-import { APOS_COPA, dataCopa as diaCopa } from './calendario.js';
+import { dataCopa as diaCopa } from './calendario.js';
 
-export const FASES = [['1f', '1ª fase', '1ª fase'], ['oit', 'Oitavas de final', 'Oitavas'], ['qua', 'Quartas de final', 'Quartas'], ['sem', 'Semifinal', 'Semi'], ['fin', 'Final', 'Final']]
-  .flatMap(([k, nome, curto]) => ['ida', 'volta'].map(perna => ({ k, perna, nome: `${nome} · ${perna}`, curto: `${curto} (${perna})` })))
-  .map((f, i) => ({ ...f, apos: APOS_COPA[i] })); // cada jogo na quarta livre depois da rodada "apos" do Brasileirão
-// prêmio por chegar a cada fase (entra quando o clube se classifica) e pelo título
-export const PREMIOS = { '1f': 4e5, oit: 6e5, qua: 9e5, sem: 1.6e6, vice: 5e6, campeao: 12e6 };
+const ETAPAS = [['f1', '1ª fase', 1], ['f2', '2ª fase', 1], ['f3', '3ª fase', 1], ['f4', '4ª fase', 1], ['f5', '5ª fase', 2], ['oit', 'Oitavas de final', 2, 'Oitavas'], ['qua', 'Quartas de final', 2, 'Quartas'], ['sem', 'Semifinal', 2, 'Semi'], ['fin', 'Final', 1]];
+export const FASES = ETAPAS.flatMap(([k, nome, pernas, curto = nome]) => pernas === 1 ? [{ k, perna: 'unico', nome, curto }] : ['ida', 'volta'].map(perna => ({ k, perna, nome: `${nome} · ${perna}`, curto: `${curto} (${perna})` })));
+export const F_FINAL = FASES.length - 1;
+// prêmio por chegar a cada fase (entra quando o clube se classifica; quem estreia recebe a cota da fase de entrada)
+export const PREMIOS = { f1: 6e4, f2: 9e4, f3: 1.3e5, f4: 1.8e5, f5: 3.5e5, oit: 7e5, qua: 1.1e6, sem: 1.9e6, vice: 6e6, campeao: 13e6 };
 export const dataCopa = (_, ano, i) => diaCopa(ano, i);
+const indice = k => FASES.findIndex(f => f.k === k);
 
+// quem joga e onde entra: Série A na 5ª fase; os 4 mais fortes da B na 3ª (no lugar dos campeões do Nordeste, Verde,
+// C e D do ano anterior); o resto da B, a C e os clubes de estadual mais fortes completam 106 vagas das fases 1 e 2
 export function participantes(base) {
   const da = d => base.clubes.map((c, i) => i).filter(i => base.clubes[i].div === d).sort((a, b) => base.forca(b) - base.forca(a));
-  return [...da('A'), ...da('B').slice(0, 12)];
+  const B = da('B'), C = da('C'), R = base.clubes.map((c, i) => i).filter(i => base.clubes[i].div === 'R').sort((a, b) => (base.clubes[b].lvl || 0) - (base.clubes[a].lvl || 0) || a - b);
+  const resto = [...B.slice(4), ...C, ...R].slice(0, 102), f1 = resto.slice(-28);
+  return { f1, f2: resto.slice(0, -28), f3: B.slice(0, 4), f5: da('A') };
 }
-
-// sorteio: na 1ª fase os 16 mais fortes pegam os 16 mais fracos; quem manda a ida também é sorteado (chave = [ida, volta])
+const sortearPares = (r, L, aleatorioMando = true) => { const l = shuffle(r, L), c = []; for (let i = 0; i + 1 < l.length; i += 2) c.push(aleatorioMando && r() < 0.5 ? [l[i + 1], l[i]] : [l[i], l[i + 1]]); return c; };
 export function novaCopa(base, s) {
-  const r = rng(`copa${s.seed}-${s.ano}`), lista = participantes(base).sort((a, b) => base.forca(b) - base.forca(a));
-  const fortes = shuffle(r, lista.slice(0, 16)), fracos = shuffle(r, lista.slice(16));
-  s.copa = { ano: s.ano, fase: 0, chaves: fortes.map((f, i) => r() < 0.5 ? [fracos[i], f] : [f, fracos[i]]), jogos: [], art: {}, campeao: null, vice: null };
+  const r = rng(`copa${s.seed}-${s.ano}`), P = participantes(base);
+  s.copa = { v: 2026, ano: s.ano, fase: 0, chaves: sortearPares(r, P.f1), espera: { f2: P.f2, f3: P.f3, f5: P.f5 }, jogos: [], art: {}, campeao: null, vice: null, todos: [...P.f1, ...P.f2, ...P.f3, ...P.f5] };
   return s.copa;
 }
-export const copaDevida = s => !!s.copa && s.copa.fase < FASES.length && FASES[s.copa.fase].apos < s.rodada;
-export const naCopa = (s, ci) => !!s.copa && s.copa.fase < FASES.length && s.copa.chaves.some(c => c.includes(ci));
-// mando do jogo da fase: na volta inverte
+export const copaAtiva = s => !!s.copa && s.copa.fase < FASES.length;
+export const copaDevida = (s, ate) => copaAtiva(s) && +diaCopa(s.ano, s.copa.fase) <= +ate;
+export const naCopa = (s, ci) => copaAtiva(s) && s.copa.chaves.some(c => c.includes(ci));
+// chave = [mandante da ida (ou do jogo único), mandante da volta]
 export const mandoDe = (fase, [x, y]) => FASES[fase].perna === 'volta' ? [y, x] : [x, y];
 
 // disputa de pênaltis: cinco cobranças e depois alternadas. Com quem estava em campo, cada um bate na sua vez
@@ -46,22 +52,26 @@ export function agregadoIda(s, h, a) {
   const ida = s.copa.jogos.find(j => j.fase === s.copa.fase - 1 && j.h === a && j.a === h);
   return ida ? [ida.gols[1], ida.gols[0]] : [0, 0];
 }
-// quem passa: agregado dos dois jogos; empate vai para os pênaltis (mesma semente do jogo)
+// quem passa: jogo único ou agregado dos dois jogos; empate vai para os pênaltis (mesma semente do jogo)
 export function decidir(s, fase, h, a, gols, seed, campo) {
-  if (FASES[fase].perna === 'ida') return { vencedor: null };
-  const ag = agregadoIda(s, h, a), t = [gols[0] + ag[0], gols[1] + ag[1]];
-  if (t[0] !== t[1]) return { vencedor: t[0] > t[1] ? h : a, perdedor: t[0] > t[1] ? a : h, agg: t };
+  const P = FASES[fase].perna;
+  if (P === 'ida') return { vencedor: null };
+  const ag = P === 'volta' ? agregadoIda(s, h, a) : [0, 0], t = [gols[0] + ag[0], gols[1] + ag[1]], agg = P === 'volta' ? t : null;
+  if (t[0] !== t[1]) return { vencedor: t[0] > t[1] ? h : a, perdedor: t[0] > t[1] ? a : h, agg };
   const pen = penaltis(seed, campo);
-  return { vencedor: pen[0] > pen[1] ? h : a, perdedor: pen[0] > pen[1] ? a : h, pen: [pen[0], pen[1]], seq: pen.seq, agg: t };
+  return { vencedor: pen[0] > pen[1] ? h : a, perdedor: pen[0] > pen[1] ? a : h, pen: [pen[0], pen[1]], seq: pen.seq, agg };
 }
-// próxima fase: sorteio livre entre os classificados (e do mando da ida)
-export function avancarFase(s, vencedores) {
+// próxima fase: classificados + quem entra nela; sorteio (na 5ª fase, os 16 mais fortes contra os 16 mais fracos)
+export function avancarFase(s, vencedores, forca = () => 0) {
   const c = s.copa, F = FASES[c.fase];
   c.fase++;
   if (F.perna === 'ida') return;
   if (F.k === 'fin') { [c.campeao] = vencedores; c.vice = c.chaves[0].find(x => x !== c.campeao); c.chaves = []; return; }
-  const r = rng(`sorteio${s.seed}-${s.ano}-${c.fase}`), l = shuffle(r, vencedores);
-  c.chaves = []; for (let i = 0; i < l.length; i += 2) c.chaves.push([l[i], l[i + 1]]);
+  const prox = FASES[c.fase], r = rng(`sorteio${s.seed}-${s.ano}-${c.fase}`), L = [...vencedores, ...(c.espera?.[prox.k] || [])];
+  if (prox.k === 'f5') {
+    const ord = L.slice().sort((a, b) => forca(b) - forca(a)), fortes = shuffle(r, ord.slice(0, 16)), fracos = shuffle(r, ord.slice(16));
+    c.chaves = fortes.map((f, i) => r() < 0.5 ? [fracos[i], f] : [f, fracos[i]]);
+  } else c.chaves = sortearPares(r, L, prox.k !== 'fin');
 }
 // até onde o clube foi
 export function campanha(s, ci) {
@@ -69,7 +79,8 @@ export function campanha(s, ci) {
   if (c.campeao === ci) return 'Campeão';
   if (c.vice === ci) return 'Vice-campeão';
   const jogou = c.jogos.filter(j => j.h === ci || j.a === ci);
-  if (!jogou.length) return naCopa(s, ci) ? 'Na disputa' : null;
+  if (!jogou.length) return naCopa(s, ci) || Object.values(c.espera || {}).some(l => l.includes(ci)) ? 'Na disputa' : null;
   if (naCopa(s, ci)) return `Na disputa (${FASES[c.fase].curto})`;
-  return `Eliminado ${{ '1f': 'na 1ª fase', oit: 'nas oitavas', qua: 'nas quartas', sem: 'na semifinal' }[FASES[jogou.at(-1).fase].k]}`;
+  const k = FASES[jogou.at(-1).fase].k;
+  return `Eliminado ${{ oit: 'nas oitavas', qua: 'nas quartas', sem: 'na semifinal' }[k] || `na ${FASES[indice(k)].nome.split(' ·')[0]}`}`;
 }

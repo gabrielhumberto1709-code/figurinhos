@@ -275,12 +275,12 @@ export function abrirColetivaPre(base, s) {
   const comp = compProxima(base, s), top = base.elencos[ci].slice().sort((a, b) => b.ovr - a.ovr).slice(0, 8), fora = top.find(j => indisponivel(s, j.id, comp));
   const d = base.clubes[ci].div, tab = tabela(base, s, d), l = tab.find(x => x.clube === ci), pos = tab.indexOf(l) + 1, ult = l.ultimos;
   const seq = x => { let n = 0; for (let i = ult.length - 1; i >= 0 && ult[i] === x; i--) n++; return n; };
-  const mataMata = (ev.tipo === 'copa' && FASES[ev.fase].perna === 'volta') || ev.tipo === 'sup' || (ev.tipo === 'cont' && ev.fase >= F_MATA && FASES_CONT[ev.fase].perna !== 'ida') || (ev.tipo === 'reg' && ev.mataMata), final = ev.tipo === 'sup' || (ev.tipo === 'cont' && ev.fase === F_FIN) || (ev.tipo === 'reg' ? ev.final : /Final/.test(ev.titulo));
+  const mataMata = (ev.tipo === 'copa' && FASES[ev.fase].perna !== 'ida') || ev.tipo === 'sup' || (ev.tipo === 'cont' && ev.fase >= F_MATA && FASES_CONT[ev.fase].perna !== 'ida') || ((ev.tipo === 'reg' || ev.tipo === 'liga2') && ev.mataMata), final = ev.tipo === 'sup' || (ev.tipo === 'cont' && ev.fase === F_FIN) || (ev.tipo === 'reg' ? ev.final : /Final/.test(ev.titulo));
   const compNome = ev.tipo === 'copa' ? 'Copa do Brasil' : ev.titulo.split(' · ')[0];
   const w = {
     preClassico: rivais(base, ev.h, ev.a) ? 9 : 0, preFavorito: p.vitoria >= 55 ? 4 : 0, preZebra: p.vitoria <= 25 ? 5 : 0,
     preRetro: H?.j >= 2 ? 4 : 0, preTabu: sq.semVencer >= 3 ? 7 : 0, preFreguesia: sq.semPerder >= 3 && H?.v >= 3 ? 6 : 0, preGoleada: H?.maior && H.maior[0] - H.maior[1] >= 3 ? 3 : 0,
-    preDesfalque: fora ? 5 : 0, preDecisao: mataMata && !final ? 7 : 0, preFinal: final ? 10 : 0, preEstreia: ev.tipo === 'liga' && s.rodada === 0 ? 8 : 0,
+    preDesfalque: fora ? 5 : 0, preDecisao: mataMata && !final ? 7 : 0, preFinal: final ? 10 : 0, preEstreia: ev.tipo === 'liga' && ev.rodada === 0 ? 8 : 0,
     preMaFase: ult.slice(-4).filter(x => x === 'D').length >= 3 ? 5 : 0, preBoaFase: seq('V') >= 3 ? 4 : 0, prePressao: s.cargo?.ult || s.cargo?.st === 'risco' ? 6 : 0,
     preLider: l.j >= 5 && pos === 1 ? 3 : 0, preRebaixamento: l.j >= 8 && pos >= 17 ? 4 : 0,
     preAdversario: 1.5, preTorcida: 1.2, preTime: 1.2,   // sempre cabem: completam as três perguntas

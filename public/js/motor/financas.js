@@ -4,6 +4,7 @@ import { rivais } from './rivais.js';
 import { dataRodada, tabela } from './mundo.js';
 import { liberar } from './mercado.js';
 import { dataAmistoso } from './calendario.js';
+import { FASES } from './copa.js';
 
 const DIA = 864e5;
 const PISO = { A: 150000, B: 40000, C: 15000 };                 // salário anual mínimo por divisão
@@ -95,7 +96,46 @@ export function metaDiretoria(base, s) {
   const ordem = base.clubes.map((c, i) => i).filter(i => base.clubes[i].div === div).sort((a, b) => base.forca(b) - base.forca(a));
   const rank = ordem.indexOf(ci) + 1;
   if (div === 'A') return rank <= 3 ? { pos: 4, txt: 'brigar pelo título (top 4)' } : rank <= 6 ? { pos: 6, txt: 'vaga na Libertadores (top 6)' } : rank <= 12 ? { pos: 12, txt: 'vaga na Sul-Americana (top 12)' } : { pos: 16, txt: 'não cair (16º ou melhor)' };
-  return rank <= 6 ? { pos: 4, txt: div === 'B' ? 'subir para a Série A (top 4)' : 'subir para a Série B (top 4)' } : rank <= 14 ? { pos: 10, txt: 'campanha segura (até 10º)' } : { pos: 16, txt: 'não cair (16º ou melhor)' };
+  // 2026: a B sobe 2 direto + 2 no playoff (3º ao 6º) e cai 4; a C leva 8 ao quadrangular, sobe 4 e cai só 2
+  if (div === 'B') return rank <= 6 ? { pos: 4, txt: 'subir para a Série A (G2 direto ou vencendo o playoff)' } : rank <= 14 ? { pos: 10, txt: 'campanha segura (até 10º)' } : { pos: 16, txt: 'não cair (16º ou melhor)' };
+  return rank <= 6 ? { pos: 4, txt: 'subir para a Série B (acesso no quadrangular)' } : rank <= 14 ? { pos: 8, txt: 'chegar ao quadrangular (top 8)' } : { pos: 18, txt: 'não cair para a Série D (18º ou melhor)' };
+}
+
+// ---------- teto salarial da diretoria ----------
+// Salário máximo por jogador em contrato novo (compra, livre, pré-contrato, empréstimo, renovação e aumento), no
+// offline e no online. Base pela divisão e pelo tamanho da torcida; quem acabou de subir ganha bem menos aporte
+// (um recém-promovido à A fica perto de € 2,5 mil/dia). Sobe com Libertadores ou Sul-Americana, com a campanha na
+// Copa do Brasil, com título regional e com a confiança da diretoria. Quem já ganha acima continua, mas não renova acima.
+const TETO_DIV = { A: 6000, B: 1800, C: 700 };
+// quem subiu para 2026 (Série B 2025 → A; Série C 2025 → B), para a primeira temporada
+const SUBIU_2026 = ['Coritiba', 'Athletico-PR', 'Chapecoense', 'Remo', 'Ponte Preta', 'Londrina', 'São Bernardo', 'Náutico'];
+export function recemPromovido(base, s, ci = s.tecnico.clube) {
+  const h = s.historico?.[0];
+  if (h?.ano === s.ano - 1) return [...(h.sobem?.A || []), ...(h.sobem?.B || []), ...(h.sobem?.C || [])].includes(ci);
+  return s.ano === (s.anoInicial ?? s.ano) && s.ano === 2026 && SUBIU_2026.includes(base.clubes[ci].n);
+}
+export function tetoSalarial(base, s) {
+  const ci = s.tecnico.clube, c = base.clubes[ci], partes = [];
+  let v = (TETO_DIV[c.div] || 500) * (0.5 + (c.fan || 3) / 8);
+  const pct = (txt, p) => { partes.push([txt, p]); v *= 1 + p / 100; };
+  if (recemPromovido(base, s, ci)) pct('recém-promovido: aporte menor', c.div === 'A' ? -55 : -40);
+  const cont = k => s.cont?.ano === s.ano && (s.cont[k]?.grupos.some(g => g.includes(ci)) || s.cont[k]?.vindos?.includes(ci));
+  if (cont('LIB')) pct('na Libertadores', 35); else if (cont('SUL')) pct('na Sul-Americana', 15);
+  const fase = s.copa?.ano === s.ano ? Math.max(-1, ...s.copa.jogos.filter(j => j.h === ci || j.a === ci).map(j => j.fase), ...(s.copa.chaves.some(x => x.includes(ci)) ? [s.copa.fase] : [])) : -1;
+  const k = fase >= 0 ? FASES[fase].k : null, copa = { oit: 5, qua: 10, sem: 15, fin: 20 }[k];
+  if (copa) pct(`Copa do Brasil (${{ oit: 'oitavas', qua: 'quartas', sem: 'semifinal', fin: 'final' }[k]})`, copa);
+  const titulos = s.reg?.ano === s.ano ? Object.values(s.reg).filter(T => T?.campeao === ci).length : 0;
+  if (titulos) pct(`título regional`, Math.min(10, 5 * titulos));
+  const dir = s.fin?.diretoria ?? 60;
+  if (dir >= 80) pct('diretoria confiante', 10); else if (dir < 30) pct('diretoria desconfiada', -10);
+  if (s.dificuldade === 'facil') pct('dificuldade fácil', 20); else if (s.dificuldade === 'dificil') pct('dificuldade difícil', -15);
+  return { teto: Math.max(100, Math.round(v / 50) * 50), partes };
+}
+const tetoTxt = t => `€ ${t.toLocaleString('pt-BR')}/dia`;
+// salário de contrato novo acima do teto (quem já está no elenco pode renovar com até 15% sobre o que ganha hoje)
+export function passaDoTeto(base, s, salario, atual = 0) {
+  const { teto } = tetoSalarial(base, s), lim = Math.max(teto, Math.round(atual * 1.15));
+  return salario > lim ? `A diretoria não aprova: o teto salarial do clube é ${tetoTxt(teto)} por jogador${lim > teto ? ` (para quem já está no elenco, até ${tetoTxt(lim)})` : ''}.` : null;
 }
 
 // pedir verba: depende da confiança, da campanha e de quanto dinheiro já entrou
@@ -121,6 +161,15 @@ export function pedirVerba(base, s, pos) {
   return { ok: false, txt: 'A diretoria negou o pedido e ficou um pouco mais desconfiada (-3 de confiança).' };
 }
 
+// bilheteria do jogo do campeonato em casa (qualquer divisão; cada uma joga nas suas datas)
+export function bilheteriaLiga(base, s, rd, adv, tab) {
+  garantirFinancas(base, s);
+  const f = s.fin, ci = s.tecnico.clube, l = tab.find(x => x.clube === ci), pos = tab.indexOf(l) + 1;
+  const b = bilheteria(base, s, ci, adv, l?.ultimos || [], pos, f.ingresso);
+  lancar(s, 'bilheteria', `Bilheteria × ${base.clubes[adv].n} (${b.publico.toLocaleString('pt-BR')} pagantes)`, b.renda, rd);
+  if (b.occ >= 0.98 && ['caro', 'abusivo'].includes(f.ingresso)) f.diretoria = Math.min(100, f.diretoria + 1);
+  if (b.occ < 0.6 && f.ingresso === 'abusivo') f.diretoria = Math.max(0, f.diretoria - 2);
+}
 // fecha as contas da rodada: salários dos dias, bilheteria, TV, patrocínio, prêmio no fim, socorro e diretoria
 export function contasDaRodada(base, s, rd, jogoCasa, tab) {
   garantirFinancas(base, s);
@@ -128,13 +177,7 @@ export function contasDaRodada(base, s, rd, jogoCasa, tab) {
   const dias = rd === 0 ? diasPre(s) : diasEntre(s, rd - 1, rd);
   const folha = folhaDia(base, s);
   if (dias) lancar(s, 'salarios', `Salários (${dias} dias)`, -folha * dias, rd);
-  if (jogoCasa) {
-    const l = tab.find(x => x.clube === ci), pos = tab.indexOf(l) + 1;
-    const b = bilheteria(base, s, ci, jogoCasa.adv, l?.ultimos || [], pos, f.ingresso);
-    lancar(s, 'bilheteria', `Bilheteria × ${base.clubes[jogoCasa.adv].n} (${b.publico.toLocaleString('pt-BR')} pagantes)`, b.renda, rd);
-    if (b.occ >= 0.98 && ['caro', 'abusivo'].includes(f.ingresso)) f.diretoria = Math.min(100, f.diretoria + 1);
-    if (b.occ < 0.6 && f.ingresso === 'abusivo') f.diretoria = Math.max(0, f.diretoria - 2);
-  }
+  if (jogoCasa) bilheteriaLiga(base, s, rd, jogoCasa.adv, tab);
   if (PARCELAS_TV.includes(rd) && !f.tvPagas.includes(rd)) { f.tvPagas.push(rd); lancar(s, 'tv', `Cota de TV (parcela ${PARCELAS_TV.indexOf(rd) + 1} de 4)`, cotaTV(c) / 4, rd); }
   lancar(s, 'patrocinio', `Patrocínio master · ${f.patrocinador}`, patrocinio(c, ci).valor / 38, rd);
   const pos = tab.findIndex(x => x.clube === ci) + 1;
