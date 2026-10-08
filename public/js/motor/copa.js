@@ -1,4 +1,5 @@
-// Copa do Brasil: 32 clubes (os 20 da Série A e os 12 mais fortes da B), mata-mata em jogo único com pênaltis
+// Copa do Brasil: 32 clubes (os 20 da Série A, os campeões regionais do ano anterior que estão na B ou na C e os mais
+// fortes da B até fechar 12), mata-mata em jogo único com pênaltis
 // e final em ida e volta. Os jogos caem na quarta-feira livre entre duas rodadas do Brasileirão.
 import { rng, shuffle } from './util.js';
 
@@ -15,14 +16,15 @@ export const PREMIOS = { '1f': 4e5, oit: 6e5, qua: 9e5, sem: 1.6e6, vice: 5e6, c
 const DIA = 864e5;
 export const dataCopa = (dataRodada, ano, i) => new Date(+dataRodada(ano, FASES[i].apos) + 7 * DIA);
 
-export function participantes(base) {
+export function participantes(base, s) {
   const da = d => base.clubes.map((c, i) => i).filter(i => base.clubes[i].div === d).sort((a, b) => base.forca(b) - base.forca(a));
-  return [...da('A'), ...da('B').slice(0, 12)];
+  const vagas = [...new Set(s?.vagasCB || [])].filter(c => ['B', 'C'].includes(base.clubes[c]?.div)).slice(0, 12);
+  return [...da('A'), ...vagas, ...da('B').filter(c => !vagas.includes(c)).slice(0, 12 - vagas.length)];
 }
 
 // sorteio: na 1ª fase os 16 mais fortes pegam os 16 mais fracos, e o mais fraco tem o mando
 export function novaCopa(base, s) {
-  const r = rng(`copa${s.seed}-${s.ano}`), lista = participantes(base).sort((a, b) => base.forca(b) - base.forca(a));
+  const r = rng(`copa${s.seed}-${s.ano}`), lista = participantes(base, s).sort((a, b) => base.forca(b) - base.forca(a));
   const fortes = shuffle(r, lista.slice(0, 16)), fracos = shuffle(r, lista.slice(16));
   s.copa = { ano: s.ano, fase: 0, chaves: fortes.map((f, i) => [fracos[i], f]), jogos: [], art: {}, campeao: null, vice: null };
   return s.copa;

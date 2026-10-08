@@ -848,3 +848,39 @@ test('fair play financeiro: razão custo/receita, escada de punição (multa, re
   s.fin.salarioBudget = null; s.fin.temporada.compras = fp.receita; correioF(base, s);
   assert.ok(s.msgs.some(m => m.assunto.startsWith('Fair play financeiro')));
 });
+
+import { REGIONAIS, fasesReg, tabelaReg, vagasCopaDoBrasil } from '../public/js/motor/regionais.js';
+import { participantes } from '../public/js/motor/copa.js';
+test('regionais: grupos reais de 2026, jogos por grupo, mata-mata com agregado até o campeão, sem Conmebol e vaga na Copa do Brasil', () => {
+  const nome = c => base.clubes[c].n, vit = base.clubes.findIndex(c => c.n === 'Vitória');
+  const s = novoJogo(base, { ...cfg(11), clube: vit });
+  assert.deepEqual(s.reg.NE.grupos[0].map(nome), REGIONAIS.NE.grupos[0]);
+  assert.deepEqual(s.reg.SS.grupos[1].map(nome), REGIONAIS.SS.grupos[1]);
+  assert.deepEqual(s.reg.VE.grupos[2].map(nome), REGIONAIS.VE.grupos[2]);
+  const conm = new Set(['LIB', 'SUL'].flatMap(k => s.cont[k].grupos.flat()));
+  for (const k of ['NE', 'SS', 'VE']) assert.ok(!s.reg[k].grupos.flat().some(c => conm.has(c)));
+  ate(s, 20);
+  for (const k of ['NE', 'SS', 'VE']) {
+    const T = s.reg[k], F = fasesReg(k), fv = F.length - 1;
+    assert.equal(T.fase, F.length);
+    for (let g = 0; g < T.grupos.length; g++) for (const l of tabelaReg(T, g)) assert.equal(l.j, REGIONAIS[k].datas.length, `${k} ${nome(l.clube)}`);
+    assert.ok(T.campeao != null && T.vice != null && T.campeao !== T.vice);
+    // a final é em ida e volta: quem leva é quem fez mais no agregado (ou nos pênaltis)
+    const volta = T.jogos.find(j => j.fase === fv), ida = T.jogos.find(j => j.fase === fv - 1 && j.h === volta.a), ag = [volta.gols[0] + ida.gols[1], volta.gols[1] + ida.gols[0]];
+    assert.equal(T.campeao, ag[0] !== ag[1] ? (ag[0] > ag[1] ? volta.h : volta.a) : (volta.pen[0] > volta.pen[1] ? volta.h : volta.a));
+  }
+  assert.equal(s.reg.VE.regionais.filter(c => c != null).length, 2);
+  assert.ok(s.reg.VE.regionais.includes(s.reg.VE.campeao));
+  assert.equal(s.reg.NE.jogos.filter(j => j.g && (j.h === vit || j.a === vit)).length, 5);
+  // campeão regional da B/C entra na Copa do Brasil do ano seguinte no lugar do último da B
+  const cC = base.clubes.findIndex(c => c.div === 'C'), L = participantes(base, { vagasCB: [cC] });
+  assert.equal(L.length, 32); assert.ok(L.includes(cC));
+  assert.equal(participantes(base, {}).length, 32);
+  while (!fimDeTemporada(s)) avancar(base, s);
+  const vagas = vagasCopaDoBrasil(s).filter(c => ['B', 'C'].includes(base.clubes[c].div));
+  virarTemporada(base, s);
+  assert.equal(s.reg.ano, s.ano);
+  assert.ok(s.historico[0].reg?.NE != null);
+  for (const c of vagas) if (['B', 'C'].includes(base.clubes[c].div)) assert.ok(s.copa.chaves.flat().includes(c));
+  assert.equal(s.reg.NE.grupos.flat().length, 20);
+});

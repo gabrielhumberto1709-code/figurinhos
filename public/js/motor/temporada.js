@@ -7,6 +7,7 @@ import { metaDiretoria, folhaDia, lancar, cotaTV, garantirFinancas, fairPlay, pu
 import { garantirMercado, cumprirAcordos, fimDosEmprestimos } from './mercado.js';
 import { viradaDM } from './dm.js';
 import { novaCont, campanhaCont } from './continental.js';
+import { novaReg, vagasCopaDoBrasil, campanhaReg, emQualReg, REGIONAIS } from './regionais.js';
 import { gala, arquivarGala, moralDosPremiados } from './gala.js';
 import { revisarPotencial } from './potencial.js';
 import { enviar } from './correio.js';
@@ -72,6 +73,7 @@ export function virarTemporada(base, s) {
     campeoes: Object.fromEntries(DIVS.map(d => [d, tabs[d][0].clube])), art: Object.fromEntries(DIVS.map(d => [d, artilheiro(d)])),
     copa: s.copa ? { campeao: s.copa.campeao, vice: s.copa.vice, meu: campanha(s, ci) } : null,
     cont: s.cont ? { LIB: s.cont.LIB.campeao, SUL: s.cont.SUL.campeao, sup: s.cont.sup.jogo?.campeao ?? null, meu: ['LIB', 'SUL'].map(k => campanhaCont(s, k, ci) && `${k === 'LIB' ? 'Libertadores' : 'Sul-Americana'}: ${campanhaCont(s, k, ci).toLowerCase()}`).find(Boolean) || null } : null,
+    reg: s.reg?.ano === s.ano ? { NE: s.reg.NE.campeao, SS: s.reg.SS.campeao, VE: s.reg.VE.campeao, regionais: s.reg.VE.regionais, meu: (k => k && campanhaReg(s, k, ci) && `${REGIONAIS[k].nome}: ${campanhaReg(s, k, ci).toLowerCase()}`)(emQualReg(s, ci)) || null } : null,
     sobem: { A: sobe.B, B: sobe.C }, caem: { B: cai.A, C: cai.B },
   });
   const f = s.fin;
@@ -141,8 +143,10 @@ export function virarTemporada(base, s) {
   s.listas = { venda: s.listas.venda.filter(id => base.jog.get(id)?.clube === ci), emprestimo: s.listas.emprestimo.filter(id => base.jog.get(id)?.clube === ci) };
   if (f.socorro) { lancar(s, 'socorro', 'Desconto dos adiantamentos da TV', -cotaTV(base.clubes[ci]) / 8 * f.socorro, 0); f.socorro = 0; }
   Object.assign(f, { temporada: { ano: s.ano, compras: 0, vendas: 0, folha0: folhaDia(base, s) }, tvPagas: [], ultimaVerba: -99, verbasRecentes: [], atraso: 0, salarioBudget: null });
+  s.vagasCB = vagasCopaDoBrasil(s);      // campeões regionais que acabaram de ganhar a vaga
   novaCopa(base, s);
   novaCont(base, s);
+  novaReg(base, s);
   moralDosPremiados(base, s);
   for (const t of fpN) add(t, 'crise');
   if (meusPot.length) {

@@ -1,5 +1,5 @@
 // Interface do Figurinhos: telas, navegação por hash e saves na nuvem.
-import { Base, novoJogo, iniciarRodada, concluirRodada, iniciarCopa, concluirCopa, iniciarCont, concluirCont, iniciarSup, concluirSup, iniciarAmistoso, concluirAmistoso, proximoEvento, copaSemVoce, tabela, rodadasDe, escalacao, paraSalvar, resumo, REPUTACOES, DIFICULDADES, dataRodada, janelaAberta, caixaInicial, aplicarSave, compProxima, longevo, previa, barradoMedo, multaMedo } from './motor/mundo.js';
+import { Base, novoJogo, iniciarRodada, concluirRodada, iniciarCopa, concluirCopa, iniciarCont, concluirCont, iniciarSup, concluirSup, iniciarReg, concluirReg, iniciarAmistoso, concluirAmistoso, proximoEvento, copaSemVoce, tabela, rodadasDe, escalacao, paraSalvar, resumo, REPUTACOES, DIFICULDADES, dataRodada, janelaAberta, caixaInicial, aplicarSave, compProxima, longevo, previa, barradoMedo, multaMedo } from './motor/mundo.js';
 import { LESOES, COMP_DE, indisponivel, pendurado } from './motor/dm.js';
 import { garantirCarreira, pilares, aceitarOferta, recusarOferta, pedirDemissao } from './motor/carreira.js';
 import { virarTemporada, fimDeTemporada } from './motor/temporada.js';
@@ -511,14 +511,14 @@ telas['ao-vivo'] = () => AoVivo.tela(app.vivo);
 function concluirAoVivo() {
   const V = app.vivo; if (!V) return;
   if (!V.fim) AoVivo.pular(V);
-  (V.R.amistoso ? concluirAmistoso : V.R.copa ? concluirCopa : V.R.cont ? concluirCont : V.R.sup ? concluirSup : concluirRodada)(app.base, app.s, V.R, AoVivo.resultadoFinal(V));
+  (V.R.amistoso ? concluirAmistoso : V.R.copa ? concluirCopa : V.R.cont ? concluirCont : V.R.reg ? concluirReg : V.R.sup ? concluirSup : concluirRodada)(app.base, app.s, V.R, AoVivo.resultadoFinal(V));
   app.vivo = null;
   salvar();
 }
 
 function comecarJogo() {
   const ev = proximoEvento(app.base, app.s), b = app.base, s = app.s;
-  const R = ev?.tipo === 'amistoso' ? iniciarAmistoso(b, s) : ev?.tipo === 'copa' ? iniciarCopa(b, s) : ev?.tipo === 'cont' ? iniciarCont(b, s, ev.k) : ev?.tipo === 'sup' ? iniciarSup(b, s) : iniciarRodada(b, s);
+  const R = ev?.tipo === 'amistoso' ? iniciarAmistoso(b, s) : ev?.tipo === 'copa' ? iniciarCopa(b, s) : ev?.tipo === 'cont' ? iniciarCont(b, s, ev.k) : ev?.tipo === 'reg' ? iniciarReg(b, s, ev.k) : ev?.tipo === 'sup' ? iniciarSup(b, s) : iniciarRodada(b, s);
   if (!R) return;
   if (!R.meu) { concluirRodada(app.base, app.s, R, null); salvar(); ir('#/clube'); return render(); }
   app.vivo = AoVivo.novaPartidaAoVivo(R);

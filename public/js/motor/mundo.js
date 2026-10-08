@@ -16,6 +16,7 @@ import { gerarNoticias } from './noticias.js';
 import { resolverMercado, garantirMercado } from './mercado.js';
 import { dataFifa } from './selecao.js';
 import { registrarConfronto } from './confrontos.js';
+import { REGIONAIS, novaReg, fasesReg, dataFaseReg, jogosDaFaseReg, naReg, regDevida, decidirReg, avancarReg, agregadoReg } from './regionais.js';
 import { contasDaRodada, financasIniciais, bilheteria, lancar } from './financas.js';
 import { FASES, PREMIOS, novaCopa, copaDevida, naCopa, mandoDe, dataCopa, decidir, avancarFase, agregadoIda } from './copa.js';
 
@@ -161,6 +162,7 @@ export function novoJogo(base, cfg) {
   garantirCarreira(base, s);
   novaCont(base, s);
   novaCopa(base, s);
+  novaReg(base, s);
   s.msgs = [{ id: 'boas-vindas', de: 'presidente', ano: s.ano, rodada: 0, lida: false, assunto: 'Bem-vindo', texto: `${cfg.tecnico.nome}, seja bem-vindo ao ${base.clubes[clube].n}. A partir de agora o diretor de futebol vai te escrever por aqui sempre que precisar de uma decisão sua: desfalques, propostas, contratos, dinheiro. Boa sorte.` }];
   return s;
 }
@@ -203,7 +205,7 @@ export function capitaoDe(base, s, xi) {
 }
 
 // competição do próximo jogo do seu clube (os cartões valem por competição)
-export const compProxima = (base, s) => { const ev = proximoEvento(base, s); return ev?.tipo === 'amistoso' ? 'AMI' : ev?.tipo === 'copa' ? 'CB' : ev?.tipo === 'cont' ? ev.k : ev?.tipo === 'sup' ? 'SUP' : 'L'; };
+export const compProxima = (base, s) => { const ev = proximoEvento(base, s); return ev?.tipo === 'amistoso' ? 'AMI' : ev?.tipo === 'reg' ? 'REG' : ev?.tipo === 'copa' ? 'CB' : ev?.tipo === 'cont' ? ev.k : ev?.tipo === 'sup' ? 'SUP' : 'L'; };
 
 // IA escala os melhores (poupando cansados) no esquema dela; o seu time usa a escalação manual quando ela ainda vale.
 // Lesionados e suspensos ficam de fora; na escalação manual, a vaga deles é completada só para esse jogo.
@@ -402,6 +404,10 @@ export function proximoEvento(base, s) {
     const T = s.cont[k], [h, a] = jogosDaFase(T).find(j => j.includes(ci));
     ev.push({ tipo: 'cont', k, fase: T.fase, h, a, data: dataCont(dataRodada, s.ano, T.fase), titulo: `${TORNEIOS[k].nome} · ${FASES_CONT[T.fase].nome}`, neutro: T.fase === F_FIN });
   }
+  for (const k of Object.keys(REGIONAIS)) if (regDevida(s, k, dataRodada) && naReg(s, k, ci)) {
+    const T = s.reg[k], F = fasesReg(k)[T.fase], [h, a] = jogosDaFaseReg(T).find(j => j.includes(ci));
+    ev.push({ tipo: 'reg', k, fase: T.fase, h, a, data: dataFaseReg(dataRodada, s.ano, k, T.fase), titulo: `${REGIONAIS[k].nome} · ${F.nome}`, mataMata: F.k !== 'g' && !F.ida, final: !!F.volta && (F.k === 'f' || (k === 'VE' && F.k === 'sf')) });
+  }
   if (ev.length) return ev.sort((x, y) => x.data - y.data)[0];
   if (s.rodada >= 38) return null;
   const d = base.clubes[ci].div, [h, a] = rodadasDe(base, s, d)[s.rodada].find(j => j.includes(ci));
@@ -583,6 +589,59 @@ export function previa(base, s, ev) {
   return { vitoria: Math.round((eu ? v : d) / t * 100), empate: Math.round(e / t * 100), derrota: Math.round((eu ? d : v) / t * 100) };
 }
 
+// ---------- regionais (Copa do Nordeste, Copa Sul-Sudeste, Copa Verde) ----------
+export function iniciarReg(base, s, k) {
+  const T = s.reg[k], f = T.fase, F = fasesReg(k)[f], jogos = [];
+  descansarAte(base, s, dataFaseReg(dataRodada, s.ano, k, f));
+  let meu = null;
+  for (const [h, a] of jogosDaFaseReg(T)) {
+    const x = jogoCopa(base, s, h, a, 'REG', `${s.seed}-${k}${s.ano}-${f}-${h}-${a}`, { mataMata: F.k !== 'g' && !F.ida, final: !!F.volta && (F.k === 'f' || (k === 'VE' && F.k === 'sf')) });
+    if (x.meu) { meu = x.meu; if (F.volta) meu.agg = agregadoReg(T, h, a); } else jogos.push(x.jogo);
+  }
+  return { reg: k, fase: f, jogos, meu, titulo: `${REGIONAIS[k].nome} · ${F.nome}` };
+}
+export function concluirReg(base, s, R, simMeu) {
+  const k = R.reg, T = s.reg[k], f = R.fase, fases = fasesReg(k), F = fases[f], P = REGIONAIS[k].premio, ci = s.tecnico.clube, nome = c => base.clubes[c].n, N = [], dmN = [];
+  const jogos = R.jogos.slice();
+  if (R.meu) { simMeu.capitao = R.meu.capitao; jogos.push({ h: R.meu.h, a: R.meu.a, seed: R.meu.seed, sim: simMeu }); }
+  const venc = {};
+  for (const { h, a, seed, sim } of jogos) {
+    aposJogo(base, s, h, a, daBase(base, sim));
+    dmN.push(...posJogo(base, s, h, a, sim, 'REG'));
+    const dec = decidirReg(T, h, a, sim.gols, seed, sim.campo);
+    venc[`${h}-${a}`] = dec.vencedor;
+    T.jogos.push({ fase: f, g: F.k === 'g', h, a, gols: sim.gols, pen: dec.pen || null });
+    if (h !== ci && a !== ci) continue;
+    const casa = h === ci, adv = casa ? a : h, my = sim.gols[casa ? 0 : 1], ot = sim.gols[casa ? 1 : 0];
+    if (casa) { const b = bilheteria(base, s, ci, adv, [], 10, s.fin.ingresso); lancar(s, 'bilheteria', `Bilheteria ${REGIONAIS[k].nome} × ${nome(adv)} (${Math.round(b.publico * 0.7).toLocaleString('pt-BR')} pagantes)`, Math.round(b.renda * 0.6)); }
+    if (f === 0) lancar(s, 'premio', `${REGIONAIS[k].nome}: cota de participação`, P.cota);
+    if (F.k === 'g' && my > ot) lancar(s, 'premio', `${REGIONAIS[k].nome}: vitória na fase de grupos`, P.vitoria);
+    torcidaAposJogo(s, ci, h, sim.gols, { pen: dec.pen, mataMata: F.k !== 'g' && !F.ida, final: !!F.volta && F.k === 'f', classico: rivais(base, h, a) });
+    s.ultima = { rodada: s.rodada - 1, copa: `${REGIONAIS[k].nome} · ${F.nome}`, div: k, casa: h, fora: a, ...sim, pen: dec.pen || null, xi: [R.meu.th.xi.map(j => j.id), R.meu.ta.xi.map(j => j.id)] }; registrarConfronto(base, s);
+    N.push({ tipo: 'clube', texto: `${REGIONAIS[k].nome}, ${F.nome.toLowerCase()}: ${nome(h)} ${sim.gols[0]} × ${sim.gols[1]} ${nome(a)}${dec.agg ? ` (agregado ${dec.agg[0]} a ${dec.agg[1]})` : ''}${dec.pen ? ` (${dec.pen[0]} a ${dec.pen[1]} nos pênaltis)` : ''}.` });
+  }
+  const vencedores = jogosDaFaseReg(T).map(([h, a]) => venc[`${h}-${a}`]), estava = T.chaves.some(c => c.includes(ci)) || (F.k === 'g' && T.grupos.some(g => g.includes(ci)));
+  avancarReg(T, vencedores);
+  const prox = fases[T.fase];
+  if (prox && prox.k !== F.k && T.chaves.some(c => c.includes(ci))) {
+    lancar(s, 'premio', `${REGIONAIS[k].nome}: classificação (${prox.nome.split(' ·')[0].toLowerCase()})`, P[prox.k]);
+    N.push({ tipo: 'clube', texto: `${REGIONAIS[k].nome}: classificado para ${prox.nome.split(' ·')[0].toLowerCase()} contra o ${nome(T.chaves.find(c => c.includes(ci)).find(x => x !== ci))}.` });
+  } else if (estava && prox && prox.k !== F.k && !T.chaves.some(c => c.includes(ci))) N.push({ tipo: 'clube', texto: `${REGIONAIS[k].nome}: o ${nome(ci)} está eliminado.` });
+  if (k === 'VE' && F.k === 'sf' && F.volta) T.regionais.forEach((c, i) => N.push({ tipo: c === ci ? 'clube' : 'destaque', texto: `${nome(c)} é campeão da ${REGIONAIS.VE.regioes[i]} e garante vaga na Copa do Brasil do ano que vem.` }));
+  if (T.campeao != null && !prox) {
+    N.push({ tipo: T.campeao === ci ? 'clube' : 'destaque', texto: `${nome(T.campeao)} é campeão da ${REGIONAIS[k].nome} ${s.ano}${k === 'VE' ? '' : ' e garante vaga na Copa do Brasil do ano que vem'}.` });
+    if (T.campeao === ci) { lancar(s, 'premio', `${REGIONAIS[k].nome}: prêmio de campeão`, P.campeao); tituloDeCopa(s); }
+  }
+  s.noticias = [...dmN.map(n => ({ rodada: s.rodada, div: base.clubes[n.clube].div, ...n })), ...N.map(n => ({ rodada: s.rodada, div: base.clubes[ci].div, copa: true, ...n })), ...s.noticias].slice(0, 220);
+  if (R.meu) correio(base, s);
+  return R.meu ? s.ultima : null;
+}
+export function regSemVoce(base, s) {
+  if (!s.reg || s.reg.ano !== s.ano) novaReg(base, s);
+  const ci = s.tecnico.clube;
+  for (const k of Object.keys(REGIONAIS)) while (regDevida(s, k, dataRodada) && !naReg(s, k, ci)) concluirReg(base, s, iniciarReg(base, s, k), null);
+}
+
 // fases que não envolvem o seu clube (ou já atrasadas) se resolvem sozinhas
 export function contSemVoce(base, s) {
   if (!s.cont || s.cont.ano !== s.ano) novaCont(base, s);
@@ -623,6 +682,7 @@ export function concluirRodada(base, s, R, simMeu) {
   resolverMercado(base, s, R.rd);
   if (!naCopa(s, s.tecnico.clube)) copaSemVoce(base, s);
   contSemVoce(base, s);
+  regSemVoce(base, s);
   correio(base, s);
   return s.ultima;
 }
@@ -631,6 +691,7 @@ export function concluirRodada(base, s, R, simMeu) {
 export function avancar(base, s) {
   const ev = proximoEvento(base, s), sim = R => R.meu ? simular(R.meu.th, R.meu.ta, R.meu.seed, R.meu.opts) : null;
   if (ev?.tipo === 'amistoso') { const R = iniciarAmistoso(base, s); return concluirAmistoso(base, s, R, sim(R)); }
+  if (ev?.tipo === 'reg') { const R = iniciarReg(base, s, ev.k); return concluirReg(base, s, R, sim(R)); }
   if (ev?.tipo === 'copa') { const R = iniciarCopa(base, s); return concluirCopa(base, s, R, sim(R)); }
   if (ev?.tipo === 'cont') { const R = iniciarCont(base, s, ev.k); return concluirCont(base, s, R, sim(R)); }
   if (ev?.tipo === 'sup') { const R = iniciarSup(base, s); return concluirSup(base, s, R, sim(R)); }

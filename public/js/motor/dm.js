@@ -33,8 +33,8 @@ const POR_GRAU = { 1: [['pancada', 3], ['contusao', 2.5], ['fadiga', 2], ['desco
 // propensão conhecida a lesões (>1 mais frágil, <1 mais resistente)
 const FRAG = { 68290: 2.3, 77100: 1.7, 428791: 1.6, 167850: 1.5, 67920: 1.5, 114937: 1.4, 29241: 1.4, 620477: 1.4, 244275: 1.3, 248410: 1.3, 489893: 1.3, 312294: 1.3, 103381: 1.3, 353108: 1.3, 52896: 1.2, 145707: 1.2, 79960: 1.2, 223560: 1.2, 565009: 1.2, 943837: 1.1, 102017: 1.1, 80562: 0.6, 69400: 0.6, 22415: 0.5, 50144: 0.6, 54590: 0.8, 341705: 0.8, 364972: 0.8, 205041: 0.9 };
 export const TREINO_LES = { leve: 0.6, normal: 1, intenso: 1.6 };
-export const COMP_NOME = { L: 'campeonato', CB: 'Copa do Brasil', LIB: 'Libertadores', SUL: 'Sul-Americana', SUP: 'Supercopa' };
-export const COMP_DE = { L: 'do campeonato', CB: 'da Copa do Brasil', LIB: 'da Libertadores', SUL: 'da Sul-Americana', SUP: 'da Supercopa' };
+export const COMP_NOME = { L: 'campeonato', CB: 'Copa do Brasil', LIB: 'Libertadores', SUL: 'Sul-Americana', SUP: 'Supercopa', REG: 'regional' };
+export const COMP_DE = { L: 'do campeonato', CB: 'da Copa do Brasil', LIB: 'da Libertadores', SUL: 'da Sul-Americana', SUP: 'da Supercopa', REG: 'do regional' };
 
 const garantir = s => { s.dm = s.dm || {}; s.lesH = s.lesH || {}; s.susp = s.susp || {}; s.amar = s.amar || {}; };
 const agora = s => s.ano * 100 + s.rodada;
