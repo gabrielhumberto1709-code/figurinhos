@@ -3,7 +3,8 @@
 import { tabela, rodadasDe, dataRodada } from './motor/mundo.js';
 import { FASES, PREMIOS, dataCopa, campanha, naCopa, mandoDe } from './motor/copa.js';
 import { fmtDinheiro } from './motor/util.js';
-import { REGIONAIS, fasesReg, dataFaseReg, jogosDaFaseReg, tabelaReg, campanhaReg, naReg, emQualReg } from './motor/regionais.js';
+import { REGIONAIS, ESTADUAIS, COPAS_REG, fasesReg, dataFaseReg, jogosDaFaseReg, tabelaReg, campanhaReg, vivoReg, regsDe } from './motor/regionais.js';
+import { dataAmistoso } from './motor/calendario.js';
 import { TORNEIOS, PREMIO_SUP, FASES_CONT, F_MATA, dataCont, dataSup, tabelaGrupo, campanhaCont, naCont, jogoDoClube, emQualCont } from './motor/continental.js';
 
 let H; // { app, clube, esc, imgEscudo, render }
@@ -63,7 +64,7 @@ function continental() {
   if (k === 'SUP') {
     const x = s.cont.sup, j = x.jogo;
     return `${topo}<section class="cartao copa-topo"><div class="titulo-linha"><h3>Supercopa do Brasil ${s.cont.ano}</h3>${j ? `<span class="tag destaque">Campeão: ${H.esc(H.clube(j.campeao).n)}</span>` : ''}</div>
-      <p class="mudo" style="font-size:.95rem">Campeão da Série A × campeão da Copa do Brasil, em jogo único e campo neutro, antes da 1ª rodada. Empate vai para os pênaltis.</p>
+      <p class="mudo" style="font-size:.95rem">Campeão da Série A × campeão da Copa do Brasil, em jogo único e campo neutro, no começo de fevereiro (no meio dos estaduais). Empate vai para os pênaltis.</p>
       <ol class="chave-copa">${placarCopa({ h: x.h, a: x.a, gols: j?.gols, pen: j?.pen, data: j ? null : dataSup(dataRodada, s.ano) }, ci)}</ol>
       <div class="chips"><span class="chip-info">Campeão ${fmtDinheiro(PREMIO_SUP.campeao)}</span><span class="chip-info">Vice ${fmtDinheiro(PREMIO_SUP.vice)}</span></div></section>`;
   }
@@ -84,32 +85,36 @@ function continental() {
     ${art.length ? `<section class="cartao"><h3>Artilharia</h3><ol class="selecao">${art.map(([g, nome, c]) => `<li><span class="clube-cel"><span>${H.imgEscudo(c, 18, 20)}${H.esc(nome)}</span></span><span class="nota">${g}</span></li>`).join('')}</ol></section>` : ''}`;
 }
 
-// Copa do Nordeste, Copa Sul-Sudeste e Copa Verde
-const FORMATO_REG = {
-  NE: '20 clubes em 4 grupos de 5. Cada um joga 5 vezes, em turno único, contra os do grupo vizinho (A×B, C×D). Os 2 primeiros de cada grupo vão às quartas, em jogo único na casa de quem fez a melhor campanha; semifinal e final em ida e volta. O campeão ganha vaga na Copa do Brasil do ano seguinte.',
-  SS: '12 clubes em 2 grupos de 6. Cada um joga 6 vezes, em turno único, contra os do outro grupo. Os 2 primeiros de cada grupo vão à semifinal; semi e final em ida e volta, com a volta na casa da melhor campanha. O campeão ganha vaga na Copa do Brasil do ano seguinte.',
-  VE: '24 clubes em 4 grupos de 6, em turno único dentro do grupo: A e B formam a Copa Norte; C e D, a Copa Centro-Oeste. Quartas em jogo único; as finais regionais, em ida e volta, dão os títulos da Copa Norte e da Copa Centro-Oeste e as vagas na Copa do Brasil. Os dois campeões decidem a Copa Verde em ida e volta.',
-};
-const ROT_PREMIO = { cota: 'Cota', vitoria: 'Vitória nos grupos', qf: 'Quartas', sf: 'Semi', f: 'Final', campeao: 'Campeão' };
+// estaduais e copas regionais: as do seu clube em chips, todas no seletor
+const ROT_PREMIO = { cota: 'Cota', vitoria: 'Vitória nos grupos', campeao: 'Campeão', vice: 'Vice' };
 function regionais() {
-  const s = H.app.s, ci = s.tecnico.clube, k = H.app.abaReg || emQualReg(s, ci) || 'NE';
-  const topo = chips('Competição', Object.entries(REGIONAIS).map(([x, R]) => [x, R.nome]), 'aba-reg', x => x === k);
-  const T = s.reg?.[k];
-  if (!T || T.ano !== s.ano) return `${topo}<section class="cartao"><p class="mudo">Os regionais começam na próxima temporada.</p></section>`;
-  const R = REGIONAIS[k], F = fasesReg(k), ng = R.datas.length, camp = campanhaReg(s, k, ci), blocos = [];
+  const s = H.app.s, ci = s.tecnico.clube, meus = regsDe(s, ci), k = REGIONAIS[H.app.abaReg] ? H.app.abaReg : meus[0] || 'SP';
+  const opt = x => `<option value="${x}" ${x === k ? 'selected' : ''}>${REGIONAIS[x].nome}</option>`;
+  const topo = `${meus.length ? chips('Do seu clube', meus.map(x => [x, REGIONAIS[x].curto]), 'aba-reg', x => x === k) : ''}
+    <label class="sel-linha sel-reg">Ver <select data-reg-sel aria-label="Competição regional"><optgroup label="Estaduais">${ESTADUAIS.map(opt).join('')}</optgroup><optgroup label="Copas regionais">${COPAS_REG.map(opt).join('')}</optgroup></select></label>`;
+  const T = s.reg?.v === 2 && s.reg.ano === s.ano && !s.reg.pulado ? s.reg[k] : null;
+  if (!T) return `${topo}<section class="cartao"><p class="mudo">Os regionais voltam em janeiro, depois dos amistosos.</p></section>`;
+  const S = REGIONAIS[k], F = fasesReg(k), camp = campanhaReg(s, k, ci), blocos = [];
   const bloco = (titulo, jogos) => `<section class="cartao"><h3>${titulo}</h3><ol class="chave-copa">${jogos.map(j => placarCopa(j, ci)).join('')}</ol></section>`;
-  const quando = f => dataCurta(dataFaseReg(dataRodada, s.ano, k, f));
-  if (T.fase < F.length && (T.fase < ng || T.chaves.length)) blocos.push(bloco(`${F[T.fase].nome} · ${quando(T.fase)}`, jogosDaFaseReg(T).map(([h, a]) => ({ h, a }))));
-  for (let f = Math.min(T.fase, F.length) - 1; f >= 0; f--) { if (f < ng && f < T.fase - 1) break; blocos.push(bloco(F[f].nome, T.jogos.filter(j => j.fase === f))); }
-  const nomeGrupo = i => `Grupo ${LETRA[i]}${R.regioes ? ` · ${R.regioes[i < 2 ? 0 : 1]}` : ''}`;
-  const grupos = T.grupos.map((g, i) => `<section class="cartao tabela-wrap"><h3>${nomeGrupo(i)}</h3><table><thead><tr><th>#</th><th style="text-align:left">Clube</th><th>P</th><th>J</th><th>SG</th></tr></thead>
-    <tbody>${tabelaReg(T, i).map((l, n) => `<tr class="${n < 2 ? 'z-lib' : ''} ${l.clube === ci ? 'meu' : ''}"><td class="pos">${n + 1}</td><td class="clube-cel"><span>${nomeC(l.clube)}</span></td><td class="p">${l.p}</td><td>${l.j}</td><td>${l.sg}</td></tr>`).join('')}</tbody></table></section>`).join('');
-  const tags = [T.campeao != null && `<span class="tag destaque">Campeão: ${H.esc(H.clube(T.campeao).n)}</span>`, ...(T.regionais || []).map((c, i) => c != null && `<span class="tag">${R.regioes[i]}: ${H.esc(H.clube(c).n)}</span>`)].filter(Boolean).join('');
-  return `${topo}<section class="cartao copa-topo"><div class="titulo-linha"><h3>${R.nome} ${T.ano}</h3>${tags}</div>
-      <p><b>${camp ? `${H.esc(H.clube(ci).n)}: ${camp}` : `O ${H.esc(H.clube(ci).n)} não disputa esta edição.`}</b></p>
-      <p class="mudo" style="font-size:.95rem">${FORMATO_REG[k]} De março a junho, fora das datas do Brasileirão; clube na Libertadores ou na Sul-Americana não joga regional (em 2026, os grupos reais).</p>
-      <div class="chips">${Object.entries(R.premio).map(([x, v]) => `<span class="chip-info">${ROT_PREMIO[x]} ${fmtDinheiro(v)}</span>`).join('')}</div></section>
-    ${blocos.join('')}<div class="grupos-cont">${grupos}</div>`;
+  if (T.fase < F.length && jogosDaFaseReg(T).length) blocos.push(bloco(`${F[T.fase].nome} · ${dataCurta(dataFaseReg(s.ano, k, T.fase))}`, jogosDaFaseReg(T).map(([h, a]) => ({ h, a }))));
+  // mata-mata inteiro e, da fase de grupos, só a última rodada jogada
+  let rodadaVista = false;
+  for (let f = Math.min(T.fase, F.length) - 1; f >= 0; f--) {
+    if (F[f].e != null) { if (rodadaVista) continue; rodadaVista = true; }
+    blocos.push(bloco(F[f].nome, T.jogos.filter(j => j.fase === f)));
+  }
+  const tabelas = T.etapas.map((E, e) => {
+    const X = S.etapas[e], L = X.letras || 'ABCDEFGH', geral = X.geral || E.grupos.length === 1, gs = geral ? [E.grupos.flat()] : E.grupos;
+    return gs.map((g, gi) => `<section class="cartao tabela-wrap"><h3>${S.etapas.length > 1 ? `${X.nome} · ` : ''}${geral ? 'Classificação' : `Grupo ${L[gi]}${X.regioes ? ` · ${X.regioes[gi]}` : ''}`}</h3><table><thead><tr><th>#</th><th style="text-align:left">Clube</th><th>P</th><th>J</th><th>SG</th></tr></thead>
+      <tbody>${tabelaReg(T, e, g).map((l, n) => `<tr class="${n < X.sobe ? 'z-lib' : ''} ${l.clube === ci ? 'meu' : ''}"><td class="pos">${n + 1}</td><td class="clube-cel"><span>${nomeC(l.clube)}</span></td><td class="p">${l.p}</td><td>${l.j}</td><td>${l.sg}</td></tr>`).join('')}</tbody></table></section>`).join('');
+  }).reverse().join('');
+  const tags = [T.campeao != null && `<span class="tag destaque">Campeão: ${H.esc(H.clube(T.campeao).n)}</span>`, ...Object.entries(T.titulos).map(([t, c]) => `<span class="tag">${t}: ${H.esc(H.clube(c).n)}</span>`)].filter(Boolean).join('');
+  const premios = [...Object.entries(S.premio).filter(([x, v]) => ROT_PREMIO[x] && v).map(([x, v]) => [ROT_PREMIO[x], v]), ...(S.premio.mata || []).map((v, m) => [`Vaga ${S.mata[m].curto.toLowerCase()}`, v])];
+  return `${topo}<section class="cartao copa-topo"><div class="titulo-linha"><h3>${S.nome} ${T.ano}</h3>${tags}</div>
+      <p><b>${camp ? `${H.esc(H.clube(ci).n)}: ${camp}` : `O ${H.esc(H.clube(ci).n)} não disputa ${S.copa ? 'esta copa' : 'este estadual'}.`}</b></p>
+      <p class="mudo" style="font-size:.95rem">${S.formato} De janeiro ao começo de abril, antes do Brasileirão; não vale vaga em nada.${S.copa ? ' Quem está na Libertadores ou na Sul-Americana não joga.' : ''}</p>
+      ${premios.length ? `<div class="chips">${premios.map(([t, v]) => `<span class="chip-info">${t} ${fmtDinheiro(v)}</span>`).join('')}</div>` : ''}</section>
+    ${blocos.join('')}<div class="grupos-cont">${tabelas}</div>`;
 }
 
 // todos os seus compromissos da temporada, liga e copa, em ordem de data
@@ -119,7 +124,7 @@ export function agenda() {
     const [h, a] = rd.find(j => j.includes(ci)), g = s.res?.[d]?.[`${h}-${a}`];
     ev.push({ data: dataRodada(s.ano, i), comp: `Série ${d} · ${i + 1}ª`, h, a, g, prox: i === s.rodada });
   });
-  if (s.amistosos?.ano === s.ano) s.amistosos.jogos.forEach((j, i) => ev.push({ data: new Date(+dataRodada(s.ano, 0) - j.dias * 864e5), comp: `Amistoso ${i + 1}`, copa: true, h: j.h, a: j.a, g: j.g }));
+  if (s.amistosos?.ano === s.ano) s.amistosos.jogos.forEach((j, i) => ev.push({ data: dataAmistoso(s.ano, i), comp: `Amistoso ${i + 1}`, copa: true, h: j.h, a: j.a, g: j.g }));
   if (s.copa) {
     for (const j of s.copa.jogos.filter(x => x.h === ci || x.a === ci)) ev.push({ data: dataCopa(dataRodada, s.ano, j.fase), comp: `Copa · ${FASES[j.fase].curto}`, copa: true, h: j.h, a: j.a, g: j.gols, pen: j.pen });
     if (naCopa(s, ci)) for (let i = s.copa.fase; i < FASES.length; i++) {
@@ -135,13 +140,13 @@ export function agenda() {
       ev.push({ data: dataCont(dataRodada, s.ano, f), comp: `${k === 'LIB' ? 'Liberta' : 'Sul-Am.'} · ${FASES_CONT[f].curto}`, copa: true, h, a, futuro: !jg });
     }
   }
-  const kr = emQualReg(s, ci), TR = kr && s.reg?.ano === s.ano ? s.reg[kr] : null;
-  if (TR) {
-    const F = fasesReg(kr), rot = f => `${REGIONAIS[kr].nome}<br>${F[f].curto}`, quando = f => dataFaseReg(dataRodada, s.ano, kr, f);
+  for (const kr of s.reg?.ano === s.ano ? regsDe(s, ci) : []) {
+    const TR = s.reg[kr], F = fasesReg(kr), rot = f => `${REGIONAIS[kr].curto}<br>${F[f].curto}`, quando = f => dataFaseReg(s.ano, kr, f);
     for (const j of TR.jogos.filter(x => x.h === ci || x.a === ci)) ev.push({ data: quando(j.fase), comp: rot(j.fase), copa: true, h: j.h, a: j.a, g: j.gols, pen: j.pen });
-    if (naReg(s, kr, ci)) for (let f = TR.fase; f < F.length; f++) {
-      const jg = f === TR.fase || F[f].k === 'g' || (F[f].volta && f === TR.fase + 1) ? jogosDaFaseReg({ ...TR, fase: f }).find(j => j.includes(ci)) : null, [h, a] = jg || [ci, null];
-      ev.push({ data: quando(f), comp: rot(f), copa: true, h, a, futuro: !jg });
+    if (vivoReg(TR, ci)) for (let f = TR.fase; f < F.length; f++) {
+      const ok = F[f].e != null ? TR.etapas[F[f].e] : f === TR.fase || (F[f].perna === 'volta' && f === TR.fase + 1);
+      const jg = ok ? jogosDaFaseReg({ ...TR, fase: f }).find(j => j.includes(ci)) : null, [h, a] = jg || [ci, null];
+      if (jg || F[f].e == null) ev.push({ data: quando(f), comp: rot(f), copa: true, h, a, futuro: !jg });
     }
   }
   const sup = s.cont?.sup;
@@ -165,8 +170,9 @@ function historico() {
     <ul class="campeoes">${['A', 'B', 'C'].map(d => `<li><span class="mudo">Série ${d}</span><span>${H.imgEscudo(h.campeoes[d], 16, 17)} <b>${nome(h.campeoes[d])}</b>${h.art[d] ? ` <small class="mudo">· artilheiro ${H.esc(h.art[d].nome)} (${h.art[d].gols})</small>` : ''}</span></li>`).join('')}
       ${h.copa?.campeao != null ? `<li><span class="mudo">Copa do Brasil</span><span>${H.imgEscudo(h.copa.campeao, 16, 17)} <b>${nome(h.copa.campeao)}</b></span></li>` : ''}
       ${h.cont ? [['Libertadores', h.cont.LIB], ['Sul-Americana', h.cont.SUL], ['Supercopa', h.cont.sup]].filter(x => x[1] != null).map(([t, c]) => `<li><span class="mudo">${t}</span><span>${H.imgEscudo(c, 16, 17)} <b>${nome(c)}</b></span></li>`).join('') : ''}
-      ${h.reg ? [['Copa do Nordeste', h.reg.NE], ['Copa Sul-Sudeste', h.reg.SS], ['Copa Verde', h.reg.VE], ...(h.reg.regionais || []).map((c, i) => [REGIONAIS.VE.regioes[i], c])].filter(x => x[1] != null).map(([t, c]) => `<li><span class="mudo">${t}</span><span>${H.imgEscudo(c, 16, 17)} <b>${nome(c)}</b></span></li>`).join('') : ''}</ul>
-    ${[h.cont?.meu, h.reg?.meu].filter(Boolean).map(t => `<p class="mudo" style="font-size:.95rem">${H.esc(t)}</p>`).join('')}
+      ${h.reg?.campeoes ? COPAS_REG.filter(k => h.reg.campeoes[k] != null).map(k => `<li><span class="mudo">${REGIONAIS[k].nome}</span><span>${H.imgEscudo(h.reg.campeoes[k], 16, 17)} <b>${nome(h.reg.campeoes[k])}</b></span></li>`).join('') : ''}</ul>
+    ${[h.cont?.meu, ...(Array.isArray(h.reg?.meu) ? h.reg.meu : [])].filter(Boolean).map(t => `<p class="mudo" style="font-size:.95rem">${H.esc(t)}</p>`).join('')}
+    ${h.reg?.campeoes ? `<p class="mudo" style="font-size:.9rem">Estaduais: ${ESTADUAIS.filter(k => h.reg.campeoes[k] != null).map(k => `${nome(h.reg.campeoes[k])} (${REGIONAIS[k].curto})`).join(', ')}.</p>` : ''}
     <p class="mudo" style="font-size:.95rem">Subiram para a A: ${h.sobem.A.map(nome).join(', ')}. Caíram para a B: ${h.caem.B.map(nome).join(', ')}.</p>
     ${(s.galas || []).some(g => g.ano === h.ano) ? `<p><a href="#/gala">Premiação de gala de ${h.ano}</a></p>` : ''}</section>`).join('');
 }
@@ -178,7 +184,7 @@ export function tela() {
     continental,
     regionais,
   }[aba]();
-  return `<div class="titulo-linha"><h2>Torneios</h2><span class="mudo">${s.ano} · rodada ${Math.min(s.rodada + 1, 38)}/38</span></div>
+  return `<div class="titulo-linha"><h2>Torneios</h2><span class="mudo">${s.ano} · ${s.rodada === 0 ? 'pré-temporada e regionais' : `rodada ${Math.min(s.rodada + 1, 38)}/38`}</span></div>
     <nav class="abas-mercado" aria-label="Competições">${ABAS.map(([k, t]) => `<button type="button" class="chip" data-acao="aba-torneios" data-v="${k}" aria-pressed="${aba === k}">${t}</button>`).join('')}</nav>
     ${corpo}`;
 }

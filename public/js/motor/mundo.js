@@ -1,6 +1,6 @@
 // Estado do jogo: cria a carreira, avança rodadas e calcula tabelas.
 import { rng, pick, jogador } from './util.js';
-import { pontosCorridos } from './calendario.js';
+import { pontosCorridos, dataRodada, dataAmistoso as diaAmistoso } from './calendario.js';
 import { simular, melhorTime, bancoAuto, FORMACOES, POSICOES, PERS, usarFormacao, vagaPara, encaixe, fatorCond, forcaSetores } from './partida.js';
 import { fragilidade, indisponiveis, posJogo, TREINO_LES } from './dm.js';
 import { garantirCarreira, torcidaAposJogo, aposRodada, tituloDeCopa } from './carreira.js';
@@ -16,8 +16,8 @@ import { gerarNoticias } from './noticias.js';
 import { resolverMercado, garantirMercado } from './mercado.js';
 import { dataFifa } from './selecao.js';
 import { registrarConfronto } from './confrontos.js';
-import { REGIONAIS, novaReg, fasesReg, dataFaseReg, jogosDaFaseReg, naReg, regDevida, decidirReg, avancarReg, agregadoReg } from './regionais.js';
-import { contasDaRodada, financasIniciais, bilheteria, lancar } from './financas.js';
+import { REGIONAIS, novaReg, fasesReg, dataFaseReg, jogosDaFaseReg, naReg, regDevida, decidirReg, avancarReg, agregadoReg, mataMataReg, finalReg, vivoReg } from './regionais.js';
+import { contasDaRodada, financasIniciais, bilheteria, lancar, folhaDia, garantirFinancas } from './financas.js';
 import { FASES, PREMIOS, novaCopa, copaDevida, naCopa, mandoDe, dataCopa, decidir, avancarFase, agregadoIda } from './copa.js';
 
 const DIVS = ['A', 'B', 'C'];
@@ -30,17 +30,13 @@ export const REPUTACOES = [
 ];
 export const DIFICULDADES = { facil: 'Fácil', normal: 'Normal', dificil: 'Difícil' };
 
-// datas das rodadas: começa na quarta-feira a partir de 28 de janeiro, alterna quarta/domingo e para no meio do ano
-export function dataRodada(ano, r) {
-  const ini = Date.UTC(ano, 0, 28), quarta = (3 - new Date(ini).getUTCDay() + 7) % 7;
-  const d = new Date(ini + (quarta + 7 * r + (r % 2 ? 4 : 0)) * 864e5);
-  if (d >= new Date(Date.UTC(ano, 5, 7))) d.setUTCDate(d.getUTCDate() + 42); // pausa de junho/julho (Copa do Mundo ou datas FIFA)
-  return d;
-}
-// janelas do Brasil: até o começo de março e do fim de julho ao começo de setembro
+// datas: calendario.js (amistosos, regionais e Brasileirão do meio de abril ao começo de dezembro)
+export { dataRodada };
+// janelas: aberta na pré-temporada e nos regionais (até a 1ª rodada do Brasileirão) e do fim de julho ao começo de setembro
 export function janelaAberta(ano, r) {
+  if (r <= 0) return true;
   const d = dataRodada(ano, Math.min(r, 37)), m = d.getUTCMonth(), dia = d.getUTCDate();
-  return m < 2 || (m === 2 && dia <= 3) || (m === 6 && dia >= 20) || m === 7 || (m === 8 && dia <= 2);
+  return (m === 6 && dia >= 20) || m === 7 || (m === 8 && dia <= 2);
 }
 
 // caixa inicial: parte do valor do elenco + tamanho da torcida, pesado pela divisão
@@ -236,9 +232,11 @@ export function pagarMedo(base, s, id) {
   lancar(s, 'medo', `Multa da cláusula do medo: ${j.curto} (${base.clubes[e.de].n})`, -v);
   return null;
 }
-export function escalacao(base, s, ci, comp = compProxima(base, s)) {
+export function escalacao(base, s, ci, comp = compProxima(base, s), poupa = 0) {
   if (s.formPers) usarFormacao(s.formPers);
   const elenco = base.elencos[ci], cond = s.cond || {}, fora = indisponiveis(s, elenco, comp);
+  // time alternativo (IA nos regionais): os melhores descansam
+  if (poupa && ci !== s.tecnico.clube) for (const j of elenco.filter(j => !fora.has(j.id)).sort((a, b) => b.ovr - a.ovr).slice(0, poupa)) fora.add(j.id);
   for (const j of elenco) if (s.emprestimos?.[j.id]?.medo && barradoMedo(base, s, j.id, ci)) fora.add(j.id);
   if (ci !== s.tecnico.clube) { const t = taticaIA(base, ci); return { ...melhorTime(elenco, t.formacao, fora, cond, bonusFase(s)), estilo: t.estilo, gatilhos: t.gatilhos }; }
   let time = null, trocados = [];
@@ -370,6 +368,7 @@ function registrar(est, sim) {
 export function iniciarRodada(base, s) {
   if (s.rodada >= 38) return null;
   Object.assign(s, { ...TATICA_PADRAO(), ...s });
+  if (s.rodada === 0) regAte(base, s, dataRodada(s.ano, 0)); // fecha a pré-temporada e os regionais antes da estreia
   copaSemVoce(base, s); contSemVoce(base, s);
   const rd = s.rodada, ci = s.tecnico.clube, jogos = [];
   descansarAte(base, s, dataRodada(s.ano, rd));
@@ -404,9 +403,9 @@ export function proximoEvento(base, s) {
     const T = s.cont[k], [h, a] = jogosDaFase(T).find(j => j.includes(ci));
     ev.push({ tipo: 'cont', k, fase: T.fase, h, a, data: dataCont(dataRodada, s.ano, T.fase), titulo: `${TORNEIOS[k].nome} · ${FASES_CONT[T.fase].nome}`, neutro: T.fase === F_FIN });
   }
-  for (const k of Object.keys(REGIONAIS)) if (regDevida(s, k, dataRodada) && naReg(s, k, ci)) {
+  for (const k of Object.keys(REGIONAIS)) if (regDevida(s, k, dataRodada(s.ano, s.rodada)) && naReg(s, k, ci)) {
     const T = s.reg[k], F = fasesReg(k)[T.fase], [h, a] = jogosDaFaseReg(T).find(j => j.includes(ci));
-    ev.push({ tipo: 'reg', k, fase: T.fase, h, a, data: dataFaseReg(dataRodada, s.ano, k, T.fase), titulo: `${REGIONAIS[k].nome} · ${F.nome}`, mataMata: F.k !== 'g' && !F.ida, final: !!F.volta && (F.k === 'f' || (k === 'VE' && F.k === 'sf')) });
+    ev.push({ tipo: 'reg', k, fase: T.fase, h, a, data: dataFaseReg(s.ano, k, T.fase), titulo: `${REGIONAIS[k].nome} · ${F.nome}`, mataMata: mataMataReg(F), final: finalReg(k, F), neutro: !!REGIONAIS[k].mata[F.m]?.neutro });
   }
   if (ev.length) return ev.sort((x, y) => x.data - y.data)[0];
   if (s.rodada >= 38) return null;
@@ -464,11 +463,14 @@ export function concluirCopa(base, s, R, simMeu) {
 }
 
 // ---------- Libertadores, Sul-Americana e Supercopa ----------
-const timeCont = (base, s, ci, comp) => deFora(base.clubes[ci]) ? timeFora(base, s, ci) : escalacao(base, s, ci, comp);
+const timeCont = (base, s, ci, comp, poupa) => deFora(base.clubes[ci]) ? timeFora(base, s, ci) : escalacao(base, s, ci, comp, poupa);
+// nos regionais, a IA da Série A (e um pouco a da B) usa time misto até o mata-mata, como os grandes fazem no estadual
+const POUPA_REG = { A: 5, B: 2 };
 // só os jogadores da base entram em condição e moral (os gerados dos clubes de fora não ficam no save)
 const daBase = (base, sim) => ({ ...sim, cond: Object.fromEntries(Object.entries(sim.cond || {}).filter(([id]) => base.jog.has(+id))), notas: sim.notas.map(n => Object.fromEntries(Object.entries(n).filter(([id]) => base.jog.has(+id)))) });
 function jogoCopa(base, s, h, a, comp, seed, extra = {}) {
-  const ci = s.tecnico.clube, th = timeCont(base, s, h, comp), ta = timeCont(base, s, a, comp);
+  const ci = s.tecnico.clube, poupa = c => comp === 'REG' && !extra.mataMata ? POUPA_REG[base.clubes[c].div] || 0 : 0;
+  const th = timeCont(base, s, h, comp, poupa(h)), ta = timeCont(base, s, a, comp, poupa(a));
   const opts = { cond: s.cond, mor: s.mor, auto: [h === ci ? s.subsAuto !== false : true, a === ci ? s.subsAuto !== false : true], fragil: fragilDe(base, s), neutro: !!extra.neutro, fase: fase(s), mando: fatorCasa(base, s, h, a), arbitro: arbitroDo(s, seed) };
   if (h === ci || a === ci) return { meu: { d: comp, h, a, th, ta, seed, humano: h === ci ? 0 : 1, opts, capitao: (h === ci ? th : ta).capitao, agg: [0, 0], ...extra } };
   return { jogo: { h, a, seed, sim: simular(th, ta, seed, opts) } };
@@ -521,6 +523,7 @@ export function concluirCont(base, s, R, simMeu) {
 }
 export function iniciarSup(base, s) {
   const { h, a } = s.cont.sup;
+  if ([h, a].includes(s.tecnico.clube)) regAte(base, s, dataSup(dataRodada, s.ano));
   descansarAte(base, s, dataSup(dataRodada, s.ano));
   const x = jogoCopa(base, s, h, a, 'SUP', `${s.seed}-sup${s.ano}-${h}-${a}`, { mataMata: true, neutro: true, final: true });
   return { sup: true, jogos: x.jogo ? [x.jogo] : [], meu: x.meu || null, titulo: 'Supercopa do Brasil · final' };
@@ -543,10 +546,9 @@ export function concluirSup(base, s, R, simMeu) {
   return R.meu ? s.ultima : null;
 }
 // ---------- amistosos de pré-temporada ----------
-// três jogos antes da 1ª rodada: um contra time menor (em casa), um parelho (fora) e um de fora do país (em casa).
+// três jogos na primeira semana de janeiro, antes dos regionais: um contra time menor (em casa), um parelho (fora) e um de fora do país (em casa).
 // Não contam para nada: dão ritmo, cansam um pouco, mexem pouco na moral e rendem uma bilheteria pequena.
-const DIAS_AMISTOSO = [21, 15, 9];
-const dataAmistoso = (s, J) => new Date(+dataRodada(s.ano, 0) - J.dias * 864e5);
+const dataAmistoso = (s, J) => diaAmistoso(s.ano, s.amistosos.jogos.indexOf(J));
 function garantirAmistosos(base, s) {
   const ci = s.tecnico.clube;
   if (s.amistosos?.ano === s.ano && s.amistosos.clube === ci) return s.amistosos;
@@ -556,7 +558,7 @@ function garantirAmistosos(base, s) {
   const fora = base.clubes.map((c, i) => i).filter(i => base.clubes[i].div === 'X' && base.clubes[i].tier >= 2);
   const escolhe = l => { const x = pick(r, l); usados.add(x); return x; };
   const advs = [escolhe(perto(br, f - 6)), escolhe(perto(br, f + 1)), escolhe(perto(fora, f + 2).length ? perto(fora, f + 2) : perto(br, f + 3))];
-  s.amistosos = { ano: s.ano, clube: ci, jogos: advs.map((a, i) => ({ h: i === 1 ? a : ci, a: i === 1 ? ci : a, dias: DIAS_AMISTOSO[i], g: null })) };
+  s.amistosos = { ano: s.ano, clube: ci, jogos: advs.map((a, i) => ({ h: i === 1 ? a : ci, a: i === 1 ? ci : a, g: null })) };
   return s.amistosos;
 }
 export function iniciarAmistoso(base, s) {
@@ -589,20 +591,21 @@ export function previa(base, s, ev) {
   return { vitoria: Math.round((eu ? v : d) / t * 100), empate: Math.round(e / t * 100), derrota: Math.round((eu ? d : v) / t * 100) };
 }
 
-// ---------- regionais (Copa do Nordeste, Copa Sul-Sudeste, Copa Verde) ----------
+// ---------- regionais (estaduais e copas regionais, entre os amistosos e o Brasileirão) ----------
 export function iniciarReg(base, s, k) {
-  const T = s.reg[k], f = T.fase, F = fasesReg(k)[f], jogos = [];
-  descansarAte(base, s, dataFaseReg(dataRodada, s.ano, k, f));
+  const T = s.reg[k], f = T.fase, F = fasesReg(k)[f], d = dataFaseReg(s.ano, k, f), jogos = [], M = REGIONAIS[k].mata[F.m];
+  if (naReg(s, k, s.tecnico.clube)) regAte(base, s, d); // o que vem antes (outros regionais, Supercopa, semanas do mercado) anda primeiro
+  descansarAte(base, s, d);
   let meu = null;
   for (const [h, a] of jogosDaFaseReg(T)) {
-    const x = jogoCopa(base, s, h, a, 'REG', `${s.seed}-${k}${s.ano}-${f}-${h}-${a}`, { mataMata: F.k !== 'g' && !F.ida, final: !!F.volta && (F.k === 'f' || (k === 'VE' && F.k === 'sf')) });
-    if (x.meu) { meu = x.meu; if (F.volta) meu.agg = agregadoReg(T, h, a); } else jogos.push(x.jogo);
+    const x = jogoCopa(base, s, h, a, 'REG', `${s.seed}-${k}${s.ano}-${f}-${h}-${a}`, { mataMata: mataMataReg(F), final: finalReg(k, F), neutro: !!M?.neutro });
+    if (x.meu) { meu = x.meu; if (F.perna === 'volta') meu.agg = agregadoReg(T, h, a); } else jogos.push(x.jogo);
   }
   return { reg: k, fase: f, jogos, meu, titulo: `${REGIONAIS[k].nome} · ${F.nome}` };
 }
 export function concluirReg(base, s, R, simMeu) {
-  const k = R.reg, T = s.reg[k], f = R.fase, fases = fasesReg(k), F = fases[f], P = REGIONAIS[k].premio, ci = s.tecnico.clube, nome = c => base.clubes[c].n, N = [], dmN = [];
-  const jogos = R.jogos.slice();
+  const k = R.reg, S = REGIONAIS[k], T = s.reg[k], f = R.fase, fases = fasesReg(k), F = fases[f], P = S.premio, ci = s.tecnico.clube, nome = c => base.clubes[c].n, N = [], dmN = [];
+  const de = S.copa ? 'da' : 'do', jogos = R.jogos.slice(), titulos = { ...T.titulos }, vivo = vivoReg(T, ci);
   if (R.meu) { simMeu.capitao = R.meu.capitao; jogos.push({ h: R.meu.h, a: R.meu.a, seed: R.meu.seed, sim: simMeu }); }
   const venc = {};
   for (const { h, a, seed, sim } of jogos) {
@@ -610,36 +613,59 @@ export function concluirReg(base, s, R, simMeu) {
     dmN.push(...posJogo(base, s, h, a, sim, 'REG'));
     const dec = decidirReg(T, h, a, sim.gols, seed, sim.campo);
     venc[`${h}-${a}`] = dec.vencedor;
-    T.jogos.push({ fase: f, g: F.k === 'g', h, a, gols: sim.gols, pen: dec.pen || null });
+    T.jogos.push({ fase: f, e: F.e, m: F.m, h, a, gols: sim.gols, pen: dec.pen || null });
     if (h !== ci && a !== ci) continue;
     const casa = h === ci, adv = casa ? a : h, my = sim.gols[casa ? 0 : 1], ot = sim.gols[casa ? 1 : 0];
-    if (casa) { const b = bilheteria(base, s, ci, adv, [], 10, s.fin.ingresso); lancar(s, 'bilheteria', `Bilheteria ${REGIONAIS[k].nome} × ${nome(adv)} (${Math.round(b.publico * 0.7).toLocaleString('pt-BR')} pagantes)`, Math.round(b.renda * 0.6)); }
-    if (f === 0) lancar(s, 'premio', `${REGIONAIS[k].nome}: cota de participação`, P.cota);
-    if (F.k === 'g' && my > ot) lancar(s, 'premio', `${REGIONAIS[k].nome}: vitória na fase de grupos`, P.vitoria);
-    torcidaAposJogo(s, ci, h, sim.gols, { pen: dec.pen, mataMata: F.k !== 'g' && !F.ida, final: !!F.volta && F.k === 'f', classico: rivais(base, h, a) });
-    s.ultima = { rodada: s.rodada - 1, copa: `${REGIONAIS[k].nome} · ${F.nome}`, div: k, casa: h, fora: a, ...sim, pen: dec.pen || null, xi: [R.meu.th.xi.map(j => j.id), R.meu.ta.xi.map(j => j.id)] }; registrarConfronto(base, s);
-    N.push({ tipo: 'clube', texto: `${REGIONAIS[k].nome}, ${F.nome.toLowerCase()}: ${nome(h)} ${sim.gols[0]} × ${sim.gols[1]} ${nome(a)}${dec.agg ? ` (agregado ${dec.agg[0]} a ${dec.agg[1]})` : ''}${dec.pen ? ` (${dec.pen[0]} a ${dec.pen[1]} nos pênaltis)` : ''}.` });
+    if (casa && !R.meu?.opts.neutro) { const b = bilheteria(base, s, ci, adv, [], 10, s.fin.ingresso), fator = S.copa ? 0.6 : 0.5; lancar(s, 'bilheteria', `Bilheteria ${S.curto} × ${nome(adv)} (${Math.round(b.publico * (fator + 0.1)).toLocaleString('pt-BR')} pagantes)`, Math.round(b.renda * fator)); }
+    if (f === 0 && P.cota) lancar(s, 'premio', `${S.nome}: cota de participação`, P.cota);
+    if (F.e != null && my > ot && P.vitoria) lancar(s, 'premio', `${S.nome}: vitória na fase de grupos`, P.vitoria);
+    torcidaAposJogo(s, ci, h, sim.gols, { pen: dec.pen, mataMata: mataMataReg(F), final: finalReg(k, F), classico: rivais(base, h, a) });
+    s.ultima = { rodada: s.rodada - 1, copa: `${S.nome} · ${F.nome}`, div: k, casa: h, fora: a, ...sim, pen: dec.pen || null, xi: [R.meu.th.xi.map(j => j.id), R.meu.ta.xi.map(j => j.id)] }; registrarConfronto(base, s);
+    N.push({ tipo: 'clube', texto: `${S.nome}, ${F.nome.toLowerCase()}: ${nome(h)} ${sim.gols[0]} × ${sim.gols[1]} ${nome(a)}${dec.agg ? ` (agregado ${dec.agg[0]} a ${dec.agg[1]})` : ''}${dec.pen ? ` (${dec.pen[0]} a ${dec.pen[1]} nos pênaltis)` : dec.vantagem ? ' (passa a melhor campanha)' : ''}.` });
   }
-  const vencedores = jogosDaFaseReg(T).map(([h, a]) => venc[`${h}-${a}`]), estava = T.chaves.some(c => c.includes(ci)) || (F.k === 'g' && T.grupos.some(g => g.includes(ci)));
-  avancarReg(T, vencedores);
-  const prox = fases[T.fase];
-  if (prox && prox.k !== F.k && T.chaves.some(c => c.includes(ci))) {
-    lancar(s, 'premio', `${REGIONAIS[k].nome}: classificação (${prox.nome.split(' ·')[0].toLowerCase()})`, P[prox.k]);
-    N.push({ tipo: 'clube', texto: `${REGIONAIS[k].nome}: classificado para ${prox.nome.split(' ·')[0].toLowerCase()} contra o ${nome(T.chaves.find(c => c.includes(ci)).find(x => x !== ci))}.` });
-  } else if (estava && prox && prox.k !== F.k && !T.chaves.some(c => c.includes(ci))) N.push({ tipo: 'clube', texto: `${REGIONAIS[k].nome}: o ${nome(ci)} está eliminado.` });
-  if (k === 'VE' && F.k === 'sf' && F.volta) T.regionais.forEach((c, i) => N.push({ tipo: c === ci ? 'clube' : 'destaque', texto: `${nome(c)} é campeão da ${REGIONAIS.VE.regioes[i]} e garante vaga na Copa do Brasil do ano que vem.` }));
+  avancarReg(T, jogosDaFaseReg(T).map(([h, a]) => venc[`${h}-${a}`]));
+  const prox = fases[T.fase], par = T.chaves.find(c => c.includes(ci));
+  if (prox?.m != null && prox.m !== F.m && par) {
+    if (P.mata?.[prox.m]) lancar(s, 'premio', `${S.nome}: classificação (${prox.nome.split(' ·')[0].toLowerCase()})`, P.mata[prox.m]);
+    N.push({ tipo: 'clube', texto: `${S.nome}: classificado para ${prox.nome.split(' ·')[0].toLowerCase()} contra o ${nome(par.find(x => x !== ci))}.` });
+  } else if (vivo && !vivoReg(T, ci) && T.campeao !== ci && T.vice !== ci) N.push({ tipo: 'clube', texto: `${S.nome}: o ${nome(ci)} está eliminado.` });
+  for (const [t, c] of Object.entries(T.titulos)) if (titulos[t] == null) N.push({ tipo: c === ci ? 'clube' : 'destaque', texto: `${nome(c)} é campeão da ${t}.` });
   if (T.campeao != null && !prox) {
-    N.push({ tipo: T.campeao === ci ? 'clube' : 'destaque', texto: `${nome(T.campeao)} é campeão da ${REGIONAIS[k].nome} ${s.ano}${k === 'VE' ? '' : ' e garante vaga na Copa do Brasil do ano que vem'}.` });
-    if (T.campeao === ci) { lancar(s, 'premio', `${REGIONAIS[k].nome}: prêmio de campeão`, P.campeao); tituloDeCopa(s); }
+    N.push({ tipo: T.campeao === ci ? 'clube' : 'destaque', texto: `${nome(T.campeao)} é campeão ${de} ${S.nome} ${s.ano} em cima do ${nome(T.vice)}.` });
+    if (T.campeao === ci) { if (P.campeao) lancar(s, 'premio', `${S.nome}: prêmio de campeão`, P.campeao); tituloDeCopa(s); }
+    if (T.vice === ci && P.vice) lancar(s, 'premio', `${S.nome}: prêmio de vice`, P.vice);
   }
   s.noticias = [...dmN.map(n => ({ rodada: s.rodada, div: base.clubes[n.clube].div, ...n })), ...N.map(n => ({ rodada: s.rodada, div: base.clubes[ci].div, copa: true, ...n })), ...s.noticias].slice(0, 220);
   if (R.meu) correio(base, s);
   return R.meu ? s.ultima : null;
 }
-export function regSemVoce(base, s) {
-  if (!s.reg || s.reg.ano !== s.ano) novaReg(base, s);
+// pré-temporada e regionais: o que não envolve o seu clube (regionais e Supercopa) anda até a data, na ordem das datas,
+// e a cada semana o mercado roda e os salários saem
+export function regAte(base, s, ate) {
+  if (s.reg?.v !== 2 || s.reg.ano !== s.ano) novaReg(base, s);
   const ci = s.tecnico.clube;
-  for (const k of Object.keys(REGIONAIS)) while (regDevida(s, k, dataRodada) && !naReg(s, k, ci)) concluirReg(base, s, iniciarReg(base, s, k), null);
+  for (;;) {
+    let px = null;
+    for (const k of Object.keys(REGIONAIS)) if (regDevida(s, k, ate) && !naReg(s, k, ci)) { const d = dataFaseReg(s.ano, k, s.reg[k].fase); if (!px || d < px.d) px = { k, d }; }
+    const ds = dataSup(dataRodada, s.ano);
+    if (supDevida(s) && ![s.cont.sup.h, s.cont.sup.a].includes(ci) && +ds < +ate && (!px || ds <= px.d)) { semanasDoBloco(base, s, ds); concluirSup(base, s, iniciarSup(base, s), null); continue; }
+    if (!px) break;
+    semanasDoBloco(base, s, px.d);
+    concluirReg(base, s, iniciarReg(base, s, px.k), null);
+  }
+  semanasDoBloco(base, s, ate);
+}
+const SEMANA = 7 * 864e5;
+function semanasDoBloco(base, s, ate) {
+  if (s.rodada > 0) return;
+  const fim = Math.min(+ate, +dataRodada(s.ano, 0)), B = s.semanaBloco?.ano === s.ano ? s.semanaBloco : { ano: s.ano, t: +diaAmistoso(s.ano, 0), n: 0 };
+  while (B.t + SEMANA <= fim) {
+    B.t += SEMANA; B.n++;
+    garantirFinancas(base, s);
+    lancar(s, 'salarios', 'Salários (7 dias)', -folhaDia(base, s) * 7, 0);
+    resolverMercado(base, s, 0, B.n);
+  }
+  s.semanaBloco = B;
 }
 
 // fases que não envolvem o seu clube (ou já atrasadas) se resolvem sozinhas
@@ -682,7 +708,7 @@ export function concluirRodada(base, s, R, simMeu) {
   resolverMercado(base, s, R.rd);
   if (!naCopa(s, s.tecnico.clube)) copaSemVoce(base, s);
   contSemVoce(base, s);
-  regSemVoce(base, s);
+  regAte(base, s, dataRodada(s.ano, s.rodada));
   correio(base, s);
   return s.ultima;
 }

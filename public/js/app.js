@@ -699,7 +699,10 @@ Gala.configurar({ app, clube, esc, imgEscudo, render: () => render() });
 Jornal.configurar({ app, clube, esc, imgEscudo, render: () => render() });
 Mercado.configurar({ app, clube, esc, imgEscudo, $, aviso, render: () => render(), salvar: () => salvar() });
 Elenco.configurar({ app, clube, esc, imgEscudo, figurinha, render: () => render(), salvar: () => salvar(), aviso });
-document.addEventListener('change', e => { if (app.s && Elenco.aoMudar(e.target)) e.stopPropagation(); });
+document.addEventListener('change', e => {
+  if (e.target.matches?.('[data-reg-sel]')) { app.abaReg = e.target.value; return render(); }
+  if (app.s && Elenco.aoMudar(e.target)) e.stopPropagation();
+});
 window.addEventListener('hashchange', render);
 render();
 // a vitrine entra sem redesenhar a tela, para não apagar o que a pessoa já digitou

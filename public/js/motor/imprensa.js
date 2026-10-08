@@ -5,6 +5,9 @@ import { rng, pick, clamp, shuffle } from './util.js';
 import { tabela, janelaAberta, proximoEvento, previa, escalacao, compProxima } from './mundo.js';
 import { confronto, sequencia, resumoConfronto } from './confrontos.js';
 import { F_MATA, F_FIN } from './continental.js';
+import { REGIONAIS } from './regionais.js';
+// estadual é masculino (o Campeonato Paulista, o Paulistão); copa é feminino
+const ARTIGO = comp => /^(Campeonato|Paulista)/.test(comp) ? { na: 'no', da: 'do', pela: 'pelo' } : { na: 'na', da: 'da', pela: 'pela' };
 import { indisponivel } from './dm.js';
 import { pilares } from './carreira.js';
 import { rivais } from './rivais.js';
@@ -60,10 +63,10 @@ const TEMAS = {
   insatisfeito: { tons: FORA, jog: true, q: ['Dizem que {j} anda insatisfeito. Como está a relação?'] },
   renovacao: { tons: FORA, jog: true, q: ['O contrato de {j} termina no fim do ano. Ele renova?'] },
   salarios: { tons: FORA, q: ['Os salários estão atrasados. Como manter o grupo focado?'] },
-  eliminado: { tons: RUIM, q: ['A eliminação na {comp} dói?', 'Fora da {comp}. O ano perdeu o sentido?'] },
-  classificado: { tons: BOM, q: ['Classificado na {comp}. Dá pra sonhar com o título?'] },
-  campeao: { tons: BOM, q: ['É campeão! O que esse título significa?', 'Título da {comp}. Pra quem você dedica?'] },
-  vice: { tons: RUIM, q: ['Bateu na trave na {comp}. O que faltou?', 'Vice da {comp}. Dá pra tirar algo de bom?'] },
+  eliminado: { tons: RUIM, q: ['A eliminação {na} {comp} dói?', 'Fora {da} {comp}. O ano perdeu o sentido?'] },
+  classificado: { tons: BOM, q: ['Classificado {na} {comp}. Dá pra sonhar com o título?'] },
+  campeao: { tons: BOM, q: ['É campeão! O que esse título significa?', 'Título {da} {comp}. Pra quem você dedica?'] },
+  vice: { tons: RUIM, q: ['Bateu na trave {na} {comp}. O que faltou?', 'Vice {da} {comp}. Dá pra tirar algo de bom?'] },
   meta: { tons: FORA, q: ['A meta é {meta}. Está ao alcance?'] },
   proximo: { tons: FORA, q: ['Qual o recado para o próximo jogo, contra o {adv2}?', 'O {adv2} vem aí. Muda alguma coisa?'] },
   retro: { tons: FORA, q: ['Contra o {adv}, agora são {retro}. O que esse retrospecto diz?', 'No histórico contra o {adv}: {retro}. Dá pra falar em freguesia?'] },
@@ -151,7 +154,7 @@ function contexto(base, s) {
   const ult = l.ultimos, seq = (r) => { let n = 0; for (let i = ult.length - 1; i >= 0 && ult[i] === r; i--) n++; return n; };
   const top = base.elencos[ci].slice().sort((a, b) => b.ovr - a.ovr).slice(0, 14);
   const prox = proximoEvento(base, s);
-  const mataMata = (u.div === 'copa' && u.copa !== 'Final · ida') || u.div === 'SUP' || (['LIB', 'SUL', 'NE', 'SS', 'VE'].includes(u.div) && !/Grupos|· ida$/.test(u.copa || ''));
+  const mataMata = (u.div === 'copa' && u.copa !== 'Final · ida') || u.div === 'SUP' || (['LIB', 'SUL'].includes(u.div) && !/Grupos/.test(u.copa || '')) || (REGIONAIS[u.div] && !/rodada$|· ida$/.test(u.copa || ''));
   const final = u.div === 'SUP' || /Final · volta$|· Final$/.test(u.copa || '');
   return {
     ci, adv, my, ot, venceu, perdeu, classico: rivais(base, u.casa, u.fora), placar: `${u.gols[0]} a ${u.gols[1]}`, notas, d, tab, l, pos, P: pilares(base, s), meta: metaDiretoria(base, s),
@@ -207,7 +210,7 @@ export function abrirColetiva(base, s) {
   const perguntas = temas.map((t, i) => {
     const T = TEMAS[t], j = T.jog ? c[JOG_TEMA[t]] : null;
     const n = t === 'maFase' ? c.derrotas : t === 'semVencer' ? c.semVencer : t === 'boaFase' ? c.vitorias : t === 'encostado' ? s.semJogar?.[j?.id] : t === 'tabuQuebrado' ? c.tabu : 0;
-    const fill = txt => txt.replace(/\{j\}/g, j?.curto || '').replace(/\{adv\}/g, nome(c.adv)).replace(/\{adv2\}/g, nome(c.adv2)).replace(/\{placar\}/g, c.placar).replace(/\{pos\}/g, c.pos).replace(/\{pts\}/g, c.l.p).replace(/\{n\}/g, n).replace(/\{retro\}/g, c.H ? resumoConfronto(c.H) : '').replace(/\{comp\}/g, c.comp || 'copa').replace(/\{meta\}/g, c.meta.txt);
+    const fill = txt => txt.replace(/\{j\}/g, j?.curto || '').replace(/\{adv\}/g, nome(c.adv)).replace(/\{adv2\}/g, nome(c.adv2)).replace(/\{placar\}/g, c.placar).replace(/\{pos\}/g, c.pos).replace(/\{pts\}/g, c.l.p).replace(/\{n\}/g, n).replace(/\{retro\}/g, c.H ? resumoConfronto(c.H) : '').replace(/\{(na|da|pela)\} (?=\{comp\})/g, (_, x) => ARTIGO(c.comp || 'copa')[x]).replace(/\{comp\}/g, c.comp || 'copa').replace(/\{meta\}/g, c.meta.txt);
     // 4 tons: pelo menos um duro e um suave
     const tons = shuffle(r, T.tons), duro = tons.find(x => DUROS.includes(x)), suave = tons.find(x => SUAVES.includes(x));
     const esc = [...new Set([duro, suave, ...tons].filter(Boolean))].slice(0, 4);
@@ -229,8 +232,8 @@ const TEMAS_PRE = {
   preFreguesia: { q: ['O {adv} não vence vocês há {n} jogos. Virou freguês?', 'São {n} jogos sem perder para o {adv}. Dá pra manter?'] },
   preGoleada: { q: ['A maior vitória sobre o {adv} foi {placar}. Dá pra repetir?'] },
   preDesfalque: { jog: true, q: ['Sem {j}, como fica o time contra o {adv}?', 'A ausência de {j} preocupa?'] },
-  preDecisao: { q: ['Jogo decisivo pela {comp}. Como o grupo chega?', 'Mata-mata contra o {adv}. Tem receita pra esse tipo de jogo?'] },
-  preFinal: { q: ['Final da {comp}. O que você vai falar no vestiário?', 'Uma final contra o {adv}. O grupo está pronto?'] },
+  preDecisao: { q: ['Jogo decisivo {pela} {comp}. Como o grupo chega?', 'Mata-mata contra o {adv}. Tem receita pra esse tipo de jogo?'] },
+  preFinal: { q: ['Final {da} {comp}. O que você vai falar no vestiário?', 'Uma final contra o {adv}. O grupo está pronto?'] },
   preEstreia: { q: ['Estreia no Brasileirão contra o {adv}. Qual a expectativa?', 'Começa a temporada. A meta é {meta}. Dá pra cumprir?'] },
   preMaFase: { q: ['O time vem de {n} derrotas. Esse jogo é de recuperação?', 'Mais uma derrota contra o {adv} e a pressão aumenta. Como o grupo está?'] },
   preBoaFase: { q: ['São {n} vitórias seguidas. Dá pra manter contra o {adv}?'] },
@@ -271,7 +274,7 @@ export function abrirColetivaPre(base, s) {
   const comp = compProxima(base, s), top = base.elencos[ci].slice().sort((a, b) => b.ovr - a.ovr).slice(0, 8), fora = top.find(j => indisponivel(s, j.id, comp));
   const d = base.clubes[ci].div, tab = tabela(base, s, d), l = tab.find(x => x.clube === ci), pos = tab.indexOf(l) + 1, ult = l.ultimos;
   const seq = x => { let n = 0; for (let i = ult.length - 1; i >= 0 && ult[i] === x; i--) n++; return n; };
-  const mataMata = ev.tipo === 'copa' || ev.tipo === 'sup' || (ev.tipo === 'cont' && ev.fase >= F_MATA) || (ev.tipo === 'reg' && !/Grupos/.test(ev.titulo)), final = ev.tipo === 'sup' || (ev.tipo === 'cont' && ev.fase === F_FIN) || /Final/.test(ev.titulo);
+  const mataMata = ev.tipo === 'copa' || ev.tipo === 'sup' || (ev.tipo === 'cont' && ev.fase >= F_MATA) || (ev.tipo === 'reg' && ev.mataMata), final = ev.tipo === 'sup' || (ev.tipo === 'cont' && ev.fase === F_FIN) || (ev.tipo === 'reg' ? ev.final : /Final/.test(ev.titulo));
   const compNome = ev.tipo === 'copa' ? 'Copa do Brasil' : ev.titulo.split(' · ')[0];
   const w = {
     preClassico: rivais(base, ev.h, ev.a) ? 9 : 0, preFavorito: p.vitoria >= 55 ? 4 : 0, preZebra: p.vitoria <= 25 ? 5 : 0,
@@ -291,7 +294,7 @@ export function abrirColetivaPre(base, s) {
   const usadas = new Set(), reps = shuffle(r, REPORTERES);
   const perguntas = temas.map((t, i) => {
     const T = TEMAS_PRE[t], j = T.jog ? fora : null, n = t === 'preTabu' ? sq.semVencer : t === 'preFreguesia' ? sq.semPerder : t === 'preMaFase' ? ult.slice(-4).filter(x => x === 'D').length : t === 'preBoaFase' ? seq('V') : 0;
-    const fill = txt => txt.replace(/\{j\}/g, j?.curto || '').replace(/\{adv\}/g, nome(adv)).replace(/\{retro\}/g, H ? resumoConfronto(H) : '').replace(/\{n\}/g, n).replace(/\{comp\}/g, compNome).replace(/\{meta\}/g, metaDiretoria(base, s).txt).replace(/\{placar\}/g, H?.maior ? `${H.maior[0]} a ${H.maior[1]} em ${H.maior[2]}` : '');
+    const fill = txt => txt.replace(/\{j\}/g, j?.curto || '').replace(/\{adv\}/g, nome(adv)).replace(/\{retro\}/g, H ? resumoConfronto(H) : '').replace(/\{n\}/g, n).replace(/\{(na|da|pela)\} (?=\{comp\})/g, (_, x) => ARTIGO(compNome)[x]).replace(/\{comp\}/g, compNome).replace(/\{meta\}/g, metaDiretoria(base, s).txt).replace(/\{placar\}/g, H?.maior ? `${H.maior[0]} a ${H.maior[1]} em ${H.maior[2]}` : '');
     const tons = shuffle(r, PRE), esc = [...new Set([tons.find(x => DUROS.includes(x)), tons.find(x => SUAVES.includes(x)), ...tons].filter(Boolean))].slice(0, 4);
     const frase = tom => { const op = [...(RESP_PRE[t]?.[tom] || []), ...GERAL.F[tom]].filter(x => !usadas.has(x)), f = op[0] || pick(r, GERAL.F[tom]); usadas.add(f); return fill(f); };
     return { tema: t, jogador: j?.id ?? null, reporter: reps[i % reps.length], texto: fill(pick(r, T.q)), respostas: shuffle(r, esc).map(tom => ({ tom, texto: frase(tom) })) };

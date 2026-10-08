@@ -3,6 +3,7 @@ import { clamp } from './util.js';
 import { rivais } from './rivais.js';
 import { dataRodada, tabela } from './mundo.js';
 import { liberar } from './mercado.js';
+import { dataAmistoso } from './calendario.js';
 
 const DIA = 864e5;
 const PISO = { A: 150000, B: 40000, C: 15000 };                 // salário anual mínimo por divisão
@@ -55,7 +56,9 @@ export function lancar(s, tipo, desc, valor, rodada = s.rodada) {
 }
 
 const diasEntre = (s, a, b) => Math.max(0, Math.round((dataRodada(s.ano, Math.min(b, 37)) - dataRodada(s.ano, Math.min(a, 37))) / DIA));
-export function diasRestantes(s) { return Math.max(5, diasEntre(s, s.rodada, 37) + 3); }
+// salários da pré-temporada e dos regionais ainda não pagos (eles saem toda semana até a 1ª rodada)
+const diasPre = s => Math.max(0, Math.round((dataRodada(s.ano, 0) - (s.semanaBloco?.ano === s.ano ? s.semanaBloco.t : +dataAmistoso(s.ano, 0))) / DIA));
+export function diasRestantes(s) { return Math.max(5, diasEntre(s, s.rodada, 37) + 3 + (s.rodada === 0 ? diasPre(s) : 0)); }
 export const cotaRestante = (base, s) => { const c = base.clubes[s.tecnico.clube]; return PARCELAS_TV.filter(r => !s.fin.tvPagas.includes(r) && r >= s.rodada).length * cotaTV(c) / 4; };
 
 // receita que ainda vai entrar até o fim da temporada (TV, patrocínio e bilheteria estimada, com 10% de margem)
@@ -122,7 +125,7 @@ export function pedirVerba(base, s, pos) {
 export function contasDaRodada(base, s, rd, jogoCasa, tab) {
   garantirFinancas(base, s);
   const f = s.fin, ci = s.tecnico.clube, c = base.clubes[ci], N = [];
-  const dias = rd === 0 ? 7 : diasEntre(s, rd - 1, rd);
+  const dias = rd === 0 ? diasPre(s) : diasEntre(s, rd - 1, rd);
   const folha = folhaDia(base, s);
   if (dias) lancar(s, 'salarios', `Salários (${dias} dias)`, -folha * dias, rd);
   if (jogoCasa) {
@@ -198,7 +201,7 @@ export function fairPlay(base, s) {
   const premiosCopa = s.fin.extrato.filter(e => e.a === s.ano && e.tipo === 'premio' && !/Premiação da Série/.test(e.desc)).reduce((a, e) => a + e.valor, 0);
   const receita = cotaTV(c) + patrocinio(c, ci).valor + b.renda * 19 + premioLiga(c.div, pos) + premiosCopa + Math.max(0, bal.venda || 0);
   // custo do elenco: salários da temporada e compras amortizadas em 3 anos
-  const custo = folhaDia(base, s) * (diasEntre(s, 0, 37) + 10) + (s.fin.temporada.compras || 0) / 3;
+  const custo = folhaDia(base, s) * (diasEntre(s, 0, 37) + Math.round((dataRodada(s.ano, 0) - dataAmistoso(s.ano, 0)) / DIA) + 3) + (s.fin.temporada.compras || 0) / 3;
   const resultado = Object.values(bal).reduce((a, v) => a + v, 0);
   return { receita, custo, razao: custo / Math.max(1, receita), resultado, divida: (s.fin.atraso || 0) > 0 };
 }

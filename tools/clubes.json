@@ -713,7 +713,7 @@
    "liga": "Série D",
    "tier": 0,
    "nat": "BRA",
-   "lvl": 47
+   "lvl": 52
   },
   {
    "n": "Sousa",
@@ -734,7 +734,7 @@
    "liga": "Série D",
    "tier": 0,
    "nat": "BRA",
-   "lvl": 46
+   "lvl": 51
   },
   {
    "n": "Fluminense-PI",
@@ -755,7 +755,7 @@
    "liga": "Série D",
    "tier": 0,
    "nat": "BRA",
-   "lvl": 44
+   "lvl": 49
   },
   {
    "n": "Juazeirense",
@@ -776,7 +776,7 @@
    "liga": "Série D",
    "tier": 0,
    "nat": "BRA",
-   "lvl": 46
+   "lvl": 51
   },
   {
    "n": "Piauí",
@@ -797,7 +797,7 @@
    "liga": "Série D",
    "tier": 0,
    "nat": "BRA",
-   "lvl": 45
+   "lvl": 50
   },
   {
    "n": "América-RN",
@@ -818,7 +818,7 @@
    "liga": "Série D",
    "tier": 0,
    "nat": "BRA",
-   "lvl": 50
+   "lvl": 55
   },
   {
    "n": "Imperatriz",
@@ -839,7 +839,7 @@
    "liga": "Série D",
    "tier": 0,
    "nat": "BRA",
-   "lvl": 45
+   "lvl": 50
   },
   {
    "n": "Ferroviário",
@@ -860,7 +860,7 @@
    "liga": "Série D",
    "tier": 0,
    "nat": "BRA",
-   "lvl": 49
+   "lvl": 54
   },
   {
    "n": "Retrô",
@@ -881,7 +881,7 @@
    "liga": "Série D",
    "tier": 0,
    "nat": "BRA",
-   "lvl": 49
+   "lvl": 54
   },
   {
    "n": "ABC",
@@ -902,7 +902,7 @@
    "liga": "Série D",
    "tier": 0,
    "nat": "BRA",
-   "lvl": 51
+   "lvl": 56
   },
   {
    "n": "Jacuipense",
@@ -923,7 +923,7 @@
    "liga": "Série D",
    "tier": 0,
    "nat": "BRA",
-   "lvl": 45
+   "lvl": 50
   },
   {
    "n": "Sampaio Corrêa-RJ",
@@ -944,7 +944,7 @@
    "liga": "Série D",
    "tier": 0,
    "nat": "BRA",
-   "lvl": 47
+   "lvl": 52
   },
   {
    "n": "Tombense",
@@ -965,7 +965,7 @@
    "liga": "Série D",
    "tier": 0,
    "nat": "BRA",
-   "lvl": 50
+   "lvl": 55
   },
   {
    "n": "Cianorte",
@@ -986,7 +986,7 @@
    "liga": "Série D",
    "tier": 0,
    "nat": "BRA",
-   "lvl": 47
+   "lvl": 52
   },
   {
    "n": "Nacional-AM",
@@ -1007,7 +1007,7 @@
    "liga": "Série D",
    "tier": 0,
    "nat": "BRA",
-   "lvl": 46
+   "lvl": 51
   },
   {
    "n": "Independência",
@@ -1028,7 +1028,7 @@
    "liga": "Série D",
    "tier": 0,
    "nat": "BRA",
-   "lvl": 42
+   "lvl": 47
   },
   {
    "n": "Guaporé",
@@ -1049,7 +1049,7 @@
    "liga": "Série D",
    "tier": 0,
    "nat": "BRA",
-   "lvl": 42
+   "lvl": 47
   },
   {
    "n": "Trem",
@@ -1070,7 +1070,7 @@
    "liga": "Série D",
    "tier": 0,
    "nat": "BRA",
-   "lvl": 42
+   "lvl": 47
   },
   {
    "n": "Grêmio Sampaio",
@@ -1091,7 +1091,7 @@
    "liga": "Série D",
    "tier": 0,
    "nat": "BRA",
-   "lvl": 41
+   "lvl": 46
   },
   {
    "n": "Galvez",
@@ -1112,7 +1112,7 @@
    "liga": "Série D",
    "tier": 0,
    "nat": "BRA",
-   "lvl": 42
+   "lvl": 47
   },
   {
    "n": "Gazin Porto Velho",
@@ -1133,7 +1133,7 @@
    "liga": "Série D",
    "tier": 0,
    "nat": "BRA",
-   "lvl": 42
+   "lvl": 47
   },
   {
    "n": "Águia de Marabá",
@@ -1154,7 +1154,7 @@
    "liga": "Série D",
    "tier": 0,
    "nat": "BRA",
-   "lvl": 46
+   "lvl": 51
   },
   {
    "n": "Monte Roraima",
@@ -1175,7 +1175,7 @@
    "liga": "Série D",
    "tier": 0,
    "nat": "BRA",
-   "lvl": 41
+   "lvl": 46
   },
   {
    "n": "Primavera",
@@ -1196,7 +1196,7 @@
    "liga": "Série D",
    "tier": 0,
    "nat": "BRA",
-   "lvl": 44
+   "lvl": 49
   },
   {
    "n": "Capital-DF",
@@ -1217,7 +1217,7 @@
    "liga": "Série D",
    "tier": 0,
    "nat": "BRA",
-   "lvl": 46
+   "lvl": 51
   },
   {
    "n": "Rio Branco-ES",
@@ -1238,7 +1238,7 @@
    "liga": "Série D",
    "tier": 0,
    "nat": "BRA",
-   "lvl": 43
+   "lvl": 48
   },
   {
    "n": "Araguaína",
@@ -1259,7 +1259,7 @@
    "liga": "Série D",
    "tier": 0,
    "nat": "BRA",
-   "lvl": 43
+   "lvl": 48
   },
   {
    "n": "Operário-MS",
@@ -1280,7 +1280,7 @@
    "liga": "Série D",
    "tier": 0,
    "nat": "BRA",
-   "lvl": 44
+   "lvl": 49
   },
   {
    "n": "Gama",
@@ -1301,7 +1301,7 @@
    "liga": "Série D",
    "tier": 0,
    "nat": "BRA",
-   "lvl": 45
+   "lvl": 50
   },
   {
    "n": "Porto Vitória",
@@ -1322,7 +1322,7 @@
    "liga": "Série D",
    "tier": 0,
    "nat": "BRA",
-   "lvl": 43
+   "lvl": 48
   },
   {
    "n": "Tocantinópolis",
@@ -1343,7 +1343,2632 @@
    "liga": "Série D",
    "tier": 0,
    "nat": "BRA",
-   "lvl": 41
+   "lvl": 46
+  },
+  {
+   "n": "Atlético-BA",
+   "s": "ABA",
+   "pat": "vstripes",
+   "c": [
+    "#C8102E",
+    "#FFFFFF"
+   ],
+   "sh": "#141414",
+   "so": "#FFFFFF",
+   "fan": 2,
+   "est": [
+    "Estádio Antônio Carneiro (Carneirão)",
+    18000
+   ],
+   "div": "R",
+   "liga": "Série D",
+   "tier": 0,
+   "nat": "BRA",
+   "lvl": 51
+  },
+  {
+   "n": "Bahia de Feira",
+   "s": "BFE",
+   "pat": "solid",
+   "c": [
+    "#1B2A5C",
+    "#C8102E"
+   ],
+   "sh": "#141414",
+   "so": "#C8102E",
+   "fan": 1,
+   "est": [
+    "Arena Cajueiro",
+    7000
+   ],
+   "div": "R",
+   "liga": "Estadual",
+   "tier": 0,
+   "nat": "BRA",
+   "lvl": 47
+  },
+  {
+   "n": "Barcelona de Ilhéus",
+   "s": "BIL",
+   "pat": "vstripes",
+   "c": [
+    "#1F3F8F",
+    "#A50044"
+   ],
+   "sh": "#141414",
+   "so": "#A50044",
+   "fan": 1,
+   "est": [
+    "Arena Cajueiro",
+    7000
+   ],
+   "div": "R",
+   "liga": "Estadual",
+   "tier": 0,
+   "nat": "BRA",
+   "lvl": 47
+  },
+  {
+   "n": "Galícia",
+   "s": "GLC",
+   "pat": "solid",
+   "c": [
+    "#1E5AA8",
+    "#FFFFFF"
+   ],
+   "sh": "#141414",
+   "so": "#FFFFFF",
+   "fan": 1,
+   "est": [
+    "Parque Santiago",
+    5000
+   ],
+   "div": "R",
+   "liga": "Estadual",
+   "tier": 0,
+   "nat": "BRA",
+   "lvl": 47
+  },
+  {
+   "n": "Jequié",
+   "s": "JEQ",
+   "pat": "solid",
+   "c": [
+    "#1E4FA0",
+    "#FFD100"
+   ],
+   "sh": "#141414",
+   "so": "#FFD100",
+   "fan": 1,
+   "est": [
+    "Estádio Waldomiro Borges (Jequiezão)",
+    3000
+   ],
+   "div": "R",
+   "liga": "Estadual",
+   "tier": 0,
+   "nat": "BRA",
+   "lvl": 47
+  },
+  {
+   "n": "Porto-BA",
+   "s": "PSC",
+   "pat": "solid",
+   "c": [
+    "#1E4FA0",
+    "#FFFFFF"
+   ],
+   "sh": "#141414",
+   "so": "#FFFFFF",
+   "fan": 2,
+   "est": [
+    "Estádio Agnaldo Bento",
+    5000
+   ],
+   "div": "R",
+   "liga": "Série D",
+   "tier": 0,
+   "nat": "BRA",
+   "lvl": 51
+  },
+  {
+   "n": "Decisão",
+   "s": "DEC",
+   "pat": "solid",
+   "c": [
+    "#1E4FA0",
+    "#FFFFFF"
+   ],
+   "sh": "#141414",
+   "so": "#FFFFFF",
+   "fan": 2,
+   "est": [
+    "Estádio José Dionísio do Carmo",
+    6100
+   ],
+   "div": "R",
+   "liga": "Série D",
+   "tier": 0,
+   "nat": "BRA",
+   "lvl": 51
+  },
+  {
+   "n": "Jaguar",
+   "s": "JGR",
+   "pat": "solid",
+   "c": [
+    "#FFD100",
+    "#111111"
+   ],
+   "sh": "#141414",
+   "so": "#111111",
+   "fan": 1,
+   "est": [
+    "Arena de Pernambuco",
+    44300
+   ],
+   "div": "R",
+   "liga": "Estadual",
+   "tier": 0,
+   "nat": "BRA",
+   "lvl": 47
+  },
+  {
+   "n": "Maguary",
+   "s": "MAG",
+   "pat": "solid",
+   "c": [
+    "#1E4FA0",
+    "#FFFFFF"
+   ],
+   "sh": "#141414",
+   "so": "#FFFFFF",
+   "fan": 2,
+   "est": [
+    "Estádio Arthur Tavares de Melo",
+    4000
+   ],
+   "div": "R",
+   "liga": "Série D",
+   "tier": 0,
+   "nat": "BRA",
+   "lvl": 51
+  },
+  {
+   "n": "Vitória das Tabocas",
+   "s": "VTA",
+   "pat": "solid",
+   "c": [
+    "#C8102E",
+    "#006B3F"
+   ],
+   "sh": "#141414",
+   "so": "#006B3F",
+   "fan": 1,
+   "est": [
+    "Estádio Severino Cândido Carneiro (Carneirão)",
+    8000
+   ],
+   "div": "R",
+   "liga": "Estadual",
+   "tier": 0,
+   "nat": "BRA",
+   "lvl": 47
+  },
+  {
+   "n": "Horizonte",
+   "s": "HOR",
+   "pat": "solid",
+   "c": [
+    "#FFD100",
+    "#1E3A8A"
+   ],
+   "sh": "#141414",
+   "so": "#1E3A8A",
+   "fan": 1,
+   "est": [
+    "Estádio Domingão",
+    10500
+   ],
+   "div": "R",
+   "liga": "Estadual",
+   "tier": 0,
+   "nat": "BRA",
+   "lvl": 47
+  },
+  {
+   "n": "Iguatu",
+   "s": "IGU",
+   "pat": "solid",
+   "c": [
+    "#1E4FA0",
+    "#FFFFFF"
+   ],
+   "sh": "#141414",
+   "so": "#FFFFFF",
+   "fan": 2,
+   "est": [
+    "Estádio Morenão",
+    3600
+   ],
+   "div": "R",
+   "liga": "Série D",
+   "tier": 0,
+   "nat": "BRA",
+   "lvl": 51
+  },
+  {
+   "n": "Maracanã",
+   "s": "MRC",
+   "pat": "vstripes",
+   "c": [
+    "#5BB4E5",
+    "#FFFFFF"
+   ],
+   "sh": "#141414",
+   "so": "#FFFFFF",
+   "fan": 2,
+   "est": [
+    "Estádio Almir Dutra",
+    5000
+   ],
+   "div": "R",
+   "liga": "Série D",
+   "tier": 0,
+   "nat": "BRA",
+   "lvl": 51
+  },
+  {
+   "n": "Maranguape",
+   "s": "MGP",
+   "pat": "solid",
+   "c": [
+    "#007A3D",
+    "#FFFFFF"
+   ],
+   "sh": "#141414",
+   "so": "#FFFFFF",
+   "fan": 1,
+   "est": [
+    "Estádio Moraisão",
+    5000
+   ],
+   "div": "R",
+   "liga": "Estadual",
+   "tier": 0,
+   "nat": "BRA",
+   "lvl": 47
+  },
+  {
+   "n": "Quixadá",
+   "s": "QUI",
+   "pat": "solid",
+   "c": [
+    "#FFD100",
+    "#1E4FA0"
+   ],
+   "sh": "#141414",
+   "so": "#1E4FA0",
+   "fan": 1,
+   "est": [
+    "Estádio Abilhão",
+    5000
+   ],
+   "div": "R",
+   "liga": "Estadual",
+   "tier": 0,
+   "nat": "BRA",
+   "lvl": 47
+  },
+  {
+   "n": "Tirol",
+   "s": "TIR",
+   "pat": "solid",
+   "c": [
+    "#1E4FA0",
+    "#FFFFFF"
+   ],
+   "sh": "#141414",
+   "so": "#FFFFFF",
+   "fan": 2,
+   "est": [
+    "Estádio Presidente Vargas",
+    20000
+   ],
+   "div": "R",
+   "liga": "Série D",
+   "tier": 0,
+   "nat": "BRA",
+   "lvl": 51
+  },
+  {
+   "n": "CSA",
+   "s": "CSA",
+   "pat": "solid",
+   "c": [
+    "#1E4FA0",
+    "#FFFFFF"
+   ],
+   "sh": "#141414",
+   "so": "#FFFFFF",
+   "fan": 3,
+   "est": [
+    "Estádio Rei Pelé",
+    19105
+   ],
+   "div": "R",
+   "liga": "Série D",
+   "tier": 0,
+   "nat": "BRA",
+   "lvl": 54
+  },
+  {
+   "n": "CSE",
+   "s": "CSE",
+   "pat": "vstripes",
+   "c": [
+    "#007A3D",
+    "#C8102E"
+   ],
+   "sh": "#141414",
+   "so": "#C8102E",
+   "fan": 2,
+   "est": [
+    "Estádio Juca Sampaio",
+    8000
+   ],
+   "div": "R",
+   "liga": "Série D",
+   "tier": 0,
+   "nat": "BRA",
+   "lvl": 50
+  },
+  {
+   "n": "Coruripe",
+   "s": "CRP",
+   "pat": "solid",
+   "c": [
+    "#007A3D",
+    "#FFD100"
+   ],
+   "sh": "#141414",
+   "so": "#FFD100",
+   "fan": 1,
+   "est": [
+    "Estádio Gerson Amaral",
+    5000
+   ],
+   "div": "R",
+   "liga": "Estadual",
+   "tier": 0,
+   "nat": "BRA",
+   "lvl": 46
+  },
+  {
+   "n": "Cruzeiro-AL",
+   "s": "CRZ",
+   "pat": "solid",
+   "c": [
+    "#1E4FA0",
+    "#FFFFFF"
+   ],
+   "sh": "#141414",
+   "so": "#FFFFFF",
+   "fan": 1,
+   "est": [
+    "Estádio Coaracy da Mata Fonseca",
+    17000
+   ],
+   "div": "R",
+   "liga": "Estadual",
+   "tier": 0,
+   "nat": "BRA",
+   "lvl": 46
+  },
+  {
+   "n": "Murici",
+   "s": "MUR",
+   "pat": "solid",
+   "c": [
+    "#007A3D",
+    "#FFFFFF"
+   ],
+   "sh": "#141414",
+   "so": "#FFFFFF",
+   "fan": 1,
+   "est": [
+    "Estádio José Gomes da Costa",
+    5000
+   ],
+   "div": "R",
+   "liga": "Estadual",
+   "tier": 0,
+   "nat": "BRA",
+   "lvl": 46
+  },
+  {
+   "n": "Penedense",
+   "s": "PEN",
+   "pat": "solid",
+   "c": [
+    "#C8102E",
+    "#FFFFFF"
+   ],
+   "sh": "#141414",
+   "so": "#FFFFFF",
+   "fan": 1,
+   "est": [
+    "Estádio Alfredo Leahy",
+    6000
+   ],
+   "div": "R",
+   "liga": "Estadual",
+   "tier": 0,
+   "nat": "BRA",
+   "lvl": 46
+  },
+  {
+   "n": "Sergipe",
+   "s": "SER",
+   "pat": "solid",
+   "c": [
+    "#C8102E",
+    "#FFFFFF"
+   ],
+   "sh": "#141414",
+   "so": "#FFFFFF",
+   "fan": 2,
+   "est": [
+    "Estádio Lourival Baptista (Batistão)",
+    15575
+   ],
+   "div": "R",
+   "liga": "Série D",
+   "tier": 0,
+   "nat": "BRA",
+   "lvl": 50
+  },
+  {
+   "n": "Lagarto",
+   "s": "LAG",
+   "pat": "solid",
+   "c": [
+    "#007A3D",
+    "#FFFFFF"
+   ],
+   "sh": "#141414",
+   "so": "#FFFFFF",
+   "fan": 2,
+   "est": [
+    "Estádio Paulo Barreto de Menezes (Barretão)",
+    8000
+   ],
+   "div": "R",
+   "liga": "Série D",
+   "tier": 0,
+   "nat": "BRA",
+   "lvl": 50
+  },
+  {
+   "n": "América de Propriá",
+   "s": "AMP",
+   "pat": "solid",
+   "c": [
+    "#007A3D",
+    "#C8102E"
+   ],
+   "sh": "#141414",
+   "so": "#C8102E",
+   "fan": 1,
+   "est": [
+    "Estádio Durval Feitosa",
+    3000
+   ],
+   "div": "R",
+   "liga": "Estadual",
+   "tier": 0,
+   "nat": "BRA",
+   "lvl": 46
+  },
+  {
+   "n": "Atlético Gloriense",
+   "s": "AGL",
+   "pat": "solid",
+   "c": [
+    "#C8102E",
+    "#111111"
+   ],
+   "sh": "#141414",
+   "so": "#111111",
+   "fan": 1,
+   "est": [
+    "Estádio Editon Oliveira da Silva",
+    3000
+   ],
+   "div": "R",
+   "liga": "Estadual",
+   "tier": 0,
+   "nat": "BRA",
+   "lvl": 46
+  },
+  {
+   "n": "Desportiva Aracaju",
+   "s": "ADA",
+   "pat": "solid",
+   "c": [
+    "#FFD100",
+    "#1E4FA0"
+   ],
+   "sh": "#141414",
+   "so": "#1E4FA0",
+   "fan": 1,
+   "est": [
+    "Estádio Lourival Baptista (Batistão)",
+    15575
+   ],
+   "div": "R",
+   "liga": "Estadual",
+   "tier": 0,
+   "nat": "BRA",
+   "lvl": 46
+  },
+  {
+   "n": "Dorense",
+   "s": "DOR",
+   "pat": "solid",
+   "c": [
+    "#E8261A",
+    "#FFFFFF"
+   ],
+   "sh": "#141414",
+   "so": "#FFFFFF",
+   "fan": 1,
+   "est": [
+    "Estádio Ariston Azevedo",
+    3000
+   ],
+   "div": "R",
+   "liga": "Estadual",
+   "tier": 0,
+   "nat": "BRA",
+   "lvl": 46
+  },
+  {
+   "n": "Falcon",
+   "s": "FAL",
+   "pat": "solid",
+   "c": [
+    "#111111",
+    "#FFFFFF"
+   ],
+   "sh": "#141414",
+   "so": "#FFFFFF",
+   "fan": 1,
+   "est": [
+    "Estádio Lourival Baptista (Batistão)",
+    15575
+   ],
+   "div": "R",
+   "liga": "Estadual",
+   "tier": 0,
+   "nat": "BRA",
+   "lvl": 46
+  },
+  {
+   "n": "Guarany-SE",
+   "s": "GSE",
+   "pat": "solid",
+   "c": [
+    "#34B25C",
+    "#FFFFFF"
+   ],
+   "sh": "#141414",
+   "so": "#FFFFFF",
+   "fan": 1,
+   "est": [
+    "Estádio Caio Feitosa",
+    3000
+   ],
+   "div": "R",
+   "liga": "Estadual",
+   "tier": 0,
+   "nat": "BRA",
+   "lvl": 46
+  },
+  {
+   "n": "Treze",
+   "s": "TRZ",
+   "pat": "vstripes",
+   "c": [
+    "#111111",
+    "#FFFFFF"
+   ],
+   "sh": "#141414",
+   "so": "#FFFFFF",
+   "fan": 2,
+   "est": [
+    "Estádio Amigão",
+    19000
+   ],
+   "div": "R",
+   "liga": "Série D",
+   "tier": 0,
+   "nat": "BRA",
+   "lvl": 50
+  },
+  {
+   "n": "Campinense",
+   "s": "CPN",
+   "pat": "vstripes",
+   "c": [
+    "#C8102E",
+    "#111111"
+   ],
+   "sh": "#141414",
+   "so": "#111111",
+   "fan": 2,
+   "est": [
+    "Estádio Amigão",
+    19000
+   ],
+   "div": "R",
+   "liga": "Estadual",
+   "tier": 0,
+   "nat": "BRA",
+   "lvl": 46
+  },
+  {
+   "n": "Serra Branca",
+   "s": "SBR",
+   "pat": "hoops",
+   "c": [
+    "#C8102E",
+    "#111111"
+   ],
+   "sh": "#141414",
+   "so": "#111111",
+   "fan": 2,
+   "est": [
+    "Estádio Amigão",
+    19000
+   ],
+   "div": "R",
+   "liga": "Série D",
+   "tier": 0,
+   "nat": "BRA",
+   "lvl": 50
+  },
+  {
+   "n": "Atlético-PB",
+   "s": "ACZ",
+   "pat": "solid",
+   "c": [
+    "#1E4FA0",
+    "#FFFFFF"
+   ],
+   "sh": "#141414",
+   "so": "#FFFFFF",
+   "fan": 1,
+   "est": [
+    "Estádio Perpetão",
+    4500
+   ],
+   "div": "R",
+   "liga": "Estadual",
+   "tier": 0,
+   "nat": "BRA",
+   "lvl": 46
+  },
+  {
+   "n": "Esporte de Patos",
+   "s": "ESP",
+   "pat": "vstripes",
+   "c": [
+    "#C8102E",
+    "#FFFFFF"
+   ],
+   "sh": "#141414",
+   "so": "#FFFFFF",
+   "fan": 1,
+   "est": [
+    "Estádio José Cavalcanti",
+    8000
+   ],
+   "div": "R",
+   "liga": "Estadual",
+   "tier": 0,
+   "nat": "BRA",
+   "lvl": 46
+  },
+  {
+   "n": "Nacional de Patos",
+   "s": "NAP",
+   "pat": "solid",
+   "c": [
+    "#007A3D",
+    "#FFFFFF"
+   ],
+   "sh": "#141414",
+   "so": "#FFFFFF",
+   "fan": 1,
+   "est": [
+    "Estádio José Cavalcanti",
+    8000
+   ],
+   "div": "R",
+   "liga": "Estadual",
+   "tier": 0,
+   "nat": "BRA",
+   "lvl": 46
+  },
+  {
+   "n": "Pombal",
+   "s": "POM",
+   "pat": "solid",
+   "c": [
+    "#1E4FA0",
+    "#FFFFFF"
+   ],
+   "sh": "#141414",
+   "so": "#FFFFFF",
+   "fan": 1,
+   "est": [
+    "Estádio Marizão",
+    10000
+   ],
+   "div": "R",
+   "liga": "Estadual",
+   "tier": 0,
+   "nat": "BRA",
+   "lvl": 46
+  },
+  {
+   "n": "Confiança-PB",
+   "s": "CPB",
+   "pat": "solid",
+   "c": [
+    "#1E4FA0",
+    "#FFFFFF"
+   ],
+   "sh": "#141414",
+   "so": "#FFFFFF",
+   "fan": 1,
+   "est": [
+    "Estádio Ribeirão",
+    2500
+   ],
+   "div": "R",
+   "liga": "Estadual",
+   "tier": 0,
+   "nat": "BRA",
+   "lvl": 46
+  },
+  {
+   "n": "Tuna Luso",
+   "s": "TUN",
+   "pat": "solid",
+   "c": [
+    "#00843D",
+    "#FFFFFF"
+   ],
+   "sh": "#141414",
+   "so": "#FFFFFF",
+   "fan": 2,
+   "est": [
+    "Estádio Francisco Vasques (Souza)",
+    5000
+   ],
+   "div": "R",
+   "liga": "Série D",
+   "tier": 0,
+   "nat": "BRA",
+   "lvl": 51
+  },
+  {
+   "n": "Cametá",
+   "s": "CMT",
+   "pat": "solid",
+   "c": [
+    "#D52B1E",
+    "#00843D"
+   ],
+   "sh": "#141414",
+   "so": "#00843D",
+   "fan": 1,
+   "est": [
+    "Parque do Bacurau",
+    8320
+   ],
+   "div": "R",
+   "liga": "Estadual",
+   "tier": 0,
+   "nat": "BRA",
+   "lvl": 47
+  },
+  {
+   "n": "Capitão Poço",
+   "s": "CPO",
+   "pat": "solid",
+   "c": [
+    "#D7261E",
+    "#FFFFFF"
+   ],
+   "sh": "#141414",
+   "so": "#FFFFFF",
+   "fan": 1,
+   "est": [
+    "Estádio Municipal José Rufino de Souza (Rufinão)",
+    4000
+   ],
+   "div": "R",
+   "liga": "Estadual",
+   "tier": 0,
+   "nat": "BRA",
+   "lvl": 47
+  },
+  {
+   "n": "Castanhal",
+   "s": "CAS",
+   "pat": "vstripes",
+   "c": [
+    "#FFD100",
+    "#000000"
+   ],
+   "sh": "#141414",
+   "so": "#000000",
+   "fan": 1,
+   "est": [
+    "Estádio Maximino Porpino Filho (Modelão)",
+    5000
+   ],
+   "div": "R",
+   "liga": "Estadual",
+   "tier": 0,
+   "nat": "BRA",
+   "lvl": 47
+  },
+  {
+   "n": "Santa Rosa",
+   "s": "SRO",
+   "pat": "band",
+   "c": [
+    "#FFFFFF",
+    "#FFD100"
+   ],
+   "sh": "#141414",
+   "so": "#FFD100",
+   "fan": 1,
+   "est": [
+    "Estádio Abelardo Conduru",
+    3000
+   ],
+   "div": "R",
+   "liga": "Estadual",
+   "tier": 0,
+   "nat": "BRA",
+   "lvl": 47
+  },
+  {
+   "n": "São Francisco-PA",
+   "s": "SFR",
+   "pat": "solid",
+   "c": [
+    "#1B2A4A",
+    "#FFFFFF"
+   ],
+   "sh": "#141414",
+   "so": "#FFFFFF",
+   "fan": 1,
+   "est": [
+    "Estádio Colosso do Tapajós",
+    17846
+   ],
+   "div": "R",
+   "liga": "Estadual",
+   "tier": 0,
+   "nat": "BRA",
+   "lvl": 47
+  },
+  {
+   "n": "São Raimundo-PA",
+   "s": "SRA",
+   "pat": "vstripes",
+   "c": [
+    "#000000",
+    "#FFFFFF"
+   ],
+   "sh": "#141414",
+   "so": "#FFFFFF",
+   "fan": 1,
+   "est": [
+    "Estádio Colosso do Tapajós",
+    17846
+   ],
+   "div": "R",
+   "liga": "Estadual",
+   "tier": 0,
+   "nat": "BRA",
+   "lvl": 47
+  },
+  {
+   "n": "Amazônia Independente",
+   "s": "AMI",
+   "pat": "solid",
+   "c": [
+    "#000000",
+    "#00843D"
+   ],
+   "sh": "#141414",
+   "so": "#00843D",
+   "fan": 1,
+   "est": [
+    "Estádio Colosso do Tapajós",
+    17846
+   ],
+   "div": "R",
+   "liga": "Estadual",
+   "tier": 0,
+   "nat": "BRA",
+   "lvl": 47
+  },
+  {
+   "n": "Bragantino-PA",
+   "s": "BPA",
+   "pat": "vstripes",
+   "c": [
+    "#C8102E",
+    "#1D3C8F"
+   ],
+   "sh": "#141414",
+   "so": "#1D3C8F",
+   "fan": 1,
+   "est": [
+    "Estádio Diogão",
+    5000
+   ],
+   "div": "R",
+   "liga": "Estadual",
+   "tier": 0,
+   "nat": "BRA",
+   "lvl": 47
+  },
+  {
+   "n": "Manaus",
+   "s": "MAN",
+   "pat": "solid",
+   "c": [
+    "#00843D",
+    "#FFFFFF"
+   ],
+   "sh": "#141414",
+   "so": "#FFFFFF",
+   "fan": 2,
+   "est": [
+    "Estádio Carlos Zamith",
+    5000
+   ],
+   "div": "R",
+   "liga": "Série D",
+   "tier": 0,
+   "nat": "BRA",
+   "lvl": 50
+  },
+  {
+   "n": "Manauara",
+   "s": "MNA",
+   "pat": "solid",
+   "c": [
+    "#F7941D",
+    "#000000"
+   ],
+   "sh": "#141414",
+   "so": "#000000",
+   "fan": 2,
+   "est": [
+    "Arena da Amazônia",
+    44000
+   ],
+   "div": "R",
+   "liga": "Série D",
+   "tier": 0,
+   "nat": "BRA",
+   "lvl": 50
+  },
+  {
+   "n": "Princesa do Solimões",
+   "s": "PSO",
+   "pat": "solid",
+   "c": [
+    "#D52B1E",
+    "#FFFFFF"
+   ],
+   "sh": "#141414",
+   "so": "#FFFFFF",
+   "fan": 1,
+   "est": [
+    "Estádio Gilberto Mestrinho (Gilbertão)",
+    5000
+   ],
+   "div": "R",
+   "liga": "Estadual",
+   "tier": 0,
+   "nat": "BRA",
+   "lvl": 46
+  },
+  {
+   "n": "Parintins",
+   "s": "PAR",
+   "pat": "halves",
+   "c": [
+    "#0033A0",
+    "#D52B1E"
+   ],
+   "sh": "#141414",
+   "so": "#D52B1E",
+   "fan": 1,
+   "est": [
+    "Estádio Francisco Garcia (Rio Preto da Eva)",
+    5000
+   ],
+   "div": "R",
+   "liga": "Estadual",
+   "tier": 0,
+   "nat": "BRA",
+   "lvl": 46
+  },
+  {
+   "n": "Itacoatiara",
+   "s": "ITC",
+   "pat": "solid",
+   "c": [
+    "#00843D",
+    "#FFFFFF"
+   ],
+   "sh": "#141414",
+   "so": "#FFFFFF",
+   "fan": 1,
+   "est": [
+    "Estádio Floro de Mendonça",
+    5000
+   ],
+   "div": "R",
+   "liga": "Estadual",
+   "tier": 0,
+   "nat": "BRA",
+   "lvl": 46
+  },
+  {
+   "n": "São Raimundo-AM",
+   "s": "SRM",
+   "pat": "vstripes",
+   "c": [
+    "#1F4FA3",
+    "#FFFFFF"
+   ],
+   "sh": "#141414",
+   "so": "#FFFFFF",
+   "fan": 2,
+   "est": [
+    "Estádio Ismael Benigno (Colina)",
+    10400
+   ],
+   "div": "R",
+   "liga": "Estadual",
+   "tier": 0,
+   "nat": "BRA",
+   "lvl": 46
+  },
+  {
+   "n": "Mixto",
+   "s": "MIX",
+   "pat": "sash",
+   "c": [
+    "#000000",
+    "#FFFFFF"
+   ],
+   "sh": "#141414",
+   "so": "#FFFFFF",
+   "fan": 2,
+   "est": [
+    "Estádio Presidente Eurico Gaspar Dutra (Dutrinha)",
+    5000
+   ],
+   "div": "R",
+   "liga": "Série D",
+   "tier": 0,
+   "nat": "BRA",
+   "lvl": 50
+  },
+  {
+   "n": "Luverdense",
+   "s": "LUV",
+   "pat": "solid",
+   "c": [
+    "#00843D",
+    "#FFFFFF"
+   ],
+   "sh": "#141414",
+   "so": "#FFFFFF",
+   "fan": 2,
+   "est": [
+    "Estádio Passo das Emas",
+    10000
+   ],
+   "div": "R",
+   "liga": "Série D",
+   "tier": 0,
+   "nat": "BRA",
+   "lvl": 50
+  },
+  {
+   "n": "Operário-MT",
+   "s": "OVG",
+   "pat": "vstripes",
+   "c": [
+    "#00843D",
+    "#D52B1E"
+   ],
+   "sh": "#141414",
+   "so": "#D52B1E",
+   "fan": 2,
+   "est": [
+    "Estádio Dito Souza",
+    2600
+   ],
+   "div": "R",
+   "liga": "Série D",
+   "tier": 0,
+   "nat": "BRA",
+   "lvl": 50
+  },
+  {
+   "n": "Sport Sinop",
+   "s": "SPS",
+   "pat": "solid",
+   "c": [
+    "#000000",
+    "#FFC72C"
+   ],
+   "sh": "#141414",
+   "so": "#FFC72C",
+   "fan": 1,
+   "est": [
+    "Estádio Gigante do Norte (Massami Uriu)",
+    13000
+   ],
+   "div": "R",
+   "liga": "Estadual",
+   "tier": 0,
+   "nat": "BRA",
+   "lvl": 46
+  },
+  {
+   "n": "Nova Mutum",
+   "s": "NMU",
+   "pat": "band",
+   "c": [
+    "#0033A0",
+    "#FFD100"
+   ],
+   "sh": "#141414",
+   "so": "#FFD100",
+   "fan": 1,
+   "est": [
+    "Estádio Valdir Doilho Wons",
+    5000
+   ],
+   "div": "R",
+   "liga": "Estadual",
+   "tier": 0,
+   "nat": "BRA",
+   "lvl": 46
+  },
+  {
+   "n": "Chapada",
+   "s": "CHP",
+   "pat": "solid",
+   "c": [
+    "#D52B1E",
+    "#FFFFFF"
+   ],
+   "sh": "#141414",
+   "so": "#FFFFFF",
+   "fan": 1,
+   "est": [
+    "Estádio Apolônio Bouret de Melo",
+    5000
+   ],
+   "div": "R",
+   "liga": "Estadual",
+   "tier": 0,
+   "nat": "BRA",
+   "lvl": 46
+  },
+  {
+   "n": "União Rondonópolis",
+   "s": "URO",
+   "pat": "solid",
+   "c": [
+    "#D52B1E",
+    "#FFFFFF"
+   ],
+   "sh": "#141414",
+   "so": "#FFFFFF",
+   "fan": 2,
+   "est": [
+    "Estádio Engenheiro Luthero Lopes",
+    18000
+   ],
+   "div": "R",
+   "liga": "Série D",
+   "tier": 0,
+   "nat": "BRA",
+   "lvl": 50
+  },
+  {
+   "n": "Várzea Grande",
+   "s": "VGR",
+   "pat": "solid",
+   "c": [
+    "#FFFFFF",
+    "#7A1E2C"
+   ],
+   "sh": "#141414",
+   "so": "#7A1E2C",
+   "fan": 1,
+   "est": [
+    "Estádio Dito Souza",
+    2600
+   ],
+   "div": "R",
+   "liga": "Estadual",
+   "tier": 0,
+   "nat": "BRA",
+   "lvl": 46
+  },
+  {
+   "n": "Sampaio Corrêa",
+   "s": "SCO",
+   "pat": "vstripes",
+   "c": [
+    "#009639",
+    "#FFD100"
+   ],
+   "sh": "#141414",
+   "so": "#FFD100",
+   "fan": 3,
+   "est": [
+    "Estádio Castelão",
+    40149
+   ],
+   "div": "R",
+   "liga": "Série D",
+   "tier": 0,
+   "nat": "BRA",
+   "lvl": 53
+  },
+  {
+   "n": "Moto Club",
+   "s": "MOT",
+   "pat": "vstripes",
+   "c": [
+    "#D52B1E",
+    "#000000"
+   ],
+   "sh": "#141414",
+   "so": "#000000",
+   "fan": 2,
+   "est": [
+    "Estádio Nhozinho Santos",
+    12891
+   ],
+   "div": "R",
+   "liga": "Série D",
+   "tier": 0,
+   "nat": "BRA",
+   "lvl": 50
+  },
+  {
+   "n": "IAPE",
+   "s": "IAP",
+   "pat": "solid",
+   "c": [
+    "#FFD100",
+    "#0033A0"
+   ],
+   "sh": "#141414",
+   "so": "#0033A0",
+   "fan": 2,
+   "est": [
+    "Estádio Nhozinho Santos",
+    12891
+   ],
+   "div": "R",
+   "liga": "Série D",
+   "tier": 0,
+   "nat": "BRA",
+   "lvl": 50
+  },
+  {
+   "n": "Luminense",
+   "s": "LUM",
+   "pat": "vstripes",
+   "c": [
+    "#FFD100",
+    "#00843D"
+   ],
+   "sh": "#141414",
+   "so": "#00843D",
+   "fan": 1,
+   "est": [
+    "Estádio Daniel Rodrigues Leal",
+    5000
+   ],
+   "div": "R",
+   "liga": "Estadual",
+   "tier": 0,
+   "nat": "BRA",
+   "lvl": 46
+  },
+  {
+   "n": "Tuntum",
+   "s": "TTM",
+   "pat": "vstripes",
+   "c": [
+    "#0033A0",
+    "#FFFFFF"
+   ],
+   "sh": "#141414",
+   "so": "#FFFFFF",
+   "fan": 1,
+   "est": [
+    "Estádio Rafael Seabra",
+    7000
+   ],
+   "div": "R",
+   "liga": "Estadual",
+   "tier": 0,
+   "nat": "BRA",
+   "lvl": 46
+  },
+  {
+   "n": "ITZ",
+   "s": "ITZ",
+   "pat": "solid",
+   "c": [
+    "#000000",
+    "#00843D"
+   ],
+   "sh": "#141414",
+   "so": "#00843D",
+   "fan": 1,
+   "est": [
+    "Estádio Frei Epifânio d'Abadia",
+    5000
+   ],
+   "div": "R",
+   "liga": "Estadual",
+   "tier": 0,
+   "nat": "BRA",
+   "lvl": 46
+  },
+  {
+   "n": "São José-RS",
+   "s": "SJO",
+   "pat": "vstripes",
+   "c": [
+    "#1C2A5A",
+    "#FFFFFF"
+   ],
+   "sh": "#141414",
+   "so": "#FFFFFF",
+   "fan": 2,
+   "est": [
+    "Estádio Passo D'Areia",
+    10646
+   ],
+   "div": "R",
+   "liga": "Série D",
+   "tier": 0,
+   "nat": "BRA",
+   "lvl": 52
+  },
+  {
+   "n": "São Luiz",
+   "s": "SLU",
+   "pat": "solid",
+   "c": [
+    "#C8102E",
+    "#FFFFFF"
+   ],
+   "sh": "#141414",
+   "so": "#FFFFFF",
+   "fan": 2,
+   "est": [
+    "Estádio 19 de Outubro",
+    5217
+   ],
+   "div": "R",
+   "liga": "Série D",
+   "tier": 0,
+   "nat": "BRA",
+   "lvl": 52
+  },
+  {
+   "n": "Avenida",
+   "s": "AVE",
+   "pat": "solid",
+   "c": [
+    "#00843D",
+    "#FFFFFF"
+   ],
+   "sh": "#141414",
+   "so": "#FFFFFF",
+   "fan": 1,
+   "est": [
+    "Estádio dos Eucaliptos",
+    3600
+   ],
+   "div": "R",
+   "liga": "Estadual",
+   "tier": 0,
+   "nat": "BRA",
+   "lvl": 48
+  },
+  {
+   "n": "Guarany de Bagé",
+   "s": "GUB",
+   "pat": "vstripes",
+   "c": [
+    "#D50000",
+    "#FFFFFF"
+   ],
+   "sh": "#141414",
+   "so": "#FFFFFF",
+   "fan": 2,
+   "est": [
+    "Estádio Estrela D'Alva",
+    10000
+   ],
+   "div": "R",
+   "liga": "Série D",
+   "tier": 0,
+   "nat": "BRA",
+   "lvl": 52
+  },
+  {
+   "n": "Inter-SM",
+   "s": "ISM",
+   "pat": "solid",
+   "c": [
+    "#D0021B",
+    "#FFFFFF"
+   ],
+   "sh": "#141414",
+   "so": "#FFFFFF",
+   "fan": 1,
+   "est": [
+    "Estádio Presidente Vargas",
+    12000
+   ],
+   "div": "R",
+   "liga": "Estadual",
+   "tier": 0,
+   "nat": "BRA",
+   "lvl": 48
+  },
+  {
+   "n": "Monsoon",
+   "s": "MON",
+   "pat": "solid",
+   "c": [
+    "#111111",
+    "#C9A227"
+   ],
+   "sh": "#141414",
+   "so": "#C9A227",
+   "fan": 1,
+   "est": [
+    "Estádio do Vale",
+    5196
+   ],
+   "div": "R",
+   "liga": "Estadual",
+   "tier": 0,
+   "nat": "BRA",
+   "lvl": 48
+  },
+  {
+   "n": "Novo Hamburgo",
+   "s": "NHA",
+   "pat": "solid",
+   "c": [
+    "#2F7DC1",
+    "#FFFFFF"
+   ],
+   "sh": "#141414",
+   "so": "#FFFFFF",
+   "fan": 1,
+   "est": [
+    "Estádio do Vale",
+    5196
+   ],
+   "div": "R",
+   "liga": "Estadual",
+   "tier": 0,
+   "nat": "BRA",
+   "lvl": 48
+  },
+  {
+   "n": "São Joseense",
+   "s": "SJS",
+   "pat": "band",
+   "c": [
+    "#1F4E9E",
+    "#FFD100"
+   ],
+   "sh": "#141414",
+   "so": "#FFD100",
+   "fan": 2,
+   "est": [
+    "Estádio do Pinhão",
+    4047
+   ],
+   "div": "R",
+   "liga": "Série D",
+   "tier": 0,
+   "nat": "BRA",
+   "lvl": 52
+  },
+  {
+   "n": "Cascavel",
+   "s": "CVL",
+   "pat": "solid",
+   "c": [
+    "#FFD200",
+    "#000000"
+   ],
+   "sh": "#141414",
+   "so": "#000000",
+   "fan": 2,
+   "est": [
+    "Estádio Olímpico Regional Arnaldo Busatto",
+    28125
+   ],
+   "div": "R",
+   "liga": "Série D",
+   "tier": 0,
+   "nat": "BRA",
+   "lvl": 52
+  },
+  {
+   "n": "Foz do Iguaçu",
+   "s": "FOZ",
+   "pat": "solid",
+   "c": [
+    "#1E5AA8",
+    "#FFFFFF"
+   ],
+   "sh": "#141414",
+   "so": "#FFFFFF",
+   "fan": 1,
+   "est": [
+    "Estádio do ABC",
+    6969
+   ],
+   "div": "R",
+   "liga": "Estadual",
+   "tier": 0,
+   "nat": "BRA",
+   "lvl": 48
+  },
+  {
+   "n": "Azuriz",
+   "s": "AZU",
+   "pat": "solid",
+   "c": [
+    "#6CB4E4",
+    "#1B2A5C"
+   ],
+   "sh": "#141414",
+   "so": "#1B2A5C",
+   "fan": 2,
+   "est": [
+    "Estádio Os Pioneiros",
+    3000
+   ],
+   "div": "R",
+   "liga": "Série D",
+   "tier": 0,
+   "nat": "BRA",
+   "lvl": 52
+  },
+  {
+   "n": "Andraus",
+   "s": "AND",
+   "pat": "solid",
+   "c": [
+    "#5AB4E5",
+    "#F4C300"
+   ],
+   "sh": "#141414",
+   "so": "#F4C300",
+   "fan": 1,
+   "est": [
+    "Arena da Baixada",
+    42372
+   ],
+   "div": "R",
+   "liga": "Estadual",
+   "tier": 0,
+   "nat": "BRA",
+   "lvl": 48
+  },
+  {
+   "n": "Galo Maringá",
+   "s": "GMA",
+   "pat": "solid",
+   "c": [
+    "#FFFFFF",
+    "#000000"
+   ],
+   "sh": "#141414",
+   "so": "#000000",
+   "fan": 1,
+   "est": [
+    "Estádio Willie Davids",
+    16000
+   ],
+   "div": "R",
+   "liga": "Estadual",
+   "tier": 0,
+   "nat": "BRA",
+   "lvl": 48
+  },
+  {
+   "n": "Camboriú",
+   "s": "CBU",
+   "pat": "band",
+   "c": [
+    "#FFFFFF",
+    "#F37021"
+   ],
+   "sh": "#141414",
+   "so": "#F37021",
+   "fan": 1,
+   "est": [
+    "Estádio Robertão",
+    3000
+   ],
+   "div": "R",
+   "liga": "Estadual",
+   "tier": 0,
+   "nat": "BRA",
+   "lvl": 48
+  },
+  {
+   "n": "Concórdia",
+   "s": "COC",
+   "pat": "solid",
+   "c": [
+    "#FFFFFF",
+    "#C8102E"
+   ],
+   "sh": "#141414",
+   "so": "#C8102E",
+   "fan": 1,
+   "est": [
+    "Estádio Domingos Machado de Lima",
+    5000
+   ],
+   "div": "R",
+   "liga": "Estadual",
+   "tier": 0,
+   "nat": "BRA",
+   "lvl": 48
+  },
+  {
+   "n": "Marcílio Dias",
+   "s": "MDS",
+   "pat": "vstripes",
+   "c": [
+    "#1B3F8B",
+    "#D21F2B"
+   ],
+   "sh": "#141414",
+   "so": "#D21F2B",
+   "fan": 2,
+   "est": [
+    "Estádio Dr. Hercílio Luz",
+    6010
+   ],
+   "div": "R",
+   "liga": "Série D",
+   "tier": 0,
+   "nat": "BRA",
+   "lvl": 52
+  },
+  {
+   "n": "Joinville",
+   "s": "JOI",
+   "pat": "vstripes",
+   "c": [
+    "#D7141A",
+    "#000000"
+   ],
+   "sh": "#141414",
+   "so": "#000000",
+   "fan": 2,
+   "est": [
+    "Arena Joinville",
+    22675
+   ],
+   "div": "R",
+   "liga": "Série D",
+   "tier": 0,
+   "nat": "BRA",
+   "lvl": 53
+  },
+  {
+   "n": "Santa Catarina",
+   "s": "SCC",
+   "pat": "solid",
+   "c": [
+    "#F57C00",
+    "#000000"
+   ],
+   "sh": "#141414",
+   "so": "#000000",
+   "fan": 2,
+   "est": [
+    "Estádio Alfredo João Krieck (Alfredão)",
+    2959
+   ],
+   "div": "R",
+   "liga": "Série D",
+   "tier": 0,
+   "nat": "BRA",
+   "lvl": 52
+  },
+  {
+   "n": "Carlos Renaux",
+   "s": "REN",
+   "pat": "vstripes",
+   "c": [
+    "#1F3C88",
+    "#FFFFFF"
+   ],
+   "sh": "#141414",
+   "so": "#FFFFFF",
+   "fan": 1,
+   "est": [
+    "Estádio Augusto Bauer",
+    5000
+   ],
+   "div": "R",
+   "liga": "Estadual",
+   "tier": 0,
+   "nat": "BRA",
+   "lvl": 48
+  },
+  {
+   "n": "CRAC",
+   "s": "CRA",
+   "pat": "vstripes",
+   "c": [
+    "#6CACE4",
+    "#FFFFFF"
+   ],
+   "sh": "#141414",
+   "so": "#FFFFFF",
+   "fan": 2,
+   "est": [
+    "Estádio Genervino da Fonseca",
+    12000
+   ],
+   "div": "R",
+   "liga": "Série D",
+   "tier": 0,
+   "nat": "BRA",
+   "lvl": 51
+  },
+  {
+   "n": "Inhumas",
+   "s": "INH",
+   "pat": "solid",
+   "c": [
+    "#6D1A36",
+    "#FFFFFF"
+   ],
+   "sh": "#141414",
+   "so": "#FFFFFF",
+   "fan": 2,
+   "est": [
+    "Estádio Zico Brandão",
+    5000
+   ],
+   "div": "R",
+   "liga": "Série D",
+   "tier": 0,
+   "nat": "BRA",
+   "lvl": 51
+  },
+  {
+   "n": "Goiatuba",
+   "s": "GTB",
+   "pat": "solid",
+   "c": [
+    "#1F4FA0",
+    "#FFFFFF"
+   ],
+   "sh": "#141414",
+   "so": "#FFFFFF",
+   "fan": 2,
+   "est": [
+    "Estádio Divino Garcia Rosa (Divinão)",
+    15000
+   ],
+   "div": "R",
+   "liga": "Série D",
+   "tier": 0,
+   "nat": "BRA",
+   "lvl": 51
+  },
+  {
+   "n": "Jataiense",
+   "s": "JAT",
+   "pat": "solid",
+   "c": [
+    "#1E8C3A",
+    "#FFFFFF"
+   ],
+   "sh": "#141414",
+   "so": "#FFFFFF",
+   "fan": 1,
+   "est": [
+    "Estádio Jerônimo Ferreira Fraga (Arapucão)",
+    5000
+   ],
+   "div": "R",
+   "liga": "Estadual",
+   "tier": 0,
+   "nat": "BRA",
+   "lvl": 47
+  },
+  {
+   "n": "Aparecidense",
+   "s": "APA",
+   "pat": "solid",
+   "c": [
+    "#1E4FA3",
+    "#D4AF37"
+   ],
+   "sh": "#141414",
+   "so": "#D4AF37",
+   "fan": 2,
+   "est": [
+    "Estádio Annibal Batista de Toledo",
+    5000
+   ],
+   "div": "R",
+   "liga": "Série D",
+   "tier": 0,
+   "nat": "BRA",
+   "lvl": 51
+  },
+  {
+   "n": "ABECAT",
+   "s": "ABE",
+   "pat": "solid",
+   "c": [
+    "#F47920",
+    "#000000"
+   ],
+   "sh": "#141414",
+   "so": "#000000",
+   "fan": 2,
+   "est": [
+    "Estádio Municipal Luiz Benedito",
+    1000
+   ],
+   "div": "R",
+   "liga": "Série D",
+   "tier": 0,
+   "nat": "BRA",
+   "lvl": 51
+  },
+  {
+   "n": "Centro Oeste",
+   "s": "COE",
+   "pat": "solid",
+   "c": [
+    "#1D4E9E",
+    "#000000"
+   ],
+   "sh": "#141414",
+   "so": "#000000",
+   "fan": 1,
+   "est": [
+    "Estádio Jaime Guerra",
+    4000
+   ],
+   "div": "R",
+   "liga": "Estadual",
+   "tier": 0,
+   "nat": "BRA",
+   "lvl": 47
+  },
+  {
+   "n": "Anapolina",
+   "s": "ANL",
+   "pat": "solid",
+   "c": [
+    "#D0021B",
+    "#FFFFFF"
+   ],
+   "sh": "#141414",
+   "so": "#FFFFFF",
+   "fan": 1,
+   "est": [
+    "Estádio Jonas Duarte",
+    20000
+   ],
+   "div": "R",
+   "liga": "Estadual",
+   "tier": 0,
+   "nat": "BRA",
+   "lvl": 47
+  },
+  {
+   "n": "Portuguesa",
+   "s": "LUS",
+   "pat": "hoops",
+   "c": [
+    "#E30613",
+    "#00843D"
+   ],
+   "sh": "#141414",
+   "so": "#00843D",
+   "fan": 3,
+   "est": [
+    "Estádio do Canindé",
+    21004
+   ],
+   "div": "R",
+   "liga": "Série D",
+   "tier": 0,
+   "nat": "BRA",
+   "lvl": 55
+  },
+  {
+   "n": "Velo Clube",
+   "s": "VCL",
+   "pat": "solid",
+   "c": [
+    "#D71920",
+    "#00843D"
+   ],
+   "sh": "#141414",
+   "so": "#00843D",
+   "fan": 2,
+   "est": [
+    "Estádio Benito Agnelo Castellano",
+    8136
+   ],
+   "div": "R",
+   "liga": "Série D",
+   "tier": 0,
+   "nat": "BRA",
+   "lvl": 54
+  },
+  {
+   "n": "Capivariano",
+   "s": "CPV",
+   "pat": "solid",
+   "c": [
+    "#D71920",
+    "#FFFFFF"
+   ],
+   "sh": "#141414",
+   "so": "#FFFFFF",
+   "fan": 1,
+   "est": [
+    "Arena Capivari",
+    7314
+   ],
+   "div": "R",
+   "liga": "Estadual",
+   "tier": 0,
+   "nat": "BRA",
+   "lvl": 50
+  },
+  {
+   "n": "Noroeste",
+   "s": "NOE",
+   "pat": "solid",
+   "c": [
+    "#C8102E",
+    "#FFFFFF"
+   ],
+   "sh": "#141414",
+   "so": "#FFFFFF",
+   "fan": 2,
+   "est": [
+    "Estádio Alfredo de Castilho",
+    18866
+   ],
+   "div": "R",
+   "liga": "Série D",
+   "tier": 0,
+   "nat": "BRA",
+   "lvl": 54
+  },
+  {
+   "n": "Primavera-SP",
+   "s": "PRS",
+   "pat": "solid",
+   "c": [
+    "#C8102E",
+    "#000000"
+   ],
+   "sh": "#141414",
+   "so": "#000000",
+   "fan": 1,
+   "est": [
+    "Estádio Ítalo Mário Limongi",
+    7820
+   ],
+   "div": "R",
+   "liga": "Estadual",
+   "tier": 0,
+   "nat": "BRA",
+   "lvl": 50
+  },
+  {
+   "n": "Água Santa",
+   "s": "AGS",
+   "pat": "solid",
+   "c": [
+    "#0047AB",
+    "#FFFFFF"
+   ],
+   "sh": "#141414",
+   "so": "#FFFFFF",
+   "fan": 2,
+   "est": [
+    "Arena Inamar",
+    10000
+   ],
+   "div": "R",
+   "liga": "Série D",
+   "tier": 0,
+   "nat": "BRA",
+   "lvl": 54
+  },
+  {
+   "n": "XV de Piracicaba",
+   "s": "XVP",
+   "pat": "vstripes",
+   "c": [
+    "#000000",
+    "#FFFFFF"
+   ],
+   "sh": "#141414",
+   "so": "#FFFFFF",
+   "fan": 2,
+   "est": [
+    "Estádio Barão de Serra Negra",
+    18000
+   ],
+   "div": "R",
+   "liga": "Série D",
+   "tier": 0,
+   "nat": "BRA",
+   "lvl": 53
+  },
+  {
+   "n": "Juventus-SP",
+   "s": "CAJ",
+   "pat": "solid",
+   "c": [
+    "#7A1F2B",
+    "#FFFFFF"
+   ],
+   "sh": "#141414",
+   "so": "#FFFFFF",
+   "fan": 2,
+   "est": [
+    "Estádio Conde Rodolfo Crespi (Rua Javari)",
+    4000
+   ],
+   "div": "R",
+   "liga": "Estadual",
+   "tier": 0,
+   "nat": "BRA",
+   "lvl": 53
+  },
+  {
+   "n": "Grêmio Prudente",
+   "s": "GDP",
+   "pat": "solid",
+   "c": [
+    "#D71920",
+    "#0033A0"
+   ],
+   "sh": "#141414",
+   "so": "#0033A0",
+   "fan": 1,
+   "est": [
+    "Estádio Paulo Constantino (Prudentão)",
+    45954
+   ],
+   "div": "R",
+   "liga": "Estadual",
+   "tier": 0,
+   "nat": "BRA",
+   "lvl": 50
+  },
+  {
+   "n": "Linense",
+   "s": "LIN",
+   "pat": "vstripes",
+   "c": [
+    "#D71920",
+    "#FFFFFF"
+   ],
+   "sh": "#141414",
+   "so": "#FFFFFF",
+   "fan": 1,
+   "est": [
+    "Estádio Gilberto Siqueira Lopes (Gilbertão)",
+    7300
+   ],
+   "div": "R",
+   "liga": "Estadual",
+   "tier": 0,
+   "nat": "BRA",
+   "lvl": 50
+  },
+  {
+   "n": "Monte Azul",
+   "s": "MAZ",
+   "pat": "solid",
+   "c": [
+    "#0057B8",
+    "#FFFFFF"
+   ],
+   "sh": "#141414",
+   "so": "#FFFFFF",
+   "fan": 1,
+   "est": [
+    "Estádio Otacília Patrício Arroyo",
+    13100
+   ],
+   "div": "R",
+   "liga": "Estadual",
+   "tier": 0,
+   "nat": "BRA",
+   "lvl": 50
+  },
+  {
+   "n": "Osasco Sporting",
+   "s": "OSP",
+   "pat": "solid",
+   "c": [
+    "#0057B8",
+    "#FFFFFF"
+   ],
+   "sh": "#141414",
+   "so": "#FFFFFF",
+   "fan": 1,
+   "est": [
+    "Estádio José Liberatti",
+    12000
+   ],
+   "div": "R",
+   "liga": "Estadual",
+   "tier": 0,
+   "nat": "BRA",
+   "lvl": 50
+  },
+  {
+   "n": "Santo André",
+   "s": "SAD",
+   "pat": "solid",
+   "c": [
+    "#0072CE",
+    "#FFFFFF"
+   ],
+   "sh": "#141414",
+   "so": "#FFFFFF",
+   "fan": 2,
+   "est": [
+    "Estádio Bruno José Daniel",
+    11440
+   ],
+   "div": "R",
+   "liga": "Estadual",
+   "tier": 0,
+   "nat": "BRA",
+   "lvl": 53
+  },
+  {
+   "n": "São Bento",
+   "s": "SBE",
+   "pat": "solid",
+   "c": [
+    "#0033A0",
+    "#FFFFFF"
+   ],
+   "sh": "#141414",
+   "so": "#FFFFFF",
+   "fan": 1,
+   "est": [
+    "Estádio Walter Ribeiro",
+    12525
+   ],
+   "div": "R",
+   "liga": "Estadual",
+   "tier": 0,
+   "nat": "BRA",
+   "lvl": 50
+  },
+  {
+   "n": "São José-SP",
+   "s": "SJE",
+   "pat": "solid",
+   "c": [
+    "#1F3A93",
+    "#FFC72C"
+   ],
+   "sh": "#141414",
+   "so": "#FFC72C",
+   "fan": 1,
+   "est": [
+    "Estádio Martins Pereira",
+    16500
+   ],
+   "div": "R",
+   "liga": "Estadual",
+   "tier": 0,
+   "nat": "BRA",
+   "lvl": 50
+  },
+  {
+   "n": "Sertãozinho",
+   "s": "SRT",
+   "pat": "solid",
+   "c": [
+    "#7A1F2B",
+    "#FFFFFF"
+   ],
+   "sh": "#141414",
+   "so": "#FFFFFF",
+   "fan": 1,
+   "est": [
+    "Estádio Frederico Dalmaso",
+    15074
+   ],
+   "div": "R",
+   "liga": "Estadual",
+   "tier": 0,
+   "nat": "BRA",
+   "lvl": 50
+  },
+  {
+   "n": "Taubaté",
+   "s": "TAU",
+   "pat": "solid",
+   "c": [
+    "#0057B8",
+    "#FFFFFF"
+   ],
+   "sh": "#141414",
+   "so": "#FFFFFF",
+   "fan": 1,
+   "est": [
+    "Estádio Joaquim de Morais Filho (Joaquinzão)",
+    9600
+   ],
+   "div": "R",
+   "liga": "Estadual",
+   "tier": 0,
+   "nat": "BRA",
+   "lvl": 50
+  },
+  {
+   "n": "Votuporanguense",
+   "s": "VOT",
+   "pat": "solid",
+   "c": [
+    "#000000",
+    "#FFFFFF"
+   ],
+   "sh": "#141414",
+   "so": "#FFFFFF",
+   "fan": 1,
+   "est": [
+    "Arena Plínio Marin",
+    8145
+   ],
+   "div": "R",
+   "liga": "Estadual",
+   "tier": 0,
+   "nat": "BRA",
+   "lvl": 50
+  },
+  {
+   "n": "Bangu",
+   "s": "BGU",
+   "pat": "vstripes",
+   "c": [
+    "#D50000",
+    "#FFFFFF"
+   ],
+   "sh": "#141414",
+   "so": "#FFFFFF",
+   "fan": 2,
+   "est": [
+    "Estádio Proletário Guilherme da Silveira (Moça Bonita)",
+    9024
+   ],
+   "div": "R",
+   "liga": "Estadual",
+   "tier": 0,
+   "nat": "BRA",
+   "lvl": 48
+  },
+  {
+   "n": "Boavista",
+   "s": "BOA",
+   "pat": "solid",
+   "c": [
+    "#00843D",
+    "#FFFFFF"
+   ],
+   "sh": "#141414",
+   "so": "#FFFFFF",
+   "fan": 1,
+   "est": [
+    "Estádio Elcyr Resende de Mendonça",
+    4315
+   ],
+   "div": "R",
+   "liga": "Estadual",
+   "tier": 0,
+   "nat": "BRA",
+   "lvl": 48
+  },
+  {
+   "n": "Madureira",
+   "s": "MDR",
+   "pat": "vstripes",
+   "c": [
+    "#FFD100",
+    "#1C3F94"
+   ],
+   "sh": "#141414",
+   "so": "#1C3F94",
+   "fan": 2,
+   "est": [
+    "Estádio Conselheiro Galvão",
+    4272
+   ],
+   "div": "R",
+   "liga": "Série D",
+   "tier": 0,
+   "nat": "BRA",
+   "lvl": 52
+  },
+  {
+   "n": "Maricá",
+   "s": "MAR",
+   "pat": "solid",
+   "c": [
+    "#0057B8",
+    "#FFFFFF"
+   ],
+   "sh": "#141414",
+   "so": "#FFFFFF",
+   "fan": 2,
+   "est": [
+    "Estádio João Saldanha",
+    4000
+   ],
+   "div": "R",
+   "liga": "Série D",
+   "tier": 0,
+   "nat": "BRA",
+   "lvl": 52
+  },
+  {
+   "n": "Nova Iguaçu",
+   "s": "NIG",
+   "pat": "solid",
+   "c": [
+    "#F58220",
+    "#FFFFFF"
+   ],
+   "sh": "#141414",
+   "so": "#FFFFFF",
+   "fan": 2,
+   "est": [
+    "Estádio Jânio de Moraes (Laranjão)",
+    3500
+   ],
+   "div": "R",
+   "liga": "Série D",
+   "tier": 0,
+   "nat": "BRA",
+   "lvl": 52
+  },
+  {
+   "n": "Portuguesa-RJ",
+   "s": "PRJ",
+   "pat": "solid",
+   "c": [
+    "#D71920",
+    "#00843D"
+   ],
+   "sh": "#141414",
+   "so": "#00843D",
+   "fan": 2,
+   "est": [
+    "Estádio Luso-Brasileiro",
+    6437
+   ],
+   "div": "R",
+   "liga": "Série D",
+   "tier": 0,
+   "nat": "BRA",
+   "lvl": 52
+  },
+  {
+   "n": "Uberlândia",
+   "s": "UBE",
+   "pat": "solid",
+   "c": [
+    "#00843D",
+    "#FFFFFF"
+   ],
+   "sh": "#141414",
+   "so": "#FFFFFF",
+   "fan": 2,
+   "est": [
+    "Estádio Parque do Sabiá",
+    53350
+   ],
+   "div": "R",
+   "liga": "Série D",
+   "tier": 0,
+   "nat": "BRA",
+   "lvl": 52
+  },
+  {
+   "n": "Pouso Alegre",
+   "s": "POU",
+   "pat": "solid",
+   "c": [
+    "#D71920",
+    "#000000"
+   ],
+   "sh": "#141414",
+   "so": "#000000",
+   "fan": 2,
+   "est": [
+    "Estádio Irmão Gino Maria Rossi (Manduzão)",
+    26000
+   ],
+   "div": "R",
+   "liga": "Série D",
+   "tier": 0,
+   "nat": "BRA",
+   "lvl": 52
+  },
+  {
+   "n": "Betim",
+   "s": "BTM",
+   "pat": "solid",
+   "c": [
+    "#D71920",
+    "#FFFFFF"
+   ],
+   "sh": "#141414",
+   "so": "#FFFFFF",
+   "fan": 2,
+   "est": [
+    "Arena Vera Cruz (Arena Urbsan)",
+    4800
+   ],
+   "div": "R",
+   "liga": "Série D",
+   "tier": 0,
+   "nat": "BRA",
+   "lvl": 52
+  },
+  {
+   "n": "Democrata-GV",
+   "s": "DEM",
+   "pat": "solid",
+   "c": [
+    "#000000",
+    "#FFFFFF"
+   ],
+   "sh": "#141414",
+   "so": "#FFFFFF",
+   "fan": 2,
+   "est": [
+    "Estádio José Mammoud Abbas (Mamudão)",
+    8675
+   ],
+   "div": "R",
+   "liga": "Série D",
+   "tier": 0,
+   "nat": "BRA",
+   "lvl": 52
+  },
+  {
+   "n": "Itabirito",
+   "s": "ITB",
+   "pat": "solid",
+   "c": [
+    "#0033A0",
+    "#7A1F2B"
+   ],
+   "sh": "#141414",
+   "so": "#7A1F2B",
+   "fan": 1,
+   "est": [
+    "Estádio Usina Esperança",
+    10000
+   ],
+   "div": "R",
+   "liga": "Estadual",
+   "tier": 0,
+   "nat": "BRA",
+   "lvl": 48
+  },
+  {
+   "n": "North",
+   "s": "NTH",
+   "pat": "solid",
+   "c": [
+    "#0033A0",
+    "#000000"
+   ],
+   "sh": "#141414",
+   "so": "#000000",
+   "fan": 1,
+   "est": [
+    "Estádio José Maria de Melo",
+    5000
+   ],
+   "div": "R",
+   "liga": "Estadual",
+   "tier": 0,
+   "nat": "BRA",
+   "lvl": 48
+  },
+  {
+   "n": "URT",
+   "s": "URT",
+   "pat": "solid",
+   "c": [
+    "#0033A0",
+    "#FFFFFF"
+   ],
+   "sh": "#141414",
+   "so": "#FFFFFF",
+   "fan": 1,
+   "est": [
+    "Estádio Zama Maciel",
+    4858
+   ],
+   "div": "R",
+   "liga": "Estadual",
+   "tier": 0,
+   "nat": "BRA",
+   "lvl": 48
   }
  ]
 }

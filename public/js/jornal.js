@@ -41,7 +41,7 @@ function capa() {
     titulo = `${H.clube(ci).n} se prepara para o Brasileirão ${s.ano}`;
     sub = `${j.curto} é a esperança da torcida na Série ${d}.`;
   }
-  const data = dataRodada(s.ano, Math.max(0, (m ? m.rodada : 1) - 1));
+  const data = m || !s.ultimaData ? dataRodada(s.ano, Math.max(0, (m ? m.rodada : 1) - 1)) : new Date(s.ultimaData); // na pré-temporada, o dia do último jogo
   const furos = s.noticias.filter(n => doInsider(n) && n.rodada >= s.rodada - 2).slice(0, 2);
   const tab = tabela(H.app.base, s, d), minha = tab.findIndex(l => l.clube === ci);
   const linhas = tab.slice(0, 5).map((l, i) => [i, l]);

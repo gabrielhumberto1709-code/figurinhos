@@ -618,13 +618,15 @@ function novelas(base, s, rd, add) {
 
 // ---------- fim de rodada ----------
 // responde as propostas do usuário, gera propostas pelos jogadores dele, pré-contratos, negócios da IA e relatórios do olheiro
-export function resolverMercado(base, s, rd) {
+// roda depois de cada rodada; na pré-temporada e nos regionais (rodada 0), uma vez por semana ("semana" = 1, 2, ...)
+export function resolverMercado(base, s, rd, semana = 0) {
   garantirMercado(s);
-  const r = rng(`mercado${s.seed}-${rd}`), meu = s.tecnico.clube, N = [];
+  const r = rng(`mercado${s.seed}-${rd}${semana ? `-s${semana}` : ''}`), meu = s.tecnico.clube, N = [];
+  const aberta = x => !!semana || janelaAberta(s.ano, x);
   const nome = ci => base.clubes[ci].n;
   const add = (texto, tipo = 'clube', div = base.clubes[meu].div, extra) => N.push({ rodada: rd + 1, tipo, div, texto, mercado: true, ...extra });
   for (const [id, c] of Object.entries(s.chegou)) if (agora(s) - c >= TRAVA) delete s.chegou[id];
-  if (s.acordos.length && janelaAberta(s.ano, rd + 1)) cumprirAcordos(base, s, add);
+  if (s.acordos.length && aberta(rd + 1)) cumprirAcordos(base, s, add);
   for (const [id, e] of Object.entries(s.emprestimos)) {
     const j = base.jog.get(+id), jogou = jogosNoEmprestimo(s, id);
     if (j && e.obrig?.gatilho === 'jogos' && jogou >= e.obrig.jogos) { efetivar(base, s, j, e, e.obrig.valor, 'Obrigação de compra'); add(`Obrigação de compra acionada: ${j.curto} completa ${jogou} jogos pelo ${nome(e.para)} e fica em definitivo por ${fmt(e.obrig.valor)}.`, 'clube', base.clubes[meu].div, { jogador: j.id }); }
@@ -642,7 +644,7 @@ export function resolverMercado(base, s, rd) {
     if (preContratoDe(s, j.id)) { p.estado = 'cancelada'; p.motivo = 'assinou pré-contrato com outro clube'; continue; }
     if (p.troca && (!t || t.clube !== meu)) { p.estado = 'cancelada'; p.motivo = 'o jogador da troca não está mais no elenco'; continue; }
     if (t && vontade(base, s, t, j.clube) < 35) { falha(`${t.curto} não quer ir para o ${nome(j.clube)}`, `${t.curto} não aceita ir para o ${nome(j.clube)} na troca por ${j.curto}.`); continue; }
-    const fechada = tipo === 'compra' && !janelaAberta(s.ano, rd + 1), vt = t ? valorNaTroca(base, s, t, j.clube) : 0;
+    const fechada = tipo === 'compra' && !aberta(rd + 1), vt = t ? valorNaTroca(base, s, t, j.clube) : 0;
     if (tipo !== 'livre' && !p.clubeOk && rivais(base, j.clube, meu) && r() < 0.9) { falha('o clube não negocia com o rival', `O ${nome(j.clube)} nem abre conversa: não negocia ${j.curto} com o rival.`); continue; }
     if (tipo === 'compra' && !p.clubeOk && !p.aceitouContra) {
       const pedido = Math.min(precoPedido(base, s, j), p.pedido || Infinity); // o clube honra o preço que pediu na hora da proposta
@@ -722,7 +724,7 @@ export function resolverMercado(base, s, rd) {
   // propostas pelos seus jogadores (só com a janela aberta); vencem em 2 rodadas. Fase boa e lista de venda chamam atenção.
   for (const x of s.recebidas.filter(x => x.rodada < rd - 1 && x.quer && base.jog.get(x.jogador).clube === meu)) barrarSaida(base, s, x); // deixou vencer = segurou
   s.recebidas = s.recebidas.filter(x => x.rodada >= rd - 1 && base.jog.get(x.jogador).clube === meu);
-  if (janelaAberta(s.ano, rd + 1)) {
+  if (aberta(rd + 1)) {
     // gigante europeu ou árabe aparece pelo seu craque, de vez em quando, com dinheiro de sobra
     const craques = base.elencos[meu].filter(j => (j.ovr >= 77 || (j.ovr >= 73 && faseDe(s, j.id).k === 'excelente')) && j.idade <= 33 && !s.emprestimos[j.id] && !preContratoDe(s, j.id) && !travado(s, j.id) && !s.recebidas.some(x => x.jogador === j.id));
     if (craques.length && r() < 0.06) {
@@ -785,7 +787,7 @@ export function resolverMercado(base, s, rd) {
   }
   renovacoesIA(base, s, rd, add);
   novelas(base, s, rd, add);
-  if (janelaAberta(s.ano, rd)) negociosIA(base, s, rd, r, add);
+  if (aberta(rd)) negociosIA(base, s, rd, r, add);
   trabalhoDoOlheiro(base, s, rd, r);
   if (s.historicoTransf.length > 400) s.historicoTransf.length = 400;
   s.noticias = [...N, ...s.noticias].slice(0, 220);

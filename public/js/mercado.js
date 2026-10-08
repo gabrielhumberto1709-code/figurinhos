@@ -6,6 +6,7 @@ import { orcamento, salarioDia, salarioBase } from './motor/financas.js';
 import { faseDe } from './motor/forma.js';
 import { POS_NOME, POS_ORDEM, SETOR, cartaDe, estrelas, fmtDinheiro, CONTINENTES, continenteDe } from './motor/util.js';
 import { urlRosto } from './pixel.js';
+import { dataAmistoso } from './motor/calendario.js';
 
 let H; // { app, clube, esc, imgEscudo, render, salvar, aviso, $ }
 export const configurar = h => { H = h; };
@@ -79,6 +80,8 @@ const lista = (js, vazio, extra) => js.length ? `<ul class="lista-mercado">${js.
 const chips = (rot, itens, acao, ativo, extra = '') => `<div class="chips" role="group" aria-label="${rot}">${itens.map(([k, t]) => `<button type="button" class="chip" data-acao="${acao}" data-v="${k}" aria-pressed="${ativo(k)}" ${extra}>${t}</button>`).join('')}</div>`;
 
 function janelaInfo(s) {
+  // pré-temporada e regionais: aberta até a estreia no Brasileirão
+  if (s.rodada === 0) { const d = dataRodada(s.ano, 0), hoje = s.ultimaData ?? +dataAmistoso(s.ano, 0); return { aberta: true, dias: Math.max(0, Math.round((d - hoje) / 864e5)), data: d }; }
   const aberta = janelaAberta(s.ano, s.rodada), hoje = dataRodada(s.ano, Math.min(s.rodada, 37));
   for (let r = s.rodada + 1; r <= 37; r++) if (janelaAberta(s.ano, r) !== aberta) { const d = dataRodada(s.ano, r); return { aberta, dias: Math.round((d - hoje) / 864e5), data: d }; }
   return { aberta, dias: null };
@@ -87,7 +90,7 @@ const ddmm = d => `${String(d.getUTCDate()).padStart(2, '0')}/${String(d.getUTCM
 function faixaJanela(s) {
   const J = janelaInfo(s);
   const txt = J.aberta ? (J.dias != null ? `Janela aberta · fecha em ${J.dias} dias (${ddmm(J.data)})` : 'Janela aberta') : J.dias != null ? `Janela fechada · abre em ${J.dias} dias (${ddmm(J.data)})` : 'Janela fechada até a próxima temporada';
-  return `<p class="janela ${J.aberta ? 'aberta' : ''}"><b>${txt}</b><small>Livres e pré-contratos não dependem da janela. Com ela fechada, compra vira acordo e o jogador chega quando abrir. Propostas são respondidas na rodada seguinte.</small></p>`;
+  return `<p class="janela ${J.aberta ? 'aberta' : ''}"><b>${txt}</b><small>Livres e pré-contratos não dependem da janela. Com ela fechada, compra vira acordo e o jogador chega quando abrir. Propostas são respondidas na rodada seguinte (na pré-temporada e nos regionais, no fim da semana).</small></p>`;
 }
 
 function abaBuscar(topo = faixaJanela(S())) {

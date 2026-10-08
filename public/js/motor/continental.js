@@ -1,11 +1,12 @@
 // Libertadores e Sul-Americana: 32 clubes em 8 grupos de 4 (turno e returno), como na Conmebol; os 2 primeiros vão
 // às oitavas; oitavas, quartas e semi em jogo único na casa de quem fez mais pontos nos grupos; final em campo neutro.
 // Em 2026 os grupos são os do sorteio real; depois, sorteio com potes pela força.
-// Supercopa do Brasil: campeão da Série A × campeão da Copa do Brasil, antes da 1ª rodada.
+// Supercopa do Brasil: campeão da Série A × campeão da Copa do Brasil, no começo de fevereiro (no meio dos estaduais).
 // Clubes de fora entram com o elenco real completado por jogadores gerados (só existem nesses jogos).
 import { rng, shuffle, pick, clamp, ATT, PERFIL } from './util.js';
 import { melhorTime } from './partida.js';
 import { penaltis } from './copa.js';
+import { APOS_CONT, dataCont as diaCont, dataSup as diaSup } from './calendario.js';
 
 export const TORNEIOS = {
   LIB: { nome: 'Libertadores', br: 6, premio: { grupos: 2.5e6, vitoria: 3e5, oit: 1e6, qua: 1.5e6, sem: 2.5e6, fin: 4e6, vice: 0, campeao: 12e6 } },
@@ -14,16 +15,15 @@ export const TORNEIOS = {
 export const PREMIO_SUP = { campeao: 3e6, vice: 1e6 };
 // 6 rodadas de grupos e 4 de mata-mata, na quarta-feira livre depois da rodada "apos" do Brasileirão
 export const FASES_CONT = [
-  ...[2, 4, 8, 10, 14, 18].map((apos, i) => ({ k: 'g', nome: `Grupos · ${i + 1}ª rodada`, curto: `Grupos ${i + 1}`, apos })),
-  { k: 'oit', nome: 'Oitavas de final', curto: 'Oitavas', apos: 20 },
-  { k: 'qua', nome: 'Quartas de final', curto: 'Quartas', apos: 24 },
-  { k: 'sem', nome: 'Semifinal', curto: 'Semi', apos: 26 },
-  { k: 'fin', nome: 'Final', curto: 'Final', apos: 30 },
-];
+  ...[0, 1, 2, 3, 4, 5].map(i => ({ k: 'g', nome: `Grupos · ${i + 1}ª rodada`, curto: `Grupos ${i + 1}` })),
+  { k: 'oit', nome: 'Oitavas de final', curto: 'Oitavas' },
+  { k: 'qua', nome: 'Quartas de final', curto: 'Quartas' },
+  { k: 'sem', nome: 'Semifinal', curto: 'Semi' },
+  { k: 'fin', nome: 'Final', curto: 'Final' },
+].map((f, i) => ({ ...f, apos: APOS_CONT[i] }));
 export const F_MATA = 6, F_OIT = 6, F_QUA = 7, F_SEM = 8, F_FIN = 9, N_GRUPOS = 8;
-const DIA = 864e5;
-export const dataCont = (dataRodada, ano, i) => new Date(+dataRodada(ano, FASES_CONT[i].apos) + 7 * DIA);
-export const dataSup = (dataRodada, ano) => new Date(+dataRodada(ano, 0) - 4 * DIA);
+export const dataCont = (_, ano, i) => diaCont(ano, i);
+export const dataSup = (_, ano) => diaSup(ano);
 // cada par se enfrenta em casa e fora
 const RODADAS_G = [[[0, 1], [2, 3]], [[2, 0], [3, 1]], [[0, 3], [1, 2]], [[1, 0], [3, 2]], [[0, 2], [1, 3]], [[3, 0], [2, 1]]];
 

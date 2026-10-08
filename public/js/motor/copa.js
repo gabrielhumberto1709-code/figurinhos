@@ -1,30 +1,28 @@
-// Copa do Brasil: 32 clubes (os 20 da Série A, os campeões regionais do ano anterior que estão na B ou na C e os mais
-// fortes da B até fechar 12), mata-mata em jogo único com pênaltis
+// Copa do Brasil: 32 clubes (os 20 da Série A e os 12 mais fortes da B), mata-mata em jogo único com pênaltis
 // e final em ida e volta. Os jogos caem na quarta-feira livre entre duas rodadas do Brasileirão.
 import { rng, shuffle } from './util.js';
+import { APOS_COPA, dataCopa as diaCopa } from './calendario.js';
 
 export const FASES = [
-  { k: '1f', nome: '1ª fase', curto: '1ª fase', apos: 6 },
-  { k: 'oit', nome: 'Oitavas de final', curto: 'Oitavas', apos: 12 },
-  { k: 'qua', nome: 'Quartas de final', curto: 'Quartas', apos: 16 },
-  { k: 'sem', nome: 'Semifinal', curto: 'Semi', apos: 22 },
-  { k: 'f1', nome: 'Final · ida', curto: 'Final (ida)', apos: 28 },
-  { k: 'f2', nome: 'Final · volta', curto: 'Final (volta)', apos: 32 },
-];
+  { k: '1f', nome: '1ª fase', curto: '1ª fase' },
+  { k: 'oit', nome: 'Oitavas de final', curto: 'Oitavas' },
+  { k: 'qua', nome: 'Quartas de final', curto: 'Quartas' },
+  { k: 'sem', nome: 'Semifinal', curto: 'Semi' },
+  { k: 'f1', nome: 'Final · ida', curto: 'Final (ida)' },
+  { k: 'f2', nome: 'Final · volta', curto: 'Final (volta)' },
+].map((f, i) => ({ ...f, apos: APOS_COPA[i] })); // cada fase na quarta livre depois da rodada "apos" do Brasileirão
 // prêmio por chegar a cada fase (entra quando o clube se classifica) e pelo título
 export const PREMIOS = { '1f': 4e5, oit: 6e5, qua: 9e5, sem: 1.6e6, vice: 5e6, campeao: 12e6 };
-const DIA = 864e5;
-export const dataCopa = (dataRodada, ano, i) => new Date(+dataRodada(ano, FASES[i].apos) + 7 * DIA);
+export const dataCopa = (_, ano, i) => diaCopa(ano, i);
 
-export function participantes(base, s) {
+export function participantes(base) {
   const da = d => base.clubes.map((c, i) => i).filter(i => base.clubes[i].div === d).sort((a, b) => base.forca(b) - base.forca(a));
-  const vagas = [...new Set(s?.vagasCB || [])].filter(c => ['B', 'C'].includes(base.clubes[c]?.div)).slice(0, 12);
-  return [...da('A'), ...vagas, ...da('B').filter(c => !vagas.includes(c)).slice(0, 12 - vagas.length)];
+  return [...da('A'), ...da('B').slice(0, 12)];
 }
 
 // sorteio: na 1ª fase os 16 mais fortes pegam os 16 mais fracos, e o mais fraco tem o mando
 export function novaCopa(base, s) {
-  const r = rng(`copa${s.seed}-${s.ano}`), lista = participantes(base, s).sort((a, b) => base.forca(b) - base.forca(a));
+  const r = rng(`copa${s.seed}-${s.ano}`), lista = participantes(base).sort((a, b) => base.forca(b) - base.forca(a));
   const fortes = shuffle(r, lista.slice(0, 16)), fracos = shuffle(r, lista.slice(16));
   s.copa = { ano: s.ano, fase: 0, chaves: fortes.map((f, i) => [fracos[i], f]), jogos: [], art: {}, campeao: null, vice: null };
   return s.copa;

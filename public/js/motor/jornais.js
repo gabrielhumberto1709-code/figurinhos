@@ -48,7 +48,7 @@ export function cronica(base, s) {
   const g = jogoMeu(base, s); if (!g) return null;
   const { u, C, A } = g, nomes = [base.clubes[u.casa].n, base.clubes[u.fora].n];
   const r = rng(`cron${s.seed}${s.ano}${u.rodada}`), F = [];
-  F.push(`O ${nomes[0]} recebeu o ${nomes[1]} ${u.div === 'AMI' ? 'em amistoso de pré-temporada' : u.copa ? `pela ${u.copa}` : `pela ${u.rodada + 1}ª rodada`}${g.classico ? ', num clássico que valia mais do que três pontos' : ''}.`);
+  F.push(`O ${nomes[0]} recebeu o ${nomes[1]} ${u.div === 'AMI' ? 'em amistoso de pré-temporada' : u.copa ? `${/^(Campeonato|Paulista)/.test(u.copa) ? 'pelo' : 'pela'} ${u.copa}` : `pela ${u.rodada + 1}ª rodada`}${g.classico ? ', num clássico que valia mais do que três pontos' : ''}.`);
   const p = [0, 0], liderou = [false, false];
   if (!g.gols.length) F.push(pick(r, ['O jogo foi truncado, com pouca criação dos dois lados.', 'Os goleiros pouco trabalharam e a bola teimou em não entrar.']));
   for (const e of g.gols) {
