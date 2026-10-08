@@ -737,3 +737,4 @@ b.pos { color: var(--gramado); } b.neg { color: var(--cartao); }
 .clausulas .check input { width: auto; flex: none; margin: 0; }
 .chance-emp { padding: 6px 10px; border-left: 4px solid var(--placar); background: var(--encaixe); }
 .clausulas-txt { font-size: .92rem; }
+.aviso-medo { border-left: 8px solid var(--placar); display: grid; gap: 8px; }

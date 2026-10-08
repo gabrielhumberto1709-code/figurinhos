@@ -3,7 +3,7 @@
 // dinheiro, cargo, fase dos jogadores, garotos que subiram de nível. Cada assunto sai uma vez só.
 import { rng, pick, fmtDinheiro } from './util.js';
 import { nomeTecnico, pilares } from './carreira.js';
-import { proximoEvento, compProxima, janelaAberta, tabela, barradoMedo } from './mundo.js';
+import { proximoEvento, compProxima, janelaAberta, tabela, barradoMedo, multaMedo } from './mundo.js';
 import { indisponivel, pendurado, LESOES, COMP_DE } from './dm.js';
 import { faseDe } from './forma.js';
 import { orcamento, metaDiretoria, salarioDia } from './financas.js';
@@ -19,7 +19,7 @@ export const REMETENTES = {
 export const remetente = (s, k) => ({ ...REMETENTES[k], nome: nomeTecnico(rng(`${REMETENTES[k].semente}${s.seed}-${s.tecnico.clube}`)) });
 export const naoLidas = s => (s.msgs || []).filter(m => !m.lida).length;
 
-function enviar(s, de, chave, assunto, texto, extra = {}) {
+export function enviar(s, de, chave, assunto, texto, extra = {}) {
   s.msgsVistas ||= [];
   if (s.msgsVistas.includes(chave)) return;
   s.msgsVistas = [...s.msgsVistas, chave].slice(-300);
@@ -53,7 +53,7 @@ export function correio(base, s) {
     const comp = compProxima(base, s), adv = ev.h === ci ? ev.a : ev.h;
     const fora = el.filter(j => indisponivel(s, j.id, comp) || barradoMedo(base, s, j.id, ci)).sort((a, b) => b.ovr - a.ovr);
     if (fora.length) enviar(s, 'diretor', `desf-${tag}`, `Desfalques contra o ${nome(adv)}`,
-      `Professor, para o jogo contra o ${nome(adv)} não teremos ${lista(fora.map(j => `${j.curto} (${{ lesao: `lesão, ${s.dm[j.id]?.n} jogo${s.dm[j.id]?.n > 1 ? 's' : ''}`, suspenso: 'suspenso', afastado: `afastado pelo clube (${s.afast?.[j.id]?.motivo})`, selecao: 'convocado pela seleção', medo: 'cláusula do medo, não pode enfrentar o dono' }[indisponivel(s, j.id, comp) || 'medo']})`))}. Confira a escalação antes de entrar em campo.`, { link: '#/elenco' });
+      `Professor, para o jogo contra o ${nome(adv)} não teremos ${lista(fora.map(j => `${j.curto} (${{ lesao: `lesão, ${s.dm[j.id]?.n} jogo${s.dm[j.id]?.n > 1 ? 's' : ''}`, suspenso: 'suspenso', afastado: `afastado pelo clube (${s.afast?.[j.id]?.motivo})`, selecao: 'convocado pela seleção', medo: `cláusula do medo; dá pra pagar a multa de ${fmtDinheiro(multaMedo(j))} e escalar` }[indisponivel(s, j.id, comp) || 'medo']})`))}. Confira a escalação antes de entrar em campo.`, { link: '#/elenco' });
     const pend = el.filter(j => pendurado(s, j.id, comp) && !indisponivel(s, j.id, comp));
     if (pend.length) enviar(s, 'diretor', `pend-${tag}`, 'Pendurados', `${lista(pend.map(j => j.curto))} ${pend.length > 1 ? 'estão pendurados' : 'está pendurado'} ${COMP_DE[comp] || ''}. Mais um amarelo e ${pend.length > 1 ? 'ficam' : 'fica'} fora do jogo seguinte.`, { link: '#/dm' });
   }

@@ -1,6 +1,6 @@
 // Aba Mercado: Buscar (atalhos, séries, posições e filtros), Favoritos, Listas, Livres, Pré-contrato, Olheiros,
 // Propostas e Histórico. Também o bloco de mercado e contrato da ficha do jogador.
-import { janelaAberta, dataRodada } from './motor/mundo.js';
+import { janelaAberta, dataRodada, barradoMedo, pagarMedo, multaMedo } from './motor/mundo.js';
 import * as M from './motor/mercado.js';
 import { orcamento, salarioDia, salarioBase } from './motor/financas.js';
 import { faseDe } from './motor/forma.js';
@@ -248,6 +248,7 @@ export function blocoFicha(j) {
       <dl><dt>Salário</dt><dd>${euro(salarioDia(b, s, j))}/dia</dd><dt>Contrato</dt><dd>até ${j.contrato}</dd></dl>
       ${pre ? `<p><b>Assinou pré-contrato com o ${H.esc(H.clube(pre.para).n)} e sai no fim da temporada.</b></p>` : ''}
       ${emp ? `<p><b>Emprestado pelo ${H.esc(H.clube(emp.de).n)} até o fim da temporada.</b></p>${M.resumoCl(emp, M.jogosNoEmprestimo(s, j.id)) ? `<p class="mudo clausulas-txt">${H.esc(M.resumoCl(emp, M.jogosNoEmprestimo(s, j.id)))}</p>` : ''}${emp.opcao ? `<button class="botao peq" type="button" data-acao="opcao" data-id="${j.id}">Exercer opção de compra (${fmtDinheiro(emp.opcao)})</button>` : ''}` : ''}
+      ${emp && barradoMedo(b, s, j.id, s.tecnico.clube) ? `<button class="botao peq" type="button" data-acao="pagar-medo" data-id="${j.id}">Pagar a multa do medo (${fmtDinheiro(multaMedo(j))}) para ele jogar contra o dono</button>` : ''}
       ${tr ? `<p class="mudo">Chegou há pouco: só pode ser negociado daqui a ${tr} jogo${tr > 1 ? 's' : ''}.</p>` : ''}
       ${ren ? `<form class="proposta" data-form="renovar" data-id="${j.id}"><p class="mudo">${ren.ficar < 30 ? 'Ele anda insatisfeito e não quer conversa.' : `Ele deve pedir cerca de <b>${euro(ren.pede)}/dia</b>. Folga na folha: ${euro(orcamento(b, s).folga)}/dia.`}</p>
         <div class="campos-2"><label>Salário por dia (€) <input type="number" name="salario" inputmode="numeric" min="10" step="10" value="${ren.pede}"></label>${anosSelect('anos')}</div>
@@ -324,6 +325,7 @@ export const acoes = {
   'aceitar-contra': re(el => { H.aviso(M.aceitarContraproposta(B(), S(), el.dataset.id) || 'Topou. A resposta final sai na próxima rodada.'); }, true),
   desistir: re(el => { M.desistir(S(), el.dataset.id); }, true),
   'aceitar-recebida': re(el => { H.aviso(M.aceitarRecebida(B(), S(), el.dataset.id) || 'Negócio fechado.'); if (H.$('#ficha').open) H.$('#ficha').close(); }, true),
+  'pagar-medo': re(el => { H.aviso(pagarMedo(B(), S(), +el.dataset.id) || 'Multa paga: ele está liberado para este jogo.'); if (H.$('#ficha').open) H.$('#ficha').close(); }, true),
   'pedir-mais': re(el => { H.aviso(M.pedirMais(B(), S(), el.dataset.id, +el.dataset.f) || 'Contraproposta enviada. Resposta na próxima rodada.'); }, true),
   leilao: re(el => { H.aviso(M.abrirLeilao(B(), S(), el.dataset.id) || 'Leilão aberto: os clubes dão os lances até a próxima rodada.'); }, true),
   opcao: re(el => { H.aviso(M.exercerOpcao(B(), S(), +el.dataset.id) || 'Opção exercida: ele é seu em definitivo.'); if (H.$('#ficha').open) H.$('#ficha').close(); }, true),

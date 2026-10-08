@@ -84,7 +84,7 @@ export class Base {
   }
   novo(r, anoBase) {
     const j = jogador(r);
-    Object.assign(j, { anoBase, clubeOrig: j.clube, contratoOrig: j.contrato, ovrOrig: j.ovr, idadeOrig: j.idade, valorOrig: j.valor, attOrig: { ...j.att } });
+    Object.assign(j, { anoBase, clubeOrig: j.clube, contratoOrig: j.contrato, potOrig: j.pot, ovrOrig: j.ovr, idadeOrig: j.idade, valorOrig: j.valor, attOrig: { ...j.att } });
     return j;
   }
   envelhecer(j, ano) {
@@ -103,13 +103,17 @@ export class Base {
     (this._comEvo ||= new Set()).add(j.id); this._forca = null;
   }
   // cada save carrega por cima da base original: ano (idade e evolução), divisões, garotos da base, transferências e contratos
-  aplicar({ transf = {}, contratos = {}, divs = {}, jovens = [], ano = this.dados.ano, evo = {} } = {}) {
+  aplicar({ transf = {}, contratos = {}, divs = {}, jovens = [], ano = this.dados.ano, evo = {}, potd = {} } = {}) {
     const chaveJovens = `${jovens.length}:${jovens[0]?.[0]}:${jovens.at(-1)?.[0]}`;
     if (this._chaveJovens !== chaveJovens) {
       for (const id of this._extras || []) this.jog.delete(id);
       for (const r of jovens) { const j = this.novo(r.slice(0, 14), r[14]); this.jog.set(j.id, j); }
       this._extras = jovens.map(r => r[0]); this._chaveJovens = chaveJovens; this._ano = null;
     }
+    // potencial revisado pelas temporadas (antes de envelhecer, que usa o potencial como teto)
+    for (const id of this._comPot || []) { const j = this.jog.get(id); if (j) j.pot = j.potOrig; }
+    this._comPot = [];
+    for (const [id, d] of Object.entries(potd)) { const j = this.jog.get(+id); if (j) { j.pot = Math.max(30, Math.min(99, j.potOrig + d)); this._comPot.push(j.id); } }
     if (this._ano !== ano) { for (const j of this.jog.values()) this.envelhecer(j, ano); this._ano = ano; this._comEvo = null; }
     for (const id of this._comEvo || []) { const j = this.jog.get(id); if (j) { j.ovr = j.ovrBase; j.valor = j.valorBase; Object.assign(j.att, j.attBase); } }
     this._comEvo = null;
@@ -202,11 +206,32 @@ export const compProxima = (base, s) => { const ev = proximoEvento(base, s); ret
 
 // IA escala os melhores (poupando cansados) no esquema dela; o seu time usa a escalação manual quando ela ainda vale.
 // Lesionados e suspensos ficam de fora; na escalação manual, a vaga deles é completada só para esse jogo.
-// cláusula do medo: emprestado não enfrenta o clube dono
+// cláusula do medo: emprestado não enfrenta o clube dono, a não ser que quem está com ele pague a multa daquele jogo.
+// A IA paga quando ele é titular (o dinheiro cai na sua conta uma vez por jogo).
+const chaveEv = ev => `${ev.tipo}-${ev.rodada ?? ev.fase ?? 0}-${ev.h}-${ev.a}`;
+export const multaMedo = j => Math.max(50000, Math.round(j.valor * 1000 * 0.08 / 10000) * 10000);
 export function barradoMedo(base, s, id, ci) {
   const e = s.emprestimos?.[id]; if (!e?.medo || e.para !== ci) return false;
   const ev = proximoEvento(base, s);
-  return !!ev && [ev.h, ev.a].includes(e.de) && [ev.h, ev.a].includes(ci);
+  if (!ev || ![ev.h, ev.a].includes(e.de) || ![ev.h, ev.a].includes(ci)) return false;
+  if (e.liberado === chaveEv(ev)) return false;
+  const j = base.jog.get(+id);
+  if (ci !== s.tecnico.clube && e.de === s.tecnico.clube && j && base.elencos[ci].slice().sort((a, b) => b.ovr - a.ovr).indexOf(j) < 11) {
+    e.liberado = chaveEv(ev);
+    lancar(s, 'medo', `Multa da cláusula do medo: ${j.curto} (${base.clubes[ci].n})`, multaMedo(j));
+    s.noticias.unshift({ rodada: s.rodada, tipo: 'clube', mercado: true, jogador: j.id, div: base.clubes[s.tecnico.clube].div, texto: `O ${base.clubes[ci].n} paga ${Math.round(multaMedo(j) / 1000).toLocaleString('pt-BR')} mil euros de multa para ${j.curto} enfrentar o clube dono.` });
+    return false;
+  }
+  return true;
+}
+// você paga a multa e ele joga contra o dono neste jogo
+export function pagarMedo(base, s, id) {
+  const ci = s.tecnico.clube, j = base.jog.get(+id), e = s.emprestimos?.[id];
+  if (!j || !e || !barradoMedo(base, s, id, ci)) return 'Ele não está barrado pela cláusula do medo neste jogo.';
+  const v = multaMedo(j); if (v > s.caixa) return 'Não tem dinheiro em caixa para a multa.';
+  e.liberado = chaveEv(proximoEvento(base, s));
+  lancar(s, 'medo', `Multa da cláusula do medo: ${j.curto} (${base.clubes[e.de].n})`, -v);
+  return null;
 }
 export function escalacao(base, s, ci, comp = compProxima(base, s)) {
   const elenco = base.elencos[ci], cond = s.cond || {}, fora = indisponiveis(s, elenco, comp);

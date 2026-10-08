@@ -669,7 +669,7 @@ test('jornais: três manchetes com linhas diferentes, crônica com os gols e tí
 });
 
 import { gigante, notaEmprestimo, limpaCl, fimDosEmprestimos, jogosNoEmprestimo, transferir, aceitarRecebida } from '../public/js/motor/mercado.js';
-import { escalacao as escalacaoM, barradoMedo, proximoEvento as proxEv } from '../public/js/motor/mundo.js';
+import { escalacao as escalacaoM, barradoMedo, pagarMedo, multaMedo, proximoEvento as proxEv } from '../public/js/motor/mundo.js';
 import { rng as rngU } from '../public/js/motor/util.js';
 import { salarioDia as salarioDiaF } from '../public/js/motor/financas.js';
 import { correio as correioF } from '../public/js/motor/correio.js';
@@ -690,6 +690,8 @@ test('empréstimo com cláusulas: titular só com obrigação; obrigação por j
   // medo: contra o dono ele não joga
   const ev = proxEv(base, s), adv = ev.h === ci ? ev.a : ev.h, dono = e.de; e.de = adv;
   assert.ok(barradoMedo(base, s, reserva.id, ci) && !escalacaoM(base, s, ci).xi.some(j => j?.id === reserva.id));
+  const cx = s.caixa; assert.equal(pagarMedo(base, s, reserva.id), null);
+  assert.ok(!barradoMedo(base, s, reserva.id, ci) && s.caixa === cx - multaMedo(reserva), 'pagou, joga');
   e.de = dono;
   // obrigação: completou os jogos, vira compra definitiva com revenda guardada
   (s.est[reserva.id] ||= [0, 0, 0, 0, 0, 0])[0] = (e.jogos0 || 0) + 2;
@@ -721,4 +723,28 @@ test('proposta árabe: salário 3 a 4x, valor pela fase, vontade decide e o dire
   correioF(base, s);
   const m = s.msgs.find(x => x.assunto.startsWith('Proposta milionária'));
   assert.ok(m && m.texto.includes('x o que ganha hoje') && /fase/.test(m.texto) && m.texto.includes('empresário'));
+});
+
+import { revisarPotencial, notaTemporada } from '../public/js/motor/potencial.js';
+test('potencial dinâmico: temporada boa sobe, ruim desce (jovem oscila mais), fica no save e vale para a IA; IA paga o medo do titular', () => {
+  const s = novoJogo(base, cfg(103)), ci = s.tecnico.clube;
+  const jovens = [...base.jog.values()].filter(j => j.idade <= 20 && j.pot >= j.ovr + 6 && base.clubes[j.clube].div === 'A');
+  const bom = jovens.find(j => j.clube !== ci), ruim = jovens.find(j => j !== bom && j.pot - 4 > j.ovr), velho = [...base.jog.values()].find(j => j.idade >= 32 && base.clubes[j.clube].div === 'A');
+  const p0 = [bom.pot, ruim.pot, velho.pot];
+  s.est = { [bom.id]: [30, 14, 8, 30 * 74, 0, 0], [ruim.id]: [20, 0, 0, 20 * 56, 3, 1], [velho.id]: [30, 15, 5, 30 * 75, 0, 0] };
+  assert.ok(notaTemporada(s.est[bom.id]) > 3 && notaTemporada(s.est[ruim.id]) < -2);
+  revisarPotencial(base, s);
+  assert.ok(bom.pot >= p0[0] + 4, `${p0[0]} -> ${bom.pot}`);
+  assert.ok(ruim.pot <= p0[1] - 3 && ruim.pot >= ruim.ovr);
+  assert.equal(velho.pot, p0[2], 'veterano não muda');
+  aplicarSave(base, s);
+  assert.equal(bom.pot, bom.potOrig + s.potd[bom.id], 'fica no save');
+  // IA paga a multa do medo para o titular enfrentar você
+  ate(s, 1);
+  const ev = proxEv(base, s), adv = ev.h === ci ? ev.a : ev.h, meu = base.elencos[ci].slice().sort((a, b) => b.ovr - a.ovr)[0];
+  emprestar(base, s, meu, adv, limpaCl(base, s, meu, { medo: true }));
+  const cx = s.caixa;
+  assert.equal(barradoMedo(base, s, meu.id, adv), false);
+  assert.equal(s.caixa, cx + multaMedo(meu));
+  barradoMedo(base, s, meu.id, adv); assert.equal(s.caixa, cx + multaMedo(meu), 'paga uma vez por jogo');
 });

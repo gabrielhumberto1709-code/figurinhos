@@ -8,6 +8,9 @@ import { garantirMercado, cumprirAcordos, fimDosEmprestimos } from './mercado.js
 import { viradaDM } from './dm.js';
 import { novaCont, campanhaCont } from './continental.js';
 import { gala, arquivarGala, moralDosPremiados } from './gala.js';
+import { revisarPotencial } from './potencial.js';
+import { enviar } from './correio.js';
+import { estrelas } from './util.js';
 
 const DIVS = ['A', 'B', 'C'];
 export const fimDeTemporada = s => s.rodada >= 38 && !(s.copa && s.copa.fase < FASES.length);
@@ -51,6 +54,7 @@ export function virarTemporada(base, s) {
   const tabs = Object.fromEntries(DIVS.map(d => [d, tabela(base, s, d)]));
   const pos = tabs[div].findIndex(l => l.clube === ci) + 1, meta = metaDiretoria(base, s);
   const premiacao = arquivarGala(base, s, gala(base, s)); // antes de acesso, transferências e da estatística zerada
+  const revisao = revisarPotencial(base, s), meusPot = revisao.filter(([j]) => j.clube === ci);
   const artilheiro = d => { const t = Object.entries(s.est).map(([id, e]) => [base.jog.get(+id), e[1]]).filter(([j, g]) => j && g && base.clubes[j.clube].div === d).sort((a, b) => b[1] - a[1])[0]; return t ? { id: t[0].id, nome: t[0].curto, clube: t[0].clube, gols: t[1] } : null; };
   const sobe = { B: tabs.B.slice(0, 4).map(l => l.clube), C: tabs.C.slice(0, 4).map(l => l.clube) }, cai = { A: tabs.A.slice(16).map(l => l.clube), B: tabs.B.slice(16).map(l => l.clube) };
   s.historico ||= [];
@@ -122,6 +126,14 @@ export function virarTemporada(base, s) {
   novaCopa(base, s);
   novaCont(base, s);
   moralDosPremiados(base, s);
+  if (meusPot.length) {
+    const linha = ([j, d]) => `${j.curto} ${d > 0 ? 'sobe' : 'cai'} ${Math.abs(d)} (agora ${'★'.repeat(estrelas(j.pot))}${'☆'.repeat(5 - estrelas(j.pot))})`;
+    const sobe = meusPot.filter(x => x[1] > 0), cai = meusPot.filter(x => x[1] < 0);
+    enviar(s, 'olheiro', `pot-${s.ano}`, 'Revisão de potencial', `Fechei a revisão depois da temporada. ${sobe.length ? `Em alta: ${sobe.map(linha).join(', ')}.` : ''} ${cai.length ? `Em baixa: ${cai.map(linha).join(', ')}.` : ''} Quem joga bem cresce mais; quem não rende, trava.`.replace(/\s+/g, ' ').trim(), { link: '#/elenco' });
+    add(`Revisão de potencial no ${nome(ci)}: ${sobe.length} em alta, ${cai.length} em baixa.`);
+  }
+  const joias = revisao.filter(([j, d]) => d >= 3 && j.idade <= 21 && j.clube !== ci).sort((a, b) => b[0].pot - a[0].pot).slice(0, 2);
+  for (const [j] of joias) add(`Joia em alta: ${j.curto} (${nome(j.clube)}) fez grande temporada e virou alvo dos grandes.`, 'destaque');
   for (const n of premiacao) N.push({ rodada: 0, ...n });
   const h = s.historico[0];
   add(`Começa a temporada ${s.ano}. Sobem para a Série A: ${h.sobem.A.map(nome).join(', ')}. Caem para a B: ${h.caem.B.map(nome).join(', ')}.`, 'resultado');
