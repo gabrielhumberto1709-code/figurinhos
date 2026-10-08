@@ -166,6 +166,7 @@ function loop(V, ts) {
   const cv = document.getElementById('vivo-cv');
   if (H.app.vivo !== V || !cv) return;
   const dt = Math.min(0.05, (ts - (V.ts ?? ts)) / 1000); V.ts = ts;
+  if (!V.cp.sp.size) Campinho.atualizar(V.cp, V.P, 0); // jogo retomado já pausado: os botões entram em campo mesmo parados
   if (!V.pausado && !V.painel) {
     Campinho.atualizar(V.cp, V.P, dt * V.vel);
     if (!V.fim && Campinho.pronto(V.cp)) proximo(V);

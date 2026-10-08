@@ -178,7 +178,7 @@ function desenhaTopo() {
   const s = app.s, ci = s.tecnico.clube;
   const estado = { salvando: 'Salvando…', salvo: 'Salvo', falhou: 'Não salvou · tentar', conflito: 'Conflito · resolver' }[app.salvando] || '';
   topo.innerHTML = `<div class="topo-in">${imgEscudo(ci, 36, 39)}
-    <div class="info"><div class="clube-nome">${esc(clube(ci).n)}</div><small>Série ${clube(ci).div} · Rodada ${Math.min(s.rodada + 1, 38)}${s.rodada ? ` · ${posicaoNaTabela(ci)}º` : ''}</small></div>
+    <div class="info"><div class="clube-nome">${esc(clube(ci).n)}</div><small>Série ${clube(ci).div} · ${s.rodada ? `Rodada ${Math.min(s.rodada + 1, 38)} · ${posicaoNaTabela(ci)}º` : proximoEvento(app.base, s)?.tipo === 'liga' ? 'Rodada 1' : 'Pré-temporada'}</small></div>
     <button class="estado ${app.salvando}" data-acao="salvar" type="button" ${['falhou', 'conflito'].includes(app.salvando) ? '' : 'tabindex="-1"'} style="background:none;border:0;cursor:pointer">${estado}</button>
     ${botaoTema('botao peq')}<button class="botao peq" data-acao="menu" type="button">Sair</button></div>`;
   const pend = (s.recebidas || []).length + (s.propostas || []).filter(p => p.estado === 'contraproposta').length;

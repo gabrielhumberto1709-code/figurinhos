@@ -416,10 +416,12 @@ html:has(.vivo), body:has(.vivo) { overscroll-behavior-y: contain; }
 .kpi small { color: var(--texto-2); font-weight: 600; }
 .kpi b { font-size: 1.9rem; line-height: 1; }
 .carreira { flex-direction: row; align-items: center; gap: 16px; }
+.carreira > div { min-width: 0; } .carreira h2 { overflow-wrap: anywhere; }
 .moldura-tec { flex: none; background: var(--placar); border: 2px solid var(--linha); border-radius: 4px; }
 .moldura-tec img { width: 96px; height: 96px; }
-.ficha-dl { margin: 8px 0 0; display: grid; grid-template-columns: auto 1fr; gap: 2px 10px; }
-.ficha-dl dt { color: var(--texto-2); } .ficha-dl dd { margin: 0; font-weight: 700; display: flex; align-items: center; gap: 6px; }
+@media (max-width: 400px) { .moldura-tec img { width: 72px; height: 72px; } .carreira { gap: 12px; } }
+.ficha-dl { margin: 8px 0 0; display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 2px 10px; }
+.ficha-dl dt { color: var(--texto-2); } .ficha-dl dd { margin: 0; font-weight: 700; display: flex; align-items: center; gap: 6px; min-width: 0; flex-wrap: wrap; overflow-wrap: anywhere; }
 .em-breve-card { border-style: dashed; box-shadow: none; }
 
 /* ---------- mercado ---------- */
