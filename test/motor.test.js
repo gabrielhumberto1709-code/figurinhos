@@ -366,15 +366,17 @@ import { tabelaGrupo, FASES_CONT } from '../public/js/motor/continental.js';
 test('continentais: grupos completos, mata-mata até o campeão, prêmios e vagas pela tabela no ano seguinte', () => {
   const A = base.clubes.map((c, i) => i).filter(i => base.clubes[i].div === 'A').sort((a, b) => base.forca(b) - base.forca(a));
   const s = novoJogo(base, { ...cfg(31), clube: A[0] }), ci = s.tecnico.clube;
-  for (const k of ['LIB', 'SUL']) { const T = s.cont[k]; assert.equal(new Set(T.grupos.flat()).size, 16); assert.equal(T.grupos.flat().filter(c => base.clubes[c].div !== 'X').length, 6); }
+  // 2026: os grupos do sorteio real (32 clubes, 8 grupos; 6 brasileiros na Libertadores e 7 na Sul-Americana)
+  for (const [k, br] of [['LIB', 6], ['SUL', 7]]) { const T = s.cont[k]; assert.equal(new Set(T.grupos.flat()).size, 32); assert.equal(T.grupos.length, 8); assert.equal(T.grupos.flat().filter(c => base.clubes[c].div !== 'X').length, br); }
+  assert.deepEqual(s.cont.LIB.grupos[0].map(c => base.clubes[c].n), ['Flamengo', 'Estudiantes', 'Cusco FC', 'Independiente Medellín']);
   assert.ok(s.cont.LIB.grupos.flat().includes(ci), 'o mais forte da A joga a Libertadores');
   while (!fimDeTemporada(s)) avancar(base, s);
   for (const k of ['LIB', 'SUL']) {
     const T = s.cont[k];
     assert.equal(T.fase, FASES_CONT.length);
     assert.ok(T.campeao != null && T.vice != null && T.campeao !== T.vice);
-    for (let g = 0; g < 4; g++) assert.ok(tabelaGrupo(T, g).every(l => l.j === 6));
-    assert.equal(T.jogos.length, 48 + 4 + 2 + 1);
+    for (let g = 0; g < 8; g++) assert.ok(tabelaGrupo(T, g).every(l => l.j === 6));
+    assert.equal(T.jogos.length, 96 + 8 + 4 + 2 + 1);
   }
   assert.ok(s.cont.sup.jogo?.campeao != null);
   assert.ok(s.fin.extrato.some(e => e.desc.includes('Libertadores: cota da fase de grupos')));

@@ -3,7 +3,7 @@
 import { tabela, rodadasDe, dataRodada } from './motor/mundo.js';
 import { FASES, PREMIOS, dataCopa, campanha, naCopa, mandoDe } from './motor/copa.js';
 import { fmtDinheiro } from './motor/util.js';
-import { TORNEIOS, PREMIO_SUP, FASES_CONT, dataCont, dataSup, tabelaGrupo, campanhaCont, naCont, jogoDoClube, emQualCont } from './motor/continental.js';
+import { TORNEIOS, PREMIO_SUP, FASES_CONT, F_MATA, dataCont, dataSup, tabelaGrupo, campanhaCont, naCont, jogoDoClube, emQualCont } from './motor/continental.js';
 
 let H; // { app, clube, esc, imgEscudo, render }
 export const configurar = h => { H = h; };
@@ -54,7 +54,7 @@ function copa() {
 }
 
 // Libertadores, Sul-Americana e Supercopa
-const LETRA = 'ABCD';
+const LETRA = 'ABCDEFGH';
 function continental() {
   const s = H.app.s, ci = s.tecnico.clube, k = H.app.abaCont || emQualCont(s, ci) || 'LIB', B = H.app.base;
   const topo = chips('Competição', [['LIB', 'Libertadores'], ['SUL', 'Sul-Americana'], ['SUP', 'Supercopa']], 'aba-cont', x => x === k);
@@ -67,7 +67,7 @@ function continental() {
       <div class="chips"><span class="chip-info">Campeão ${fmtDinheiro(PREMIO_SUP.campeao)}</span><span class="chip-info">Vice ${fmtDinheiro(PREMIO_SUP.vice)}</span></div></section>`;
   }
   const T = s.cont[k], P = TORNEIOS[k].premio, camp = campanhaCont(s, k, ci), fases = [];
-  for (let f = 8; f >= 6; f--) {
+  for (let f = FASES_CONT.length - 1; f >= F_MATA; f--) {
     const jogos = T.jogos.filter(j => j.fase === f);
     if (jogos.length) fases.push(`<section class="cartao"><h3>${FASES_CONT[f].nome}</h3><ol class="chave-copa">${jogos.map(j => placarCopa(j, ci)).join('')}</ol></section>`);
     else if (f === T.fase && T.chaves.length) fases.push(`<section class="cartao"><h3>${FASES_CONT[f].nome} · ${dataCurta(dataCont(dataRodada, s.ano, f))}</h3><ol class="chave-copa">${T.chaves.map(([h, a]) => placarCopa({ h, a }, ci)).join('')}</ol></section>`);
@@ -77,8 +77,8 @@ function continental() {
   const art = Object.values(T.art).sort((a, b) => b[0] - a[0]).slice(0, 5);
   return `${topo}<section class="cartao copa-topo"><div class="titulo-linha"><h3>${TORNEIOS[k].nome} ${T.ano}</h3>${T.campeao != null ? `<span class="tag destaque">Campeão: ${H.esc(H.clube(T.campeao).n)}</span>` : ''}</div>
       <p><b>${camp ? `${H.esc(H.clube(ci).n)}: ${camp}` : `O ${H.esc(H.clube(ci).n)} não disputa esta edição.`}</b></p>
-      <p class="mudo" style="font-size:.95rem">16 clubes, 6 brasileiros. Grupos de 4 em turno e returno; os 2 primeiros vão às quartas. Quartas e semi em jogo único na casa de quem fez mais pontos; final em campo neutro. ${k === 'LIB' ? 'Vagas: os 6 primeiros da Série A (o campeão da Copa do Brasil entra no lugar do 6º).' : 'Vagas: os 6 seguintes da Série A.'}</p>
-      <div class="chips">${[['Grupos', P.grupos], ['Vitória nos grupos', P.vitoria], ['Quartas', P.qua], ['Semi', P.sem], ['Final', P.fin], ['Campeão', P.campeao]].map(([t, v]) => `<span class="chip-info">${t} ${fmtDinheiro(v)}</span>`).join('')}</div></section>
+      <p class="mudo" style="font-size:.95rem">32 clubes em 8 grupos de 4, em turno e returno (em 2026, os grupos do sorteio real); os 2 primeiros vão às oitavas. Oitavas, quartas e semi em jogo único na casa de quem fez mais pontos; final em campo neutro. ${k === 'LIB' ? 'Vagas: os 6 primeiros da Série A (o campeão da Copa do Brasil entra no lugar do 6º).' : 'Vagas: os 6 seguintes da Série A.'}</p>
+      <div class="chips">${[['Grupos', P.grupos], ['Vitória nos grupos', P.vitoria], ['Oitavas', P.oit], ['Quartas', P.qua], ['Semi', P.sem], ['Final', P.fin], ['Campeão', P.campeao]].map(([t, v]) => `<span class="chip-info">${t} ${fmtDinheiro(v)}</span>`).join('')}</div></section>
     ${fases.join('')}<div class="grupos-cont">${grupos}</div>
     ${art.length ? `<section class="cartao"><h3>Artilharia</h3><ol class="selecao">${art.map(([g, nome, c]) => `<li><span class="clube-cel"><span>${H.imgEscudo(c, 18, 20)}${H.esc(nome)}</span></span><span class="nota">${g}</span></li>`).join('')}</ol></section>` : ''}`;
 }

@@ -4,6 +4,7 @@
 import { rng, pick, clamp, shuffle } from './util.js';
 import { tabela, janelaAberta, proximoEvento, previa, escalacao, compProxima } from './mundo.js';
 import { confronto, sequencia, resumoConfronto } from './confrontos.js';
+import { F_MATA, F_FIN } from './continental.js';
 import { indisponivel } from './dm.js';
 import { pilares } from './carreira.js';
 import { rivais } from './rivais.js';
@@ -270,7 +271,7 @@ export function abrirColetivaPre(base, s) {
   const comp = compProxima(base, s), top = base.elencos[ci].slice().sort((a, b) => b.ovr - a.ovr).slice(0, 8), fora = top.find(j => indisponivel(s, j.id, comp));
   const d = base.clubes[ci].div, tab = tabela(base, s, d), l = tab.find(x => x.clube === ci), pos = tab.indexOf(l) + 1, ult = l.ultimos;
   const seq = x => { let n = 0; for (let i = ult.length - 1; i >= 0 && ult[i] === x; i--) n++; return n; };
-  const mataMata = ev.tipo === 'copa' || ev.tipo === 'sup' || (ev.tipo === 'cont' && ev.fase >= 6), final = ev.tipo === 'sup' || (ev.tipo === 'cont' && ev.fase === 8) || /Final/.test(ev.titulo);
+  const mataMata = ev.tipo === 'copa' || ev.tipo === 'sup' || (ev.tipo === 'cont' && ev.fase >= F_MATA), final = ev.tipo === 'sup' || (ev.tipo === 'cont' && ev.fase === F_FIN) || /Final/.test(ev.titulo);
   const compNome = ev.tipo === 'copa' ? 'Copa do Brasil' : ev.titulo.split(' · ')[0];
   const w = {
     preClassico: rivais(base, ev.h, ev.a) ? 9 : 0, preFavorito: p.vitoria >= 55 ? 4 : 0, preZebra: p.vitoria <= 25 ? 5 : 0,
