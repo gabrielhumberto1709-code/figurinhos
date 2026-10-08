@@ -561,7 +561,11 @@ function concluirAoVivo() {
   salvar();
 }
 
-function comecarJogo() {
+// os jogos dos outros (rodada inteira, regionais atrasados) podem levar um tempo: a tela avisa antes de calcular
+const umQuadro = () => new Promise(r => requestAnimationFrame(() => setTimeout(r, 0)));
+async function comecarJogo() {
+  const bt = $('[data-acao=jogar]'); if (bt) { bt.disabled = true; bt.textContent = 'Simulando os outros jogos…'; }
+  await umQuadro();
   const ev = proximoEvento(app.base, app.s), b = app.base, s = app.s;
   const R = ev?.tipo === 'amistoso' ? iniciarAmistoso(b, s) : ev?.tipo === 'copa' ? iniciarCopa(b, s) : ev?.tipo === 'cont' ? iniciarCont(b, s, ev.k) : ev?.tipo === 'reg' ? iniciarReg(b, s, ev.k) : ev?.tipo === 'sup' ? iniciarSup(b, s) : iniciarRodada(b, s);
   if (!R) return;
@@ -693,7 +697,7 @@ const acoes = {
   'aceitar-oferta': el => { const m = aceitarOferta(app.base, app.s, +el.dataset.c); if (m) return aviso(m); aviso(`Bem-vindo ao ${clube(app.s.tecnico.clube).n}!`); salvar(); location.hash === '#/clube' ? render() : ir('#/clube'); },
   'recusar-oferta': el => { recusarOferta(app.s, +el.dataset.c); render(); salvar(); },
   'pedir-demissao': el => { if (el.dataset.confirma !== '1') { el.dataset.confirma = '1'; el.textContent = 'Tem certeza? Toque de novo'; return; } pedirDemissao(app.base, app.s); salvar(); ir('#/clube'); },
-  virar: el => { el.disabled = true; const h = virarTemporada(app.base, app.s); if (h) aviso(`Bem-vindo a ${app.s.ano}!`); render(); salvar(); },
+  virar: async el => { el.disabled = true; el.textContent = 'Fechando a temporada…'; await umQuadro(); const h = virarTemporada(app.base, app.s); if (h) aviso(`Bem-vindo a ${app.s.ano}!`); render(); salvar(); },
   ...Torneios.acoes,
 };
 

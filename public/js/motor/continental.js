@@ -38,10 +38,13 @@ export const deFora = c => c.div === 'X' || c.div === 'R';
 const NOMES_BR = ['Kauã', 'Gabriel', 'Davi', 'Pedro', 'Enzo', 'Arthur', 'Miguel', 'Heitor', 'Ryan', 'Kaique', 'Luan', 'Vitor', 'Igor', 'Caio', 'Rafael', 'Matheus', 'João', 'Lucas', 'Wesley', 'Yuri', 'Murilo', 'Thiago', 'Samuel', 'Breno', 'Gustavo', 'Diego', 'Renan', 'Erick', 'Wallace', 'Kelvin', 'Patrick', 'Ruan', 'Felipe', 'André', 'Leandro', 'Jefferson', 'Alisson', 'Cleiton', 'Dudu', 'Juninho'];
 const SOBRENOMES_BR = ['Silva', 'Souza', 'Oliveira', 'Santos', 'Lima', 'Pereira', 'Ferreira', 'Costa', 'Rodrigues', 'Almeida', 'Nascimento', 'Carvalho', 'Araújo', 'Ribeiro', 'Gomes', 'Martins', 'Rocha', 'Barbosa', 'Moura', 'Teixeira', 'Cardoso', 'Freitas', 'Nunes', 'Mendes', 'Batista', 'Vieira', 'Monteiro', 'Dias', 'Campos', 'Ramos', 'Farias', 'Moreira', 'Cunha', 'Lopes', 'Brito', 'Sales', 'Macedo', 'Bezerra', 'Cavalcante', 'Queiroz'];
 
-const cache = new Map();
+// cache por base; esvazia quando a base muda (antes a chave levava a versão e o mapa só crescia)
+const caches = new WeakMap();
 // elenco de jogo: os reais do clube + gerados para completar as posições (ids negativos e fixos por clube e ano)
 export function elencoFora(base, ci, ano) {
-  const k = `${ci}-${ano}-${base._versao}`;
+  let C = caches.get(base);
+  if (!C || C.versao !== base._versao) caches.set(base, C = { versao: base._versao, m: new Map() });
+  const k = `${ci}-${ano}`, cache = C.m;
   if (cache.has(k)) return cache.get(k);
   const c = base.clubes[ci], reais = base.elencos[ci].slice(), r = rng(`fora${ci}-${ano}`), conta = {}, usados = new Set(reais.map(j => j.num));
   for (const j of reais) conta[j.pos] = (conta[j.pos] || 0) + 1;

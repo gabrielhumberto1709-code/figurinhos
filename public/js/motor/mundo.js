@@ -284,9 +284,9 @@ export function recuperar(base, s, dias) {
     const j = base.jog.get(+id), ageF = !j ? 1 : j.idade >= 34 ? 0.78 : j.idade >= 31 ? 0.9 : j.idade <= 23 ? 1.12 : 1;
     const treino = j && j.clube === s.tecnico.clube ? TREINO[s.treino] || 1 : 1;
     const q = 0.18 * ageF * treino, nova = c + (100 - c) * (1 - (1 - q) ** dias); // recupera um pouco por dia: 3 dias não bastam, uma semana quase
-    if (nova > 99.5) delete s.cond[id]; else s.cond[id] = Math.round(nova * 10) / 10;
+    if (nova > 99 || !j) delete s.cond[id]; else s.cond[id] = Math.round(nova * 10) / 10;
   }
-  for (const [id, m] of Object.entries(s.mor)) { const nova = m + (62 - m) * (1 - 0.96 ** dias); if (Math.abs(nova - 62) < 0.5) delete s.mor[id]; else s.mor[id] = Math.round(nova * 10) / 10; }
+  for (const [id, m] of Object.entries(s.mor)) { const nova = m + (62 - m) * (1 - 0.96 ** dias); if (Math.abs(nova - 62) < 1 || !base.jog.has(+id)) delete s.mor[id]; else s.mor[id] = Math.round(nova * 10) / 10; }
 }
 
 // depois do jogo: condição de quem jogou e moral (resultado, nota, capitão)

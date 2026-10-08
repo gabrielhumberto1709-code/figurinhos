@@ -36,11 +36,11 @@ export function vagaPara([antiga, x, y0], pos, outras = []) {
 // estilos de jogo: bônus de ataque/meio/defesa, multiplicadores de chances a favor/contra, cansaço, faltas, posse e qualidade do chute
 export const ESTILOS = {
   equilibrado: { nome: 'Equilibrado', att: 0, mid: 0, def: 0, xgF: 1, xgA: 1, fad: 1, faltas: 1, posse: 0, q: 1, desc: 'Nada de exagero: o time joga como o elenco permite.' },
-  gegenpress: { nome: 'Gegenpress', att: 2, mid: 2, def: 0, xgF: 1.12, xgA: 1.05, fad: 1.35, faltas: 1.3, posse: 4, q: 1, desc: 'Perdeu, pressionou. Mais chances e mais faltas, mas cansa muito.' },
-  tikitaka: { nome: 'Tiki-taka', att: 0, mid: 'meio', def: 1, xgF: 1, xgA: 0.9, fad: 0.95, faltas: 0.85, posse: 12, q: 1.25, desc: 'Posse e passes curtos. Menos finalizações, mais qualidade. Depende do meio-campo.' },
-  contra: { nome: 'Contra-ataque', att: 2, mid: -2, def: 2, xgF: 0.95, xgA: 0.94, fad: 1, faltas: 1, posse: -10, q: 1.15, desc: 'Fecha e sai rápido. Rende mais quando o time tem menos a bola.' },
-  direto: { nome: 'Jogo direto', att: 'ataque', mid: -2, def: 0, xgF: 1.05, xgA: 1.02, fad: 1.05, faltas: 1.05, posse: -6, q: 0.9, desc: 'Bola longa para o ataque. Bom quando o ataque é melhor que o meio.' },
-  pressao: { nome: 'Pressão total', att: 4, mid: 0, def: -4, xgF: 1.4, xgA: 1.35, fad: 1.3, faltas: 1.15, posse: 8, q: 0.95, desc: 'Todo mundo pra frente. Muitas chances dos dois lados.' },
+  gegenpress: { nome: 'Gegenpress', att: 1, mid: 1.5, def: 0, xgF: 1.06, xgA: 1.07, fad: 1.35, faltas: 1.3, posse: 4, q: 1, desc: 'Perdeu, pressionou. Mais chances e mais faltas, mas cansa muito.' },
+  tikitaka: { nome: 'Tiki-taka', att: 0, mid: 'meio', def: 'meio', xgF: 1, xgA: 1, fad: 0.95, faltas: 0.85, posse: 12, q: 1.25, desc: 'Posse e passes curtos. Menos finalizações, mais qualidade. Depende do meio-campo.' },
+  contra: { nome: 'Contra-ataque', att: 0.5, mid: -2, def: 1, xgF: 0.95, xgA: 1, fad: 1, faltas: 1, posse: -10, q: 1.15, desc: 'Fecha e sai rápido. Rende mais quando o time tem menos a bola.' },
+  direto: { nome: 'Jogo direto', att: 'ataque', mid: -2, def: 0, xgF: 1.03, xgA: 1.03, fad: 1.05, faltas: 1.05, posse: -6, q: 0.9, desc: 'Bola longa para o ataque. Bom quando o ataque é melhor que o meio.' },
+  pressao: { nome: 'Pressão total', att: 4, mid: 0, def: -4.5, xgF: 1.35, xgA: 1.42, fad: 1.3, faltas: 1.15, posse: 8, q: 0.95, desc: 'Todo mundo pra frente. Muitas chances dos dois lados.' },
   pontas: { nome: 'Jogo pelas pontas', att: 'pontas', mid: 0, def: 0, xgF: 1.05, xgA: 1.02, fad: 1.1, faltas: 1, posse: 2, q: 0.95, desc: 'Abre o campo e cruza. Rende com pontas e laterais bons.' },
   retranca: { nome: 'Estacionar o ônibus', att: -5, mid: 0, def: 5, xgF: 0.6, xgA: 0.66, fad: 0.9, faltas: 1.1, posse: -16, q: 0.9, desc: 'Todo mundo atrás da linha da bola. Segura resultado, quase não cria.' },
 };
@@ -80,12 +80,14 @@ export function bancoAuto(resto, cond = {}) {
   return gol ? [...linha, gol] : linha;
 }
 
+const QTD_SETOR = 1.5;
 const PONTAS = new Set(['PE', 'PD', 'ME', 'MD', 'LE', 'LD']);
 function forca(P, t) {
   const time = P.times[t], slots = FORMACOES[time.formacao];
-  const acc = { GOL: [], DEF: [], MEI: [], ATA: [] }, meio = [], largo = [], outros = [];
+  const acc = { GOL: [], DEF: [], MEI: [], ATA: [] }, meio = [], largo = [], outros = [], conta = { DEF: 0, MEI: 0, ATA: 0 }, pos = POSICOES[time.formacao];
   time.xi.forEach((j, i) => {
     const slot = slots[i], s = SETOR[slot];
+    if (s !== 'GOL') conta[s === 'DEF' && (pos?.[i]?.[2] ?? 70) < 60 ? 'MEI' : s]++; // ala avançado conta como meio
     if (!j) { acc[s].push(25); return; }
     const f = encaixe(j.pos, slot) * fatorCond(P.cond[j.id]) * fatorMoral(P.mor[j.id]) * (1 + (P.fase?.(j.id) || 0) * 0.013), a = j.att; // fase: +3 rende ~4% a mais
     const v = s === 'GOL' ? j.ovr : s === 'DEF' ? 0.55 * a.def + 0.2 * a.fis + 0.15 * a.vel + 0.1 * a.pas : s === 'MEI' ? 0.45 * a.pas + 0.3 * a.dri + 0.15 * a.fis + 0.1 * a.def : 0.45 * a.fin + 0.25 * a.dri + 0.2 * a.vel + 0.1 * a.fis;
@@ -94,7 +96,10 @@ function forca(P, t) {
     if (s !== 'GOL') (PONTAS.has(slot) ? largo : outros).push(j.ovr * f);
   });
   const m = a => a.length ? a.reduce((x, y) => x + y, 0) / a.length : 40;
-  return { gol: m(acc.GOL), def: m(acc.DEF), mei: m(acc.MEI), ata: 0.68 * m(acc.ATA) + 0.32 * m(meio.length ? meio : [40]), ataPuro: m(acc.ATA), largo: m(largo), outros: m(outros) };
+  // a formação pesa: cada jogador a mais num setor (em relação ao 4-3-3) reforça aquele setor e tira do outro
+  // (meio a mais ajuda metade na defesa e metade no ataque; sozinho ele só daria posse)
+  const ex = k => QTD_SETOR * (conta[k] - { DEF: 4, MEI: 3, ATA: 3 }[k]);
+  return { gol: m(acc.GOL), def: m(acc.DEF) + ex('DEF') + ex('MEI') / 2, mei: m(acc.MEI) + ex('MEI'), ata: 0.68 * m(acc.ATA) + 0.32 * m(meio.length ? meio : [40]) + ex('ATA') + ex('MEI') / 2, ataPuro: m(acc.ATA), largo: m(largo), outros: m(outros) };
 }
 // força por setor para mostrar na tela (sem fator casa e sem sorteio)
 export function forcaSetores(time, cond = {}, mor = {}) {
@@ -131,20 +136,27 @@ function narrador(P) {
 }
 const pickTxt = (r, a) => a[Math.floor(r() * a.length)];
 // ---------- partida passo a passo ----------
+// calibragem pela média do Brasileirão: ~11 finalizações por time, ~1/3 no alvo, xG ~0,1 por chute, ~2,4 gols,
+// ~13 faltas por time, ~4,5 amarelos e ~0,25 vermelho por jogo, ~5 escanteios por time
+export const CAL = { chute: 0.215, xg0: 0.025, xg: 0.21, alvo: 0.24, escanteio: 0.5, falta: 0.29, cartao: 0.185, vermelho: 0.012 };
 const GATILHO_TXT = { vencendo2: 'vencendo por 2', perdendo60: 'perdendo depois dos 60', empatando75: 'empatando depois dos 75' };
+// condição só de quem está no jogo (copiar a do save inteiro era o que mais pesava na simulação)
+const condDe = (times, cond) => { const c = {}; for (const t of times) for (const j of [...t.xi, ...(t.banco || [])]) if (j && cond[j.id] != null) c[j.id] = cond[j.id]; return c; };
 export function criarPartida(casa, fora, seed, opts = {}) {
   const copia = t => ({ formacao: t.formacao, xi: t.xi.slice(), banco: (t.banco || []).slice(), estilo: t.estilo || 'equilibrado', gatilhos: t.gatilhos || {}, cobrador: t.cobrador ?? null });
   const P = {
     times: [copia(casa), copia(fora)], min: 0, fim: 90, gols: [0, 0], ev: [], lances: [],
     st: [0, 1].map(() => ({ posse: 0, chutes: 0, noAlvo: 0, xg: 0, faltas: 0, amarelos: 0, vermelhos: 0, escanteios: 0, defesas: 0 })),
     notas: [new Map(), new Map()], expulsos: [new Set(), new Set()], entrada: {}, subs: [0, 0], verm: [0, 0], disparou: [{}, {}],
-    cond: { ...(opts.cond || {}) }, mor: opts.mor || {}, auto: opts.auto || [true, true],
+    cond: condDe([casa, fora], opts.cond || {}), mor: opts.mor || {}, auto: opts.auto || [true, true],
     r: rng('jogo' + seed), rn: rng('narra' + seed), ri: rng('ia' + seed), rl: rng('les' + seed), fragil: opts.fragil || (() => 1), fase: opts.fase || null,
     mando: opts.neutro ? 1 : (opts.mando ?? 1.08), narrar: !!opts.narrar, humano: opts.humano ?? -1, bola: null,
     arbitro: opts.arbitro || null, rigor: opts.arbitro ? 0.7 + (opts.arbitro.rigor - 1) * 0.15 : 1, rv: rng('var' + seed),
   };
   P.fim = 90 + Math.floor(P.r() * 5);
-  P.emCampo = t => P.times[t].xi.filter(j => j && !P.expulsos[t].has(j.id));
+  // quem está em campo muda só em troca, expulsão, lesão ou esquema (todos passam por recalcular, que limpa o cache)
+  P._ec = [null, null];
+  P.emCampo = t => P._ec[t] ||= P.times[t].xi.filter(j => j && !P.expulsos[t].has(j.id));
   P.slotDe = (t, j) => FORMACOES[P.times[t].formacao][P.times[t].xi.indexOf(j)];
   for (const t of [0, 1]) for (const j of P.times[t].xi) if (j) { P.notas[t].set(j.id, 6.2 + (P.r() - 0.5) * 0.6); P.cond[j.id] = P.cond[j.id] ?? 100; }
   // dia bom/ruim: ninguém joga sempre igual
@@ -154,12 +166,14 @@ export function criarPartida(casa, fora, seed, opts = {}) {
 }
 
 function recalcular(P) {
+  P._ec = [null, null];
   const f = [forca(P, 0), forca(P, 1)];
   P.F = [0, 1].map(t => {
     const st = ESTILOS[P.times[t].estilo] || ESTILOS.equilibrado, x = f[t], d = P.dia?.[t] || 0, v = P.verm[t], m = t === 0 ? P.mando : 1;
-    const mid = st.mid === 'meio' ? clamp(4 * (x.mei - 66) / 8, -3, 6) : st.mid;
-    const att = st.att === 'ataque' ? (x.ataPuro >= x.mei ? 2.5 : -1) : st.att === 'pontas' ? clamp((x.largo - x.outros) / 3 + 1.5, -2, 4.5) : st.att;
-    return { st, gol: x.gol, def: (x.def + d * 0.6 + st.def) * 0.95 ** v, mei: (x.mei * m + d * 0.5 + mid) * 0.93 ** v, ata: (x.ata * m + d + att) * 0.93 ** v };
+    const mid = st.mid === 'meio' ? clamp(3 * (x.mei - 70) / 8, -3, 3.5) : st.mid;
+    const att = st.att === 'ataque' ? (x.ataPuro >= x.mei ? 1.5 : -1.5) : st.att === 'pontas' ? clamp((x.largo - x.outros) / 3 + 1.5, -2, 4.5) : st.att;
+    const def = st.def === 'meio' ? clamp((x.mei - 72) / 6, -2, 1.5) : st.def; // tiki-taka: a bola é a defesa, se o meio for bom
+    return { st, gol: x.gol, def: (x.def + d * 0.6 + def) * 0.95 ** v, mei: (x.mei * m + d * 0.5 + mid) * 0.93 ** v, ata: (x.ata * m + d + att) * 0.93 ** v };
   });
 }
 
@@ -205,27 +219,28 @@ export function passo(P) {
   P.st[t].posse++;
   const menos = P.expulsos[t].size - P.expulsos[o].size;
   const compensa = t === 0 ? base0 / posse0 : (1 - base0) / (1 - posse0);
-  const chance = 0.084 * compensa * Math.exp((F[t].ata - F[o].def) / 50) * (1 - 0.12 * menos) * F[t].st.xgF * F[o].st.xgA / F[t].st.q;
+  const chance = CAL.chute * compensa * Math.exp((F[t].ata - F[o].def) / 50) * (1 - 0.12 * menos) * F[t].st.xgF * F[o].st.xgA / F[t].st.q;
   const gk = () => P.emCampo(o).find(j => P.slotDe(o, j) === 'GOL');
-  if (r() < 0.003 * (0.85 + 0.15 * P.rigor)) penalti(P, t, o, N);
+  if (r() < 0.003 * compensa * (0.85 + 0.15 * P.rigor)) penalti(P, t, o, N); // pênalti também não cresce só com a posse
   else if (r() < chance) {
     const atacantes = P.emCampo(t);
     const quem = pickW(r, atacantes, j => { const s = SETOR[P.slotDe(t, j)]; return (s === 'ATA' ? 5 : s === 'MEI' ? 2.2 : s === 'DEF' ? 0.5 : 0) * (j.att.fin / 60) ** 2; });
     const possePropria = P.st[t].posse / Math.max(1, P.st[0].posse + P.st[1].posse);
-    const xg = clamp((0.05 + r() * 0.32 * Math.exp((F[t].ata - F[o].def) / 60)) * F[t].st.q * (P.times[t].estilo === 'contra' && possePropria < 0.45 ? 1.12 : 1), 0.03, 0.8);
+    // xG de verdade é torto: muito chute de fora (0,02-0,08) e poucas chances claras (0,3+)
+    const b = r(), xg = clamp((CAL.xg0 + CAL.xg * b * b * Math.exp((F[t].ata - F[o].def) / 60)) * F[t].st.q * (P.times[t].estilo === 'contra' && possePropria < 0.45 ? 1.12 : 1), 0.01, 0.75);
     P.st[t].chutes++; P.st[t].xg += xg;
     const golProb = xg * clamp(1 + (quem.att.fin - F[o].gol) / 90, 0.6, 1.5);
-    const noAlvo = r() < 0.38 + xg * 0.6;
+    const pAlvo = Math.min(0.95, CAL.alvo + xg * 1.1), noAlvo = r() < pAlvo, entra = noAlvo && r() < golProb / pAlvo; // um sorteio só decide se entra
     if (noAlvo) P.st[t].noAlvo++;
     const goleiro = gk();
     if (N) { const ult = N.jogada(t, 0.62 + P.rn() * 0.2, 2 + Math.floor(P.rn() * 3)); if (ult !== quem) N.lance(t, pickTxt(P.rn, [`${NOME(ult)} serve ${NOME(quem)} na área`, `${NOME(ult)} cruza para ${NOME(quem)}`, `${NOME(ult)} enfia para ${NOME(quem)}`]), 0.84, quem); }
-    if (noAlvo && r() < golProb / (0.38 + xg * 0.6) && P.rv() < 0.05) {
+    if (entra && P.rv() < 0.05) {
       // VAR: a bola entrou, mas o gol não vale
       const motivo = pickTxt(P.rv, ['impedimento', 'falta no início da jogada', 'toque de mão']);
       P.ev.push({ min, tipo: 'var', time: t, jogador: quem.id, anulado: true, motivo });
       if (N) { N.lance(t, `${NOME(quem)} manda pra rede...`, 1, quem, 'golAnulado'); N.lance(t, `VAR chama o árbitro: gol anulado por ${motivo}`, 0.5, null, 'var'); }
       P.bola = null;
-    } else if (noAlvo && r() < golProb / (0.38 + xg * 0.6)) {
+    } else if (entra) {
       P.gols[t]++;
       const garcom = r() < 0.72 ? pickW(r, atacantes.filter(j => j !== quem && P.slotDe(t, j) !== 'GOL'), j => j.att.pas ** 2) : null;
       P.ev.push({ min, tipo: 'gol', time: t, jogador: quem.id, assist: garcom && garcom.id, placar: P.gols.slice() });
@@ -236,7 +251,7 @@ export function passo(P) {
     } else {
       P.ev.push({ min, tipo: noAlvo ? 'defesa' : 'fora', time: t, jogador: quem.id, goleiro: noAlvo && goleiro ? goleiro.id : undefined });
       if (noAlvo) { nota(P, o, goleiro, 0.18); P.st[o].defesas++; }
-      const esc = r() < 0.35;
+      const esc = r() < CAL.escanteio;
       if (esc) P.st[t].escanteios++;
       if (N) {
         N.lance(t, noAlvo ? `${NOME(quem)} finaliza e ${goleiro ? NOME(goleiro) : 'o goleiro'} defende!` : pickTxt(P.rn, [`${NOME(quem)} finaliza para fora`, `${NOME(quem)} chuta por cima`, `${NOME(quem)} tenta e a bola passa raspando`]), noAlvo ? 0.97 : 0.99, quem, noAlvo ? 'defesa' : 'fora');
@@ -248,14 +263,13 @@ export function passo(P) {
     if (P.rn() < 0.06) { const j = pickW(P.rn, P.emCampo(t).filter(x => SETOR[P.slotDe(t, x)] === 'ATA'), () => 1); if (j) N.lance(t, `${NOME(j)} em impedimento`, 0.75, j, 'impedimento'); }
   }
   // faltas e cartões (quem defende faz a falta; estilos intensos fazem mais)
-  if (r() < 0.16 * F[o].st.faltas) {
+  if (r() < CAL.falta * F[o].st.faltas) {
     const f = o; P.st[f].faltas++;
     const autor = pickW(r, P.emCampo(f), j => P.slotDe(f, j) === 'GOL' ? 0.05 : (100 - j.att.def + 40) / 100);
-    const cartao = r() < 0.13 * P.rigor;
+    const jaTem = P.ev.some(e => e.tipo === 'amarelo' && e.jogador === autor.id), cartao = r() < CAL.cartao * P.rigor * (jaTem ? 0.4 : 1); // pendurado no jogo maneira na entrada
     if (N) N.lance(f, `Falta de ${NOME(autor)}`, 0.5 + (P.rn() - 0.5) * 0.4, autor, 'falta');
     if (cartao) {
-      const jaTem = P.ev.some(e => e.tipo === 'amarelo' && e.jogador === autor.id);
-      const direto = !jaTem && r() < 0.025 * P.rigor, revisto = direto && P.rv() < 0.15; // VAR transforma vermelho em amarelo
+      const direto = !jaTem && r() < CAL.vermelho * P.rigor, revisto = direto && P.rv() < 0.15; // VAR transforma vermelho em amarelo
       if (revisto && N) N.lance(f, `VAR revisa a entrada de ${NOME(autor)}: o vermelho vira amarelo`, 0.5, autor, 'var');
       if (jaTem || (direto && !revisto)) {
         P.st[f].vermelhos++; P.expulsos[f].add(autor.id); P.verm[f]++;

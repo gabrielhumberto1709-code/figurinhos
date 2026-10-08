@@ -945,3 +945,15 @@ test('promessa de titularidade: tira o medo do banco; quebrada, ele quer sair e 
   for (let k = 0; k < PROMESSA.titular; k++) acompanharPromessas(base, s, { notas: [{ [k2.id]: 6.5 }, {}], eventos: [] }, 0);
   assert.ok(!s.promTit[k2.id] && s.palavra.cumpridas === 1);
 });
+
+// teste espelho: o mesmo elenco dos dois lados, campo neutro; nenhum estilo ou esquema pode ganhar sozinho
+test('teste espelho: estilo e formação mudam o jogo sem virar trapaça', async () => {
+  const { ESTILOS, FORMACOES } = await import('../public/js/motor/partida.js');
+  const N = 300, ppg = (ta, tb) => { let p = 0; for (let i = 0; i < N; i++) { const [x, y] = i % 2 ? [tb, ta] : [ta, tb]; const r = simular(x, y, 'esp' + i, { neutro: true }); const g = i % 2 ? [r.gols[1], r.gols[0]] : r.gols; p += g[0] > g[1] ? 3 : g[0] === g[1] ? 1 : 0; } return p / N; };
+  const ci = base.clubes.map((c, i) => i).filter(i => base.clubes[i].div === 'A').sort((a, b) => base.forca(b) - base.forca(a))[8];
+  const ref = { ...melhorTime(base.elencos[ci], '4-3-3'), estilo: 'equilibrado', gatilhos: {} }, b0 = ppg(ref, ref);
+  for (const e of Object.keys(ESTILOS)) { const d = ppg({ ...ref, estilo: e }, ref) - b0; assert.ok(Math.abs(d) < 0.3, `estilo ${e}: ${d.toFixed(2)} ponto por jogo`); }
+  const difs = Object.keys(FORMACOES).filter(f => f !== 'Personalizada').map(f => ppg({ ...melhorTime(base.elencos[ci], f), estilo: 'equilibrado', gatilhos: {} }, ref) - b0);
+  for (const d of difs) assert.ok(Math.abs(d) < 0.35, `formação ${d.toFixed(2)}`);
+  assert.ok(new Set(difs.map(d => d.toFixed(2))).size > 3, 'formação precisa fazer diferença');
+});
