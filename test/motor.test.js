@@ -808,3 +808,25 @@ test('pré-temporada com 3 amistosos; retrospecto contra cada time; coletiva pr�
   const j0 = confronto(s, ci, adv).j; rodada(s);
   assert.equal(confronto(s, ci, adv).j, j0 + 1);
 });
+
+import { vontadeRenovar, emNovela } from '../public/js/motor/mercado.js';
+test('renovação: IA renova cedo quem tem nível, deixa sair quem não tem ou quer sair; no seu clube vira novela', () => {
+  const s = novoJogo(base, cfg(107)), ci = s.tecnico.clube;
+  ate(s, 31);
+  const dec = Object.values(s.renovIA || {}), d = k => dec.filter(x => x.d === k).length;
+  assert.ok(d('renovou') > 20 && d('dispensa') + d('sai') > 5, JSON.stringify({ r: d('renovou'), dis: d('dispensa'), sai: d('sai') }));
+  const renovado = Object.entries(s.renovIA).find(([, x]) => x.d === 'renovou')[0];
+  assert.ok(base.jog.get(+renovado).contrato > s.ano, 'renovado não está mais no fim de contrato');
+  // novela: último ano, tratado mal, quer sair
+  const j = base.elencos[ci].slice().sort((a, b) => b.ovr - a.ovr)[2];
+  s.contratos[j.id] = s.ano; aplicarSave(base, s); s.trato = { [j.id]: -10 }; s.querSair = { [j.id]: { de: 7, rodada: s.rodada, motivo: 'quer jogar num clube maior' } };
+  assert.ok(vontadeRenovar(base, s, j).v < 32);
+  while (!emNovela(s, j.id) && s.rodada < 37) rodada(s);
+  assert.ok(emNovela(s, j.id));
+  assert.match(renovar(base, s, j, 1e6, 3).txt, /novela/i);
+  // na virada, quem saiu da IA sem renovar está livre
+  const sai = Object.entries(s.renovIA).filter(([, x]) => x.d === 'sai' || x.d === 'dispensa').map(([id]) => base.jog.get(+id)).filter(x => x && !s.preContratos.some(p => p.jogador === x.id) && x.clube !== ci);
+  ate(s, 38); while (!fimDeTemporada(s)) avancar(base, s);
+  virarTemporada(base, s);
+  assert.ok(sai.filter(x => !x.fora).every(x => base.clubes[x.clube].div === 'L' || x.clube === ci || s.historicoTransf.some(h => h.jogador === x.id)));
+});

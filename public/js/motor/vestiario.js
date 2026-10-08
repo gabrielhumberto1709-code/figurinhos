@@ -16,6 +16,8 @@ export function temperamento(j) {
   return x < 0.45 ? 'profissional' : x < 0.65 ? 'sensivel' : x < 0.85 ? 'temperamental' : 'ambicioso';
 }
 const mexe = (s, id, d) => { s.mor[id] = clamp((s.mor[id] ?? 62) + d, 0, 100); };
+// como o técnico trata cada jogador (-10 a 10): pesa na hora de renovar
+export const tratar = (s, id, d) => { (s.trato ||= {})[id] = clamp((s.trato[id] || 0) + d, -10, 10); };
 const chaveJogo = ev => ev ? `${ev.tipo}-${ev.rodada ?? ev.fase ?? 0}-${ev.h}-${ev.a}` : null;
 
 // ---------- preleção ----------
@@ -63,6 +65,7 @@ export function conversar(base, s, id, tipo) {
   else if (tipo === 'prometer') { d = 6; s.promessas = { ...(s.promessas || {}), [j.id]: { rodada: s.rodada, ano: s.ano } }; txt = `${j.curto} ficou animado. Ele vai cobrar a promessa nos próximos 3 jogos.`; }
   else { d = t === 'profissional' ? -2 : t === 'temperamental' ? -10 : -6; txt = t === 'temperamental' ? `${j.curto} saiu batendo a porta.` : `${j.curto} entendeu o recado.`; }
   mexe(s, j.id, d);
+  tratar(s, j.id, { elogiar: 1, prometer: 1, cobrar: t === 'profissional' ? 0 : -1, banco: t === 'temperamental' ? -3 : -2 }[tipo]);
   (s.conversas ||= {})[j.id] = { rodada: s.rodada, ano: s.ano, tipo };
   if (tipo === 'banco' && t === 'temperamental') s.noticias.unshift({ rodada: s.rodada, tipo: 'clube', imprensa: true, jogador: j.id, div: base.clubes[j.clube].div, texto: `Clima tenso: ${j.curto} discute com ${s.tecnico.nome} no treino.` });
   return { txt, d };
@@ -74,8 +77,8 @@ export function responderAumento(base, s, id, sim) {
   const j = base.jog.get(p.jogador);
   s.pedidosAumento = s.pedidosAumento.filter(x => x !== p);
   if (!j || j.clube !== s.tecnico.clube) return null;
-  if (sim) { s.salarios[j.id] = p.valor; mexe(s, j.id, 10); return `${j.curto} ganhou o aumento e está feliz da vida.`; }
-  mexe(s, j.id, temperamento(j) === 'ambicioso' ? -16 : -12);
+  if (sim) { s.salarios[j.id] = p.valor; mexe(s, j.id, 10); tratar(s, j.id, 3); return `${j.curto} ganhou o aumento e está feliz da vida.`; }
+  mexe(s, j.id, temperamento(j) === 'ambicioso' ? -16 : -12); tratar(s, j.id, -3);
   if (temperamento(j) === 'ambicioso') (s.querSair ||= {})[j.id] = { de: j.clube, rodada: s.rodada, motivo: 'queria valorização' };
   s.noticias.unshift({ rodada: s.rodada, tipo: 'clube', imprensa: true, jogador: j.id, div: base.clubes[j.clube].div, texto: `${j.curto} fica insatisfeito: o clube negou o pedido de aumento.` });
   return `${j.curto} não gostou da resposta.`;
@@ -102,6 +105,7 @@ export function responderJogador(base, s, msgId, r) {
     if (r === 'prometer') { for (const x of el) mexe(s, x.id, 1); txt = 'O grupo gostou de ouvir. Agora é buscar no Mercado.'; }
     else { mexe(s, j.id, -3); for (const x of el) if (x !== j) mexe(s, x.id, 1); txt = `${j.curto} esperava reforço, mas o grupo gostou da confiança.`; }
   }
+  tratar(s, j.id, { prometer: 1, paciencia: -1, vender: 1, segurar: -2, emprestar: 1, fica: -1, apoiar: 1, cobrar: -1 }[r] || 0);
   m.resp = r;
   return txt;
 }
@@ -115,7 +119,7 @@ export function vestiarioAposRodada(base, s, tabs) {
     const j = base.jog.get(+id);
     if (!j || j.clube !== ci || p.ano !== s.ano) { delete s.promessas[id]; continue; }
     if (!s.semJogar?.[id]) { delete s.promessas[id]; continue; }            // jogou: promessa cumprida
-    if (s.rodada - p.rodada >= 3) { mexe(s, id, -10); delete s.promessas[id]; add(`${j.curto} reclama: "O professor prometeu que eu ia jogar. Não jogou ninguém aqui."`, { jogador: j.id }); }
+    if (s.rodada - p.rodada >= 3) { mexe(s, id, -10); tratar(s, id, -3); delete s.promessas[id]; add(`${j.curto} reclama: "O professor prometeu que eu ia jogar. Não jogou ninguém aqui."`, { jogador: j.id }); }
   }
   // pedidos de aumento: quem está voando e ganha pouco
   s.pedidosAumento = (s.pedidosAumento || []).filter(p => {

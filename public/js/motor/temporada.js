@@ -96,6 +96,14 @@ export function virarTemporada(base, s) {
     s.historicoTransf.unshift({ rodada: 37, jogador: j.id, nome: j.curto, de: p.de, para: p.para, valor: 0, tipo: 'pre', ia: p.para !== ci && p.de !== ci });
   }
   if (s.acordos?.length) cumprirAcordos(base, s, t => add(t));
+  // clubes da IA: quem não renovou (sem nível ou quis sair) fica livre
+  const livresIA = base.clubes.findIndex(c => c.div === 'L');
+  for (const [id, x] of Object.entries(s.renovIA || {})) {
+    if (x.ano !== s.ano || !['sai', 'dispensa'].includes(x.d)) continue;
+    const j = base.jog.get(+id); if (!j || j.clube === ci || base.clubes[j.clube].div === 'L' || j.contrato > s.ano || s.preContratos.some(p => p.jogador === j.id)) continue;
+    s.transf[j.id] = livresIA; delete s.contratos[j.id];
+    if (j.ovr >= 74) add(`${j.curto} deixa o ${nome(j.clube)} sem renovar e está no mercado como jogador livre.`, 'mercado');
+  }
   aplicarSave(base, s);
   // contrato acabou e não renovou: vira jogador livre
   const livres = base.clubes.findIndex(c => c.div === 'L');
@@ -120,6 +128,7 @@ export function virarTemporada(base, s) {
   // temporada zerada
   viradaDM(base, s);
   s.forma = {}; s.afast = {}; s.julgamentos = [];
+  for (const id in s.trato || {}) s.trato[id] = Math.trunc(s.trato[id] / 2); // a mágoa diminui com o tempo
   Object.assign(s, { rodada: 0, res: { A: {}, B: {}, C: {} }, est: {}, ultima: null, lider: {}, rumores: {}, destaques: {}, ultimaData: null, recuperado: null, cond: {}, mor: {}, semJogar: {}, xi: null, banco: null, recebidas: [], preContratos: [] });
   delete s._cal;
   s.propostas = s.propostas.filter(p => !['aguardando', 'contraproposta'].includes(p.estado)).slice(0, 30);

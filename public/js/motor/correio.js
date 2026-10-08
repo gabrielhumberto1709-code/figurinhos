@@ -8,7 +8,7 @@ import { proximoEvento, compProxima, janelaAberta, tabela, barradoMedo, multaMed
 import { indisponivel, pendurado, LESOES, COMP_DE } from './dm.js';
 import { faseDe } from './forma.js';
 import { orcamento, metaDiretoria, salarioDia } from './financas.js';
-import { precoPedido, textoVontade, resumoCl } from './mercado.js';
+import { precoPedido, textoVontade, resumoCl, ABRE_PRE } from './mercado.js';
 import { fimDeTemporada } from './temporada.js';
 
 export const REMETENTES = {
@@ -93,6 +93,8 @@ export function correio(base, s) {
       if (cap) fala(cap, `pj-ref-${s.ano}-${Math.floor(rd / 8)}`, 'reforco', 'O grupo precisa de reforço', `Professor, falo como capitão: o grupo está dando o sangue, mas ${setores[fraco]} precisa de reforço. Com a janela aberta, dá pra buscar alguém?`, [['prometer', 'Vou buscar'], ['confio', 'Confio nesse grupo']], { setor: fraco });
     }
   }
+  // novela de renovação: o diretor explica a decisão que o técnico tem pela frente
+  for (const [id, n] of Object.entries(s.novela || {})) { const j = base.jog.get(+id); if (j?.clube === ci && n.ano === s.ano) enviar(s, 'diretor', `nov-${id}-${s.ano}`, `Novela: ${j.curto} não renova`, `O empresário de ${j.curto} avisou que ele não renova (${n.motivo}). O contrato acaba no fim do ano. Ou a gente vende enquanto ele vale alguma coisa, ou ele sai de graça. A partir da ${ABRE_PRE + 1}ª rodada ele já pode assinar pré-contrato com outro clube.`, { jogador: j.id, link: '#/mercado', aba: 'propostas' }); }
   // pré-contrato com outro clube
   for (const p of s.preContratos || []) if (p.de === ci && p.para !== ci) { const j = base.jog.get(p.jogador); if (j) enviar(s, 'diretor', `pre-${p.jogador}-${s.ano}`, `${j.curto} assinou com o ${nome(p.para)}`, `Perdemos ${j.curto}: o contrato acaba e ele já assinou pré-contrato com o ${nome(p.para)}. Sai de graça no fim da temporada.`, { jogador: j.id }); }
   // contratos acabando (no meio e na reta final)

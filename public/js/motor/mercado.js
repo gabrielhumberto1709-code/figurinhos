@@ -8,7 +8,7 @@ import { rivais } from './rivais.js';
 import { premiado } from './gala.js';
 import { faseDe } from './forma.js';
 import { rng, clamp, pickW, shuffle, SETOR, nivelDiv, estrelas, continenteDe } from './util.js';
-import { temperamento } from './vestiario.js';
+import { temperamento, tratar } from './vestiario.js';
 import { interessados, media } from './noticias.js';
 import { janelaAberta, caixaInicial, aplicarSave, evolucao } from './mundo.js';
 import { orcamento, lancar, garantirFinancas, salarioDia, salarioBase, diasRestantes } from './financas.js';
@@ -340,7 +340,7 @@ export function recusarRecebida(base, s, id) {
 // ele queria ir e o clube segurou: fica chateado, pode pedir pra sair e não quer renovar por um tempo
 function barrarSaida(base, s, p) {
   const j = base.jog.get(p.jogador); if (!j) return null;
-  s.mor[j.id] = Math.max(0, (s.mor[j.id] ?? 62) - (faseDe(s, j.id).d > 0 ? 15 : 10));
+  s.mor[j.id] = Math.max(0, (s.mor[j.id] ?? 62) - (faseDe(s, j.id).d > 0 ? 15 : 10)); tratar(s, j.id, -2);
   (s.querSair ||= {})[j.id] = { de: p.de, rodada: s.rodada, motivo: p.quer };
   s.noticias.unshift({ rodada: s.rodada, tipo: 'clube', imprensa: true, jogador: j.id, div: base.clubes[s.tecnico.clube].div, texto: `${j.curto} fica chateado por não ser liberado para o ${base.clubes[p.de].n}.` });
   return `${j.curto} queria ir e ficou chateado (moral em baixa).`;
@@ -444,11 +444,28 @@ export function alternarLista(base, s, lista, id) {
 export function alternarFavorito(s, id) { const i = s.favoritos.indexOf(id); if (i >= 0) s.favoritos.splice(i, 1); else s.favoritos.unshift(id); }
 
 // ---------- renovação ----------
-// quer ficar? Moral, espaço no time e idade pesam. Resposta na hora: aceita ou diz quanto quer.
+// quer ficar? Minutos, temperamento, como o técnico trata (s.trato), moral, quem está interessado, fase, idade e
+// se já pediu pra sair. Abaixo de 32 vira novela: não renova por nada e o clube decide se vende ou perde de graça.
+const MOTIVO_NOV = { minutos: 'joga pouco', trato: 'não gosta de como é tratado', maior: 'quer um clube maior', sair: 'já pediu pra sair', moral: 'anda insatisfeito' };
+export function vontadeRenovar(base, s, j) {
+  const ci = s.tecnico.clube, el = base.elencos[ci].slice().sort((a, b) => b.ovr - a.ovr), rank = el.indexOf(j), t = temperamento(j);
+  const jogosClube = base.clubes[ci] && s.res ? Object.keys(s.res[base.clubes[ci].div] || {}).filter(k => k.split('-').map(Number).includes(ci)).length : 0;
+  const pct = (s.est?.[j.id]?.[0] || 0) / Math.max(1, jogosClube), maior = interessados(base, j).some(c => nivelDiv(base.clubes[c]) < nivelDiv(base.clubes[ci]) || base.forca(c) >= base.forca(ci) + 4);
+  const p = {
+    minutos: jogosClube >= 6 && rank < 16 && pct < 0.35 ? -18 : pct > 0.7 ? 8 : 0,
+    trato: (s.trato?.[j.id] || 0) * 3,
+    moral: ((s.mor?.[j.id] ?? 62) - 62) * 0.5,
+    maior: maior ? (t === 'ambicioso' ? -18 : -10) - (faseDe(s, j.id).d > 0 && j.idade <= 29 ? 6 : 0) : 0,
+    sair: s.querSair?.[j.id] ? -30 : 0,
+  };
+  const v = 58 + Object.values(p).reduce((a, b) => a + b, 0) + { ambicioso: -6, temperamental: -4, sensivel: 0, profissional: 6 }[t] + (j.idade >= 31 ? 12 : 0) + (rank >= 18 ? 6 : 0) + (rng(`nov${s.seed}${s.ano}${j.id}`)() - 0.5) * 16;
+  const pior = Object.entries(p).sort((a, b) => a[1] - b[1])[0];
+  return { v: clamp(Math.round(v), 0, 100), motivo: pior[1] < 0 ? MOTIVO_NOV[pior[0]] : 'não se sente valorizado' };
+}
+export const emNovela = (s, id) => s.novela?.[id]?.ano === s.ano;
 export function renovacaoPossivel(s, j) { return j.contrato <= s.ano + 1 && !preContratoDe(s, j.id) && !s.emprestimos[j.id]; }
 export function pedidoRenovacao(base, s, j, anos = 3) {
-  const el = base.elencos[s.tecnico.clube].slice().sort((a, b) => b.ovr - a.ovr), rank = el.indexOf(j);
-  const ficar = clamp(55 + ((s.mor?.[j.id] ?? 62) - 62) + (rank < 11 ? 10 : rank >= 18 ? -10 : 0) + (j.idade >= 31 ? 10 : 0) - (s.querSair?.[j.id] ? 30 : 0), 0, 100);
+  const ficar = emNovela(s, j.id) ? 0 : vontadeRenovar(base, s, j).v;
   let pede = Math.max(salarioDia(base, s, j), salarioBase(base.clubes[j.clube].div, j.valor)) * (1.05 + clamp((60 - ficar) / 100, -0.1, 0.5));
   if (j.idade >= 30) pede *= 1 + 0.06 * Math.max(0, 3 - anos);
   return { ficar, pede: arredSal(pede) };
@@ -457,6 +474,7 @@ export function renovar(base, s, j, salario, anos) {
   if (j.clube !== s.tecnico.clube || !renovacaoPossivel(s, j)) return { ok: false, txt: 'Não dá para renovar com ele agora.' };
   if (!(anos >= 1 && anos <= 5)) return { ok: false, txt: 'Contrato de 1 a 5 anos.' };
   const { ficar, pede } = pedidoRenovacao(base, s, j, anos);
+  if (emNovela(s, j.id)) return { ok: false, txt: `${j.curto} não quer saber de renovar (${s.novela[j.id].motivo}). A novela segue: venda enquanto dá ou ele sai de graça.` };
   if (ficar < 30) return { ok: false, txt: `${j.curto} não quer renovar. Está insatisfeito no clube.` };
   if (salario - salarioDia(base, s, j) > orcamento(base, s).folga) return { ok: false, txt: 'O aumento não cabe na folga da folha. Abra espaço em Finanças.' };
   if (salario < pede) return { ok: false, pede, txt: `${j.curto} pede € ${pede.toLocaleString('pt-BR')}/dia por ${anos} ${anos > 1 ? 'anos' : 'ano'}.` };
@@ -547,6 +565,53 @@ function negociosIA(base, s, rd, r, add) {
       const para = pickW(r, fora, ci => base.clubes[ci].fan), valor = arred(precoPedido(base, s, j) * (1 + r() * 0.3)), de = mover(j, para, valor);
       add(`HERE WE GO! Venda para o exterior: ${j.curto} troca o ${nome(de)} pelo ${nome(para)} (${base.clubes[para].liga}) por ${fmt(valor)}.`, 'mercado', base.clubes[de].div, { jogador: j.id });
     }
+  }
+}
+
+// ---------- renovações ----------
+// IA renova cedo quem tem nível e quer ficar; quem não tem nível ou quer sair (minutos, temperamento, interesse de
+// clube maior, fase) fica sem renovar e sai de graça no fim do ano (ou assina pré-contrato com outro)
+function renovacoesIA(base, s, rd, add) {
+  if (rd < 6 || rd > 34) return;
+  s.renovIA ||= {};
+  const meu = s.tecnico.clube; let mudou = false;
+  for (const ci of base.clubes.map((c, i) => i).filter(i => BR.includes(base.clubes[i].div) && i !== meu)) {
+    const el = base.elencos[ci], ord = el.slice().sort((a, b) => b.ovr - a.ovr), f = base.forca(ci), nome = base.clubes[ci].n, div = base.clubes[ci].div;
+    let saem = el.filter(x => ['sai', 'dispensa', 'aposenta'].includes(s.renovIA[x.id]?.ano === s.ano && s.renovIA[x.id].d)).length;  // elenco não pode esvaziar
+    for (const j of el) {
+      if (j.contrato > s.ano || s.renovIA[j.id]?.ano === s.ano || s.emprestimos[j.id] || preContratoDe(s, j.id)) continue;
+      const rr = rng(`renIA${s.seed}${s.ano}${j.id}`);
+      if (rd !== 6 + Math.floor(rr() * 24)) continue;        // cada um tem a sua rodada de conversa
+      if (vaiAposentar(s, j)) { s.renovIA[j.id] = { ano: s.ano, d: 'aposenta' }; continue; }
+      const rank = ord.indexOf(j), pct = (s.est?.[j.id]?.[0] || 0) / Math.max(1, rd), t = temperamento(j);
+      if ((rank >= 25 || j.ovr < f - 10 || (j.idade >= 33 && j.ovr < f - 4)) && el.length - saem > 26) {
+        s.renovIA[j.id] = { ano: s.ano, d: 'dispensa' }; saem++;
+        if (j.ovr >= 72) add(`O ${nome} não vai renovar com ${j.curto}, que fica livre no fim do ano.`, 'mercado', div, { jogador: j.id, de: ci });
+        continue;
+      }
+      const quer = 60 + (rank < 16 && pct < 0.3 ? -20 : 0) + ({ ambicioso: -12, temperamental: -5, sensivel: 0, profissional: 6 }[t]) + (faseDe(s, j.id).d > 0 && j.idade <= 29 && interessados(base, j).length ? -20 : 0) + (j.idade >= 31 ? 12 : 0) + (rr() - 0.5) * 30;
+      if (quer < 40 && el.length - saem > 24) {
+        s.renovIA[j.id] = { ano: s.ano, d: 'sai' }; saem++;
+        if (j.ovr >= 72) add(`${j.curto} recusa renovar com o ${nome} e pode sair de graça no fim do ano.`, 'rumor', div, { jogador: j.id, de: ci });
+        continue;
+      }
+      const anos = j.idade >= 31 ? 1 + Math.floor(rr() * 2) : 2 + Math.floor(rr() * 3);
+      s.contratos[j.id] = s.ano + anos; s.renovIA[j.id] = { ano: s.ano, d: 'renovou' }; mudou = true;
+      if (j.ovr >= 75) add(`${j.curto} renova com o ${nome} até ${s.ano + anos}.`, 'mercado', div, { jogador: j.id, de: ci });
+    }
+  }
+  if (mudou) aplicarSave(base, s);
+}
+// no seu clube: quem está no último ano de contrato e não quer renovar vira novela
+function novelas(base, s, rd, add) {
+  if (rd < 5 || rd % 4) return;
+  const meu = s.tecnico.clube; s.novela ||= {};
+  for (const j of base.elencos[meu]) {
+    if (j.contrato > s.ano || emNovela(s, j.id) || s.emprestimos[j.id] || preContratoDe(s, j.id) || vaiAposentar(s, j)) continue;
+    const { v, motivo } = vontadeRenovar(base, s, j);
+    if (v >= 32 || j.ovr < base.forca(meu) - 6) continue;
+    s.novela[j.id] = { ano: s.ano, rodada: rd, motivo };
+    add(`Novela: ${j.curto} avisa que não renova com o ${base.clubes[meu].n} (${motivo}). O contrato acaba no fim do ano.`, 'clube', base.clubes[meu].div, { jogador: j.id, imprensa: true });
   }
 }
 
@@ -686,7 +751,7 @@ export function resolverMercado(base, s, rd) {
         continue;
       }
       const e = s.est?.[j.id], emAlta = e && e[0] >= 3 && (media(e) >= 6.9 || e[1] >= e[0] * 0.4), f = faseDe(s, j.id);
-      const chance = listado ? 0.35 : f.k === 'excelente' ? 0.45 : f.k === 'boa' ? 0.28 : emAlta || j.ovr >= 78 || j.ovr >= base.forca(meu) + 4 ? 0.12 : 0;
+      const chance = emNovela(s, j.id) ? 0.4 : listado ? 0.35 : f.k === 'excelente' ? 0.45 : f.k === 'boa' ? 0.28 : emAlta || j.ovr >= 78 || j.ovr >= base.forca(meu) + 4 ? 0.12 : 0;
       if (r() >= chance) continue;
       let opcoes = interessados(base, j);
       if (listado && !opcoes.length) opcoes = base.clubes.map((c, i) => i).filter(ci => BR.includes(base.clubes[ci].div) && ci !== meu && !rivais(base, ci, meu) && Math.abs(base.forca(ci) - j.ovr) <= 5);
@@ -701,8 +766,9 @@ export function resolverMercado(base, s, rd) {
   }
 
   // contrato acabando e sem renovação: a partir da 25ª rodada, outro clube pode assinar pré-contrato com ele
-  if (rd >= 24) for (const j of base.elencos[meu]) {
-    if (!contratoNoFim(s, j) || preContratoDe(s, j.id) || s.emprestimos[j.id] || j.ovr < base.forca(meu) - 4 || vaiAposentar(s, j) || r() > 0.15) continue;
+  if (rd >= ABRE_PRE) for (const j of base.elencos[meu]) {
+    const nov = emNovela(s, j.id);
+    if (!contratoNoFim(s, j) || preContratoDe(s, j.id) || s.emprestimos[j.id] || vaiAposentar(s, j) || (!nov && (rd < 24 || j.ovr < base.forca(meu) - 4)) || r() > (nov ? 0.3 : 0.15)) continue;
     const opcoes = interessados(base, j); if (!opcoes.length) continue;
     const para = pickW(r, opcoes, ci => base.clubes[ci].fan);
     s.preContratos.push({ jogador: j.id, de: meu, para, rodada: rd });
@@ -716,6 +782,8 @@ export function resolverMercado(base, s, rd) {
     s.mor[id] = Math.min(s.mor[id] ?? 62, 45);
     if (r() < 0.15) add(`${j.curto} cobra a diretoria: "Eu ${q.motivo.replace(/^é /, 'tinha ')}. Quero ser negociado."`, 'clube', base.clubes[meu].div, { jogador: j.id, imprensa: true });
   }
+  renovacoesIA(base, s, rd, add);
+  novelas(base, s, rd, add);
   if (janelaAberta(s.ano, rd)) negociosIA(base, s, rd, r, add);
   trabalhoDoOlheiro(base, s, rd, r);
   if (s.historicoTransf.length > 400) s.historicoTransf.length = 400;

@@ -319,6 +319,7 @@ export function responder(base, s, i, tom, pre = false) {
   if (j && j.clube === ci) {
     const elogio = ['destaque', 'renovacao'].includes(P.tema), d = tom === 'irritada' && elogio ? -2 : TONS[tom].jog;
     s.mor[j.id] = clamp((s.mor[j.id] ?? 62) + d, 0, 100);
+    (s.trato ||= {})[j.id] = clamp((s.trato[j.id] || 0) + (d < 0 ? -2 : d >= 4 ? 1 : 0), -10, 10);
     if (d < 0 && (j.ovr >= 78 || (s.mor[j.id] ?? 62) < 30) && rng(`rebate${s.seed}${C.chave}${i}`)() < 0.6) {
       s.mor[j.id] = Math.max(0, s.mor[j.id] - 3);
       N.push({ tipo: 'clube', imprensa: true, jogador: j.id, texto: `${j.curto} rebate ${nome}: "${pick(rng(`rb${C.chave}${i}`), ['Cada um sabe o que faz em campo. Eu sei o que faço.', 'Não precisava falar isso em público.', 'Estou tranquilo. Quem me conhece sabe do meu trabalho.'])}"` });
