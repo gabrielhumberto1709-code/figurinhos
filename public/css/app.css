@@ -174,8 +174,18 @@ tr.meu td { background: rgb(242 179 61 / .35); }
 td.pos { font-weight: 700; border-left: 4px solid transparent; }
 tr.z-lib td.pos { border-left-color: var(--carimbo); } tr.z-pre td.pos { border-left-color: #6E8FD0; }
 tr.z-sul td.pos { border-left-color: var(--gramado); } tr.z-sobe td.pos { border-left-color: var(--gramado); } tr.z-cai td.pos { border-left-color: var(--cartao); }
-.forma { display: inline-flex; gap: 2px; }
-.forma i { width: 8px; height: 8px; border-radius: 1px; background: var(--texto-2); }
+.forma { display: inline-flex; gap: 3px; }
+.forma i { width: 10px; height: 10px; border-radius: 50%; background: var(--texto-2); }
+/* tabelas largas: arrastam para o lado, com o clube preso à esquerda */
+.tab-arrasta { min-width: 100%; }
+.tab-arrasta td, .tab-arrasta th { white-space: nowrap; }
+.tab-arrasta .clube-cel { position: sticky; left: 0; background: var(--cartao-bg, var(--campo-bg)); z-index: 1; }
+.tab-arrasta tr.meu .clube-cel { background: linear-gradient(rgb(242 179 61 / .35), rgb(242 179 61 / .35)), var(--cartao-bg); }
+.selo-fim { margin-left: 6px; font-family: var(--f-pixel); font-size: .7rem; font-weight: 700; color: #fff; background: var(--cartao); padding: 1px 5px; border-radius: 3px; vertical-align: middle; }
+.caixa-msgs .msg { touch-action: pan-y; user-select: none; }
+.arrasta-msg { font-size: .85rem; }
+.arrasta-dica { font-size: .85rem; margin-top: -6px; }
+@media (min-width: 640px) { .arrasta-dica { display: none; } }
 .forma i.V { background: var(--gramado); } .forma i.D { background: var(--cartao); } .forma i.E { background: #B9B1A2; }
 .legenda { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: .9rem; color: var(--texto-2); }
 .legenda span::before { content: ''; display: inline-block; width: 10px; height: 10px; margin-right: 5px; background: var(--c); }
@@ -457,6 +467,7 @@ tr.z-sul td.pos { border-left-color: var(--gramado); } tr.z-sobe td.pos { border
 .chip-nota { display: inline-block; font-family: var(--f-placar); font-size: 1.05rem; line-height: 1; padding: 3px 6px; border-radius: 4px; border: 2px solid #1B1F2A; white-space: nowrap; }
 .chip-nota.goat { background: var(--goat); color: #1B1F2A; } .chip-nota.craquinho { background: var(--craquinho); color: #1B1F2A; } .chip-nota.comum { background: #6E9BE8; color: #1B1F2A; } .chip-nota.bagre { background: #C9B79C; color: #1B1F2A; }
 .campo-esc { aspect-ratio: 68 / 92; max-width: 460px; }
+.jog-campo .cond { width: 40px; height: 5px; margin-top: 1px; box-shadow: 0 0 0 1px rgb(0 0 0 / .35); }
 .jog-campo { position: absolute; transform: translate(-50%, -50%); display: flex; flex-direction: column; align-items: center; gap: 1px; width: 84px; padding: 0; border: 0; background: none; cursor: pointer; }
 .jc-fig { position: relative; display: block; }
 .jc-fig .boneco { width: 30px; height: 42px; filter: drop-shadow(0 2px 0 rgb(0 0 0 / .35)); }
@@ -748,3 +759,14 @@ b.pos { color: var(--gramado); } b.neg { color: var(--cartao); }
 .tabela-hist td:nth-child(2) img { vertical-align: middle; }
 .premios-jog { font-weight: 700; margin-top: 6px; }
 .retro-ingresso { display: block; font-size: .85rem; opacity: .85; margin: 4px 0 8px; }
+
+/* coletiva: sala de imprensa em pixel */
+.cena-col { position: relative; aspect-ratio: 16 / 9; max-width: 520px; width: 100%; margin: 0 auto 12px; overflow: hidden; border: 2px solid var(--linha); border-radius: var(--raio); background: #EDEDED; box-shadow: var(--sombra); }
+.cena-painel { position: absolute; inset: 0 0 18% 0; display: grid; grid-template-columns: repeat(4, 1fr); grid-template-rows: repeat(4, 1fr); background: #F7F7F7; }
+.cena-logo { display: flex; align-items: center; justify-content: center; gap: 4px; padding: 2px 4px; font-family: var(--f-pixel); font-size: clamp(.5rem, 1.9vw, .78rem); line-height: 1.05; text-align: center; font-weight: 700; border: 1px solid #E3E3E3; overflow: hidden; }
+.cena-logo i { flex: none; width: 7px; height: 7px; }
+.cena-logo img { width: 26%; max-width: 30px; image-rendering: pixelated; }
+.cena-tec { position: absolute; left: 50%; bottom: 17%; width: 34%; max-width: 190px; transform: translateX(-50%); image-rendering: pixelated; }
+.cena-mesa { position: absolute; left: 0; right: 0; bottom: 0; height: 24%; background: linear-gradient(#2A2F3A 0 22%, var(--cm) 22%); border-top: 3px solid #11141A; }
+.cena-tablet { position: absolute; left: 74%; top: -42%; transform: translateX(-50%); padding: 3px 8px; background: #0B3D91; color: #fff; font-family: var(--f-pixel); font-size: clamp(.45rem, 1.6vw, .7rem); border: 3px solid #111; border-radius: 3px; white-space: nowrap; }
+.cena-mic { position: absolute; left: 50%; bottom: 9%; width: 6.5%; min-width: 16px; transform: translateX(-50%); }

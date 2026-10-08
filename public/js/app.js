@@ -4,6 +4,8 @@ import { LESOES, COMP_DE, indisponivel, pendurado } from './motor/dm.js';
 import { garantirCarreira, pilares, aceitarOferta, recusarOferta, pedirDemissao } from './motor/carreira.js';
 import { virarTemporada, fimDeTemporada } from './motor/temporada.js';
 import { campanha } from './motor/copa.js';
+import { F_MATA, tabelaGrupo } from './motor/continental.js';
+import { REGIONAIS, fasesReg, tabelaReg } from './motor/regionais.js';
 import * as Torneios from './torneios.js';
 import { garantirFinancas, orcamento, socorro, metaDiretoria, balanco, bilheteria, pedirVerba, dicasFinanceiras, fairPlay, registroBloqueado, LIMITE_FPF, ANO_FPF, PRECOS, NOME_PRECO } from './motor/financas.js';
 import { garantirMercado } from './motor/mercado.js';
@@ -97,6 +99,19 @@ function figurinha(j, extra = '', estatica = false, rendeNaVaga = null) {
     <span class="nome">${esc(j.curto)}</span><span class="tier">${carta.nome}</span></${tag}>`;
 }
 
+// posição de cada lado no ingresso, na competição do jogo (liga, grupo continental, regional); mata-mata não tem
+function posicaoNoJogo(ev, ci) {
+  const s = app.s;
+  if (ev.tipo === 'liga') return s.rodada ? posicaoNaTabela(ci) : null;
+  if (ev.tipo === 'cont' && ev.fase < F_MATA && ev.fase > 0) { const T = s.cont[ev.k], g = T.grupos.findIndex(x => x.includes(ci)); return g < 0 ? null : tabelaGrupo(T, g).findIndex(l => l.clube === ci) + 1; }
+  if (ev.tipo === 'reg') {
+    const T = s.reg[ev.k], F = fasesReg(ev.k)[ev.fase], E = F && F.e != null && T.etapas[F.e];
+    if (!E || F.r === 0) return null;
+    const X = REGIONAIS[ev.k].etapas[F.e], g = X.geral || E.grupos.length === 1 ? E.grupos.flat() : E.grupos.find(x => x.includes(ci));
+    return g ? tabelaReg(T, F.e, g).findIndex(l => l.clube === ci) + 1 : null;
+  }
+  return null;
+}
 function posicaoNaTabela(ci) {
   const d = clube(ci).div;
   return tabela(app.base, app.s, d).findIndex(l => l.clube === ci) + 1;
@@ -267,7 +282,7 @@ const cartaMsg = (m, curta = false) => {
   const aut = m.de === 'jogador' && app.base.jog.get(m.autor), r = aut ? { nome: aut.curto, cargo: `${POS_NOME[aut.pos]} do elenco` } : remetente(app.s, m.de);
   const foto = aut ? urlRosto(aut.rosto, clube(aut.clube)) : urlRosto(ROSTO_REM[m.de] || ROSTO_REM.diretor, TERNO);
   const resp = m.opcoes && !curta ? (m.resp ? `<p class="mudo msg-resp">Você respondeu: ${esc(m.opcoes.find(o => o[0] === m.resp)?.[1] || '')}</p>` : `<div class="linha-botoes">${m.opcoes.map(([k, rot], i) => `<button class="botao peq ${i ? 'sec' : ''}" type="button" data-acao="msg-resp" data-m="${m.id}" data-r="${k}">${rot}</button>`).join('')}${m.tipoJ === 'reforco' ? `<a class="botao peq sec" href="#/mercado" data-acao="msg-aba" data-a="buscar" data-setor="${m.setor || ''}">Abrir o Mercado</a>` : ''}</div>`) : '';
-  return `<article class="msg ${m.lida ? '' : 'nova'} ${aut ? 'de-jogador' : ''}"><div class="msg-topo"><img class="px" src="${foto}" width="32" height="32" alt=""><span><b>${esc(r.nome)}</b><small>${esc(r.cargo)} · ${m.rodada ? `rodada ${m.rodada}` : 'pré-temporada'}</small></span></div>
+  return `<article class="msg ${m.lida ? '' : 'nova'} ${aut ? 'de-jogador' : ''}" data-msg="${esc(m.id)}"><div class="msg-topo"><img class="px" src="${foto}" width="32" height="32" alt=""><span><b>${esc(r.nome)}</b><small>${esc(r.cargo)} · ${m.rodada ? `rodada ${m.rodada}` : 'pré-temporada'}</small></span></div>
     <h3>${esc(m.assunto)}</h3>${curta ? '' : `<p>${esc(m.texto)}</p>${resp}`}
     ${curta ? '' : `<div class="linha-botoes">${m.jogador != null && app.base.jog.get(m.jogador) ? `<button class="botao peq sec" type="button" data-acao="ficha" data-id="${m.jogador}">Ver jogador</button>` : ''}${m.link ? `<a class="botao peq" href="${m.link}" ${m.aba ? `data-acao="msg-aba" data-a="${m.aba}"` : ''}>Resolver</a>` : ''}${m.aumento != null && (app.s.pedidosAumento || []).some(p => p.jogador === m.aumento) ? `<button class="botao peq" type="button" data-acao="aumento" data-id="${m.aumento}" data-sim="1">Dar aumento</button><button class="botao peq sec" type="button" data-acao="aumento" data-id="${m.aumento}">Negar</button>` : ''}</div>`}</article>`; };
 function recados() {
@@ -277,7 +292,7 @@ function recados() {
 telas.mensagens = () => {
   const s = app.s, msgs = s.msgs || [];
   const html = `<div class="titulo-linha"><h2>Mensagens</h2><a href="#/clube">Voltar</a></div>
-    ${msgs.length ? `<div class="caixa-msgs">${msgs.map(m => cartaMsg(m)).join('')}</div>` : '<section class="cartao"><p class="mudo">Nenhuma mensagem.</p></section>'}`;
+    ${msgs.length ? `<p class="mudo arrasta-msg">Arraste uma mensagem para a esquerda para apagar.</p><div class="caixa-msgs">${msgs.map(m => cartaMsg(m)).join('')}</div>` : '<section class="cartao"><p class="mudo">Nenhuma mensagem.</p></section>'}`;
   let mudou = false; for (const m of msgs) if (!m.lida) { m.lida = true; mudou = true; }
   if (mudou) { salvar(); setTimeout(desenhaTopo, 0); }
   return html;
@@ -310,7 +325,7 @@ telas.clube = () => {
   const viz = tab.slice(Math.max(0, Math.min(pos - 2, tab.length - 5)), Math.max(5, pos + 3)).map(l => ({ ...l, n: tab.indexOf(l) + 1 }));
   const dt = ev ? ev.data : dataRodada(s.ano, 37), janela = janelaAberta(s.ano, s.rodada);
   const acabando = s.rodada >= 19 ? app.base.elencos[ci].filter(j => j.contrato <= s.ano && !s.preContratos?.some(p => p.jogador === j.id) && !s.emprestimos?.[j.id]) : [];
-  const lado = ci2 => `<div class="lado">${imgEscudo(ci2, 64, 69)}<span>${esc(clube(ci2).n)}</span>${s.rodada ? `<small>${posicaoNaTabela(ci2)}º</small>` : ''}</div>`;
+  const lado = ci2 => { const p = posicaoNoJogo(ev, ci2); return `<div class="lado">${imgEscudo(ci2, 64, 69)}<span>${esc(clube(ci2).n)}</span>${p ? `<small>${p}º</small>` : ''}</div>`; };
   return `<div class="status-clube"><span title="Dinheiro em caixa"><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">${ICONES.moeda}</svg>${fmtDinheiro(s.caixa ?? 0)}</span>
       <span>${s.rodada ? `${pos + 1}º na Série ${d}` : `Série ${d}`}</span><span class="${janela ? 'aberta' : ''}">${janela ? 'Janela aberta' : 'Janela fechada'}</span>${cargoChip()}</div>
     ${s.demitido ? demitidoHtml() : fim ? `<section class="cartao escuro fim-temporada"><h2>Fim da temporada ${s.ano}</h2><p>${esc(c.n)} terminou em <b>${pos + 1}º</b> na Série ${d}${pos < 4 && d !== 'A' ? ' e <b>subiu</b>' : pos >= 16 && d !== 'C' ? ' e <b>caiu</b>' : ''}. Campeão: <b>${esc(clube(tab[0].clube).n)}</b>.${s.copa?.campeao != null ? ` Copa do Brasil: <b>${esc(clube(s.copa.campeao).n)}</b>.` : ''}</p>
@@ -699,6 +714,29 @@ Gala.configurar({ app, clube, esc, imgEscudo, render: () => render() });
 Jornal.configurar({ app, clube, esc, imgEscudo, render: () => render() });
 Mercado.configurar({ app, clube, esc, imgEscudo, $, aviso, render: () => render(), salvar: () => salvar() });
 Elenco.configurar({ app, clube, esc, imgEscudo, figurinha, render: () => render(), salvar: () => salvar(), aviso });
+// mensagens: arrastar para a esquerda apaga
+let arrasto = null;
+document.addEventListener('pointerdown', e => {
+  const m = e.target.closest?.('.caixa-msgs .msg');
+  if (m && !e.target.closest('button, a, select')) arrasto = { m, x: e.clientX, y: e.clientY, dx: 0, lado: null };
+});
+document.addEventListener('pointermove', e => {
+  if (!arrasto) return;
+  const dx = e.clientX - arrasto.x, dy = e.clientY - arrasto.y;
+  if (!arrasto.lado && Math.hypot(dx, dy) > 8) arrasto.lado = Math.abs(dx) > Math.abs(dy) ? 'x' : 'y';
+  if (arrasto.lado !== 'x') return;
+  arrasto.dx = Math.min(0, dx);
+  arrasto.m.style.transform = `translateX(${arrasto.dx}px)`; arrasto.m.style.opacity = String(Math.max(0.3, 1 + arrasto.dx / 300));
+});
+const soltar = () => {
+  if (!arrasto) return;
+  const { m, dx } = arrasto; arrasto = null;
+  if (dx < -Math.min(120, m.offsetWidth * 0.35)) {
+    m.style.transition = 'transform .2s, opacity .2s'; m.style.transform = 'translateX(-110%)'; m.style.opacity = '0';
+    setTimeout(() => { app.s.msgs = (app.s.msgs || []).filter(x => x.id !== m.dataset.msg); salvar(); render(); }, 200);
+  } else { m.style.transition = 'transform .15s'; m.style.transform = ''; m.style.opacity = ''; setTimeout(() => { m.style.transition = ''; }, 160); }
+};
+document.addEventListener('pointerup', soltar); document.addEventListener('pointercancel', soltar);
 document.addEventListener('change', e => {
   if (e.target.matches?.('[data-reg-sel]')) { app.abaReg = e.target.value; return render(); }
   if (app.s && Elenco.aoMudar(e.target)) e.stopPropagation();

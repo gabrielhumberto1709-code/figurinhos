@@ -4,7 +4,8 @@
 import { rng, pick, clamp, shuffle } from './util.js';
 import { tabela, janelaAberta, proximoEvento, previa, escalacao, compProxima } from './mundo.js';
 import { confronto, sequencia, resumoConfronto } from './confrontos.js';
-import { F_MATA, F_FIN } from './continental.js';
+import { F_MATA, F_FIN, FASES_CONT } from './continental.js';
+import { FASES } from './copa.js';
 import { REGIONAIS } from './regionais.js';
 // estadual é masculino (o Campeonato Paulista, o Paulistão); copa é feminino
 const ARTIGO = comp => /^(Campeonato|Paulista)/.test(comp) ? { na: 'no', da: 'do', pela: 'pelo' } : { na: 'na', da: 'da', pela: 'pela' };
@@ -154,7 +155,7 @@ function contexto(base, s) {
   const ult = l.ultimos, seq = (r) => { let n = 0; for (let i = ult.length - 1; i >= 0 && ult[i] === r; i--) n++; return n; };
   const top = base.elencos[ci].slice().sort((a, b) => b.ovr - a.ovr).slice(0, 14);
   const prox = proximoEvento(base, s);
-  const mataMata = (u.div === 'copa' && u.copa !== 'Final · ida') || u.div === 'SUP' || (['LIB', 'SUL'].includes(u.div) && !/Grupos/.test(u.copa || '')) || (REGIONAIS[u.div] && !/rodada$|· ida$/.test(u.copa || ''));
+  const mataMata = (u.div === 'copa' && !/· ida$/.test(u.copa || '')) || u.div === 'SUP' || (['LIB', 'SUL'].includes(u.div) && !/Grupos|· ida$/.test(u.copa || '')) || (REGIONAIS[u.div] && !/rodada$|· ida$/.test(u.copa || ''));
   const final = u.div === 'SUP' || /Final · volta$|· Final$/.test(u.copa || '');
   return {
     ci, adv, my, ot, venceu, perdeu, classico: rivais(base, u.casa, u.fora), placar: `${u.gols[0]} a ${u.gols[1]}`, notas, d, tab, l, pos, P: pilares(base, s), meta: metaDiretoria(base, s),
@@ -274,7 +275,7 @@ export function abrirColetivaPre(base, s) {
   const comp = compProxima(base, s), top = base.elencos[ci].slice().sort((a, b) => b.ovr - a.ovr).slice(0, 8), fora = top.find(j => indisponivel(s, j.id, comp));
   const d = base.clubes[ci].div, tab = tabela(base, s, d), l = tab.find(x => x.clube === ci), pos = tab.indexOf(l) + 1, ult = l.ultimos;
   const seq = x => { let n = 0; for (let i = ult.length - 1; i >= 0 && ult[i] === x; i--) n++; return n; };
-  const mataMata = ev.tipo === 'copa' || ev.tipo === 'sup' || (ev.tipo === 'cont' && ev.fase >= F_MATA) || (ev.tipo === 'reg' && ev.mataMata), final = ev.tipo === 'sup' || (ev.tipo === 'cont' && ev.fase === F_FIN) || (ev.tipo === 'reg' ? ev.final : /Final/.test(ev.titulo));
+  const mataMata = (ev.tipo === 'copa' && FASES[ev.fase].perna === 'volta') || ev.tipo === 'sup' || (ev.tipo === 'cont' && ev.fase >= F_MATA && FASES_CONT[ev.fase].perna !== 'ida') || (ev.tipo === 'reg' && ev.mataMata), final = ev.tipo === 'sup' || (ev.tipo === 'cont' && ev.fase === F_FIN) || (ev.tipo === 'reg' ? ev.final : /Final/.test(ev.titulo));
   const compNome = ev.tipo === 'copa' ? 'Copa do Brasil' : ev.titulo.split(' · ')[0];
   const w = {
     preClassico: rivais(base, ev.h, ev.a) ? 9 : 0, preFavorito: p.vitoria >= 55 ? 4 : 0, preZebra: p.vitoria <= 25 ? 5 : 0,

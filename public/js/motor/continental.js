@@ -1,5 +1,6 @@
 // Libertadores e Sul-Americana: 32 clubes em 8 grupos de 4 (turno e returno), como na Conmebol; os 2 primeiros vão
-// às oitavas; oitavas, quartas e semi em jogo único na casa de quem fez mais pontos nos grupos; final em campo neutro.
+// às oitavas; oitavas, quartas e semi em ida e volta, com a volta na casa de quem fez mais pontos nos grupos; final
+// única em campo neutro.
 // Em 2026 os grupos são os do sorteio real; depois, sorteio com potes pela força.
 // Supercopa do Brasil: campeão da Série A × campeão da Copa do Brasil, no começo de fevereiro (no meio dos estaduais).
 // Clubes de fora entram com o elenco real completado por jogadores gerados (só existem nesses jogos).
@@ -13,15 +14,13 @@ export const TORNEIOS = {
   SUL: { nome: 'Sul-Americana', br: 6, premio: { grupos: 9e5, vitoria: 1.2e5, oit: 4e5, qua: 6e5, sem: 1e6, fin: 1.5e6, vice: 0, campeao: 5e6 } },
 };
 export const PREMIO_SUP = { campeao: 3e6, vice: 1e6 };
-// 6 rodadas de grupos e 4 de mata-mata, na quarta-feira livre depois da rodada "apos" do Brasileirão
+// 6 rodadas de grupos, mata-mata em ida e volta e final única, na quarta-feira livre depois da rodada "apos" do Brasileirão
 export const FASES_CONT = [
   ...[0, 1, 2, 3, 4, 5].map(i => ({ k: 'g', nome: `Grupos · ${i + 1}ª rodada`, curto: `Grupos ${i + 1}` })),
-  { k: 'oit', nome: 'Oitavas de final', curto: 'Oitavas' },
-  { k: 'qua', nome: 'Quartas de final', curto: 'Quartas' },
-  { k: 'sem', nome: 'Semifinal', curto: 'Semi' },
+  ...[['oit', 'Oitavas de final', 'Oitavas'], ['qua', 'Quartas de final', 'Quartas'], ['sem', 'Semifinal', 'Semi']].flatMap(([k, nome, curto]) => ['ida', 'volta'].map(perna => ({ k, perna, nome: `${nome} · ${perna}`, curto: `${curto} (${perna})` }))),
   { k: 'fin', nome: 'Final', curto: 'Final' },
 ].map((f, i) => ({ ...f, apos: APOS_CONT[i] }));
-export const F_MATA = 6, F_OIT = 6, F_QUA = 7, F_SEM = 8, F_FIN = 9, N_GRUPOS = 8;
+export const F_MATA = 6, F_OIT = 6, F_QUA = 8, F_SEM = 10, F_FIN = 12, N_GRUPOS = 8;
 export const dataCont = (_, ano, i) => diaCont(ano, i);
 export const dataSup = (_, ano) => diaSup(ano);
 // cada par se enfrenta em casa e fora
@@ -122,38 +121,45 @@ export const naCont = (s, k, ci) => { const T = s.cont?.[k]; if (!T || T.fase >=
 export const supDevida = s => !!s.cont?.sup && !s.cont.sup.jogo && s.cont.ano === s.ano;
 export const emQualCont = (s, ci) => ['LIB', 'SUL'].find(k => s.cont?.[k] && (s.cont[k].grupos.some(g => g.includes(ci)))) || null;
 
-// jogo do clube numa fase (grupos: dá para saber de antemão; mata-mata: só quando a chave existe)
+// mata-mata: chave = [quem fez mais pontos nos grupos, outro]; o melhor manda a volta (e a ida fica com o outro)
+const mando = (f, [x, y]) => FASES_CONT[f].perna === 'ida' ? [y, x] : [x, y];
+// jogo do clube numa fase (grupos: dá para saber de antemão; mata-mata: quando a chave existe, ida e volta)
 export function jogoDoClube(T, f, ci) {
   if (f < F_MATA) { const g = T.grupos.find(x => x.includes(ci)); if (!g) return null; const p = RODADAS_G[f].find(([x, y]) => g[x] === ci || g[y] === ci); return [g[p[0]], g[p[1]]]; }
-  return f === T.fase ? T.chaves.find(c => c.includes(ci)) || null : null;
+  const ok = f === T.fase || (FASES_CONT[f].perna === 'volta' && f === T.fase + 1), c = ok && T.chaves.find(x => x.includes(ci));
+  return c ? mando(f, c) : null;
 }
 export function jogosDaFase(T) {
   if (T.fase < F_MATA) return T.grupos.flatMap(g => RODADAS_G[T.fase].map(([x, y]) => [g[x], g[y]]));
-  return T.chaves.map(c => c.slice());
+  return T.chaves.map(c => mando(T.fase, c));
 }
+// gols da ida, vistos pelo mandante da volta
+export function agregadoCont(T, h, a) { const ida = T.jogos.find(j => j.fase === T.fase - 1 && j.h === a && j.a === h); return ida ? [ida.gols[1], ida.gols[0]] : [0, 0]; }
 export function tabelaGrupo(T, g) {
-  const L = new Map(T.grupos[g].map(c => [c, { clube: c, p: 0, j: 0, v: 0, e: 0, d: 0, gp: 0, gc: 0 }]));
+  const L = new Map(T.grupos[g].map(c => [c, { clube: c, p: 0, j: 0, v: 0, e: 0, d: 0, gp: 0, gc: 0, ult: [] }]));
   for (const j of T.jogos) if (j.fase < F_MATA && L.has(j.h) && L.has(j.a)) {
     const H = L.get(j.h), A = L.get(j.a), [x, y] = j.gols;
     H.j++; A.j++; H.gp += x; H.gc += y; A.gp += y; A.gc += x;
+    H.ult.push(x > y ? 'V' : x < y ? 'D' : 'E'); A.ult.push(y > x ? 'V' : y < x ? 'D' : 'E');
     if (x > y) { H.v++; H.p += 3; A.d++; } else if (x < y) { A.v++; A.p += 3; H.d++; } else { H.e++; A.e++; H.p++; A.p++; }
   }
   return [...L.values()].map(l => ({ ...l, sg: l.gp - l.gc })).sort((a, b) => b.p - a.p || b.sg - a.sg || b.gp - a.gp || b.v - a.v || a.clube - b.clube);
 }
 const pontosGrupo = (T, c) => { for (let g = 0; g < T.grupos.length; g++) { const l = tabelaGrupo(T, g).find(x => x.clube === c); if (l) return l.p * 100 + l.sg; } return 0; };
 
-// mata-mata: empate vai para os pênaltis (mesma semente da súmula ao vivo)
+// mata-mata: decide na volta pelo agregado (na final, o jogo único); empate vai para os pênaltis (mesma semente da súmula)
 export function decidirCont(T, fase, h, a, gols, seed, campo) {
-  if (fase < F_MATA) return {};
-  if (gols[0] !== gols[1]) return { vencedor: gols[0] > gols[1] ? h : a, perdedor: gols[0] > gols[1] ? a : h };
+  if (fase < F_MATA || FASES_CONT[fase].perna === 'ida') return {};
+  const volta = FASES_CONT[fase].perna === 'volta', ag = volta ? agregadoCont(T, h, a) : [0, 0], t = [gols[0] + ag[0], gols[1] + ag[1]], agg = volta ? t : null;
+  if (t[0] !== t[1]) return { vencedor: t[0] > t[1] ? h : a, perdedor: t[0] > t[1] ? a : h, agg };
   const pen = penaltis(seed, campo);
-  return { vencedor: pen[0] > pen[1] ? h : a, perdedor: pen[0] > pen[1] ? a : h, pen: [pen[0], pen[1]], seq: pen.seq };
+  return { vencedor: pen[0] > pen[1] ? h : a, perdedor: pen[0] > pen[1] ? a : h, pen: [pen[0], pen[1]], seq: pen.seq, agg };
 }
 // fecha a fase: grupos viram oitavas (1º de um grupo × 2º do vizinho: A×B, C×D...); depois os vencedores se cruzam;
 // a final (campo neutro) define o campeão
 export function avancarCont(T, vencedores) {
   const f = T.fase++;
-  if (f < F_MATA - 1) return;
+  if (f < F_MATA - 1 || FASES_CONT[f].perna === 'ida') return;
   const casa = (x, y) => pontosGrupo(T, x) >= pontosGrupo(T, y) ? [x, y] : [y, x];
   if (f === F_MATA - 1) {
     const t = T.grupos.map((g, i) => tabelaGrupo(T, i));
@@ -161,7 +167,7 @@ export function avancarCont(T, vencedores) {
     return;
   }
   if (f === F_FIN) { T.campeao = vencedores[0]; T.vice = T.chaves[0].find(c => c !== T.campeao); T.chaves = []; return; }
-  T.chaves = []; for (let i = 0; i < vencedores.length; i += 2) T.chaves.push(f === F_SEM ? [vencedores[i], vencedores[i + 1]] : casa(vencedores[i], vencedores[i + 1]));
+  T.chaves = []; for (let i = 0; i < vencedores.length; i += 2) T.chaves.push(f === F_SEM + 1 ? [vencedores[i], vencedores[i + 1]] : casa(vencedores[i], vencedores[i + 1]));
 }
 
 export function campanhaCont(s, k, ci) {
@@ -170,5 +176,5 @@ export function campanhaCont(s, k, ci) {
   if (T.vice === ci) return 'Vice-campeão';
   if (naCont(s, k, ci)) return T.fase < F_MATA ? 'Fase de grupos' : `Na disputa (${FASES_CONT[T.fase].curto})`;
   const ult = T.jogos.filter(j => j.h === ci || j.a === ci).at(-1);
-  return ult && ult.fase >= F_MATA ? `Eliminado ${{ [F_OIT]: 'nas oitavas', [F_QUA]: 'nas quartas', [F_SEM]: 'na semifinal' }[ult.fase]}` : 'Eliminado na fase de grupos';
+  return ult && ult.fase >= F_MATA ? `Eliminado ${{ oit: 'nas oitavas', qua: 'nas quartas', sem: 'na semifinal' }[FASES_CONT[ult.fase].k]}` : 'Eliminado na fase de grupos';
 }

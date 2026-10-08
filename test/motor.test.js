@@ -259,9 +259,14 @@ test('copa do brasil: 32 clubes, mata-mata até a final, campeão e prêmios', (
   assert.ok(fimDeTemporada(s));
   assert.equal(s.copa.fase, FASES.length);
   assert.ok(s.copa.campeao != null && s.copa.vice != null && s.copa.campeao !== s.copa.vice);
-  assert.equal(s.copa.jogos.length, 16 + 8 + 4 + 2 + 1 + 1);
-  for (const j of s.copa.jogos.filter(x => x.fase < 4)) assert.ok(j.gols[0] !== j.gols[1] || j.pen, 'jogo único empatado precisa de pênaltis');
-  assert.ok(jogosCopa >= 1 && jogosCopa <= 6);
+  assert.equal(s.copa.jogos.length, 2 * (16 + 8 + 4 + 2 + 1));
+  // tudo em ida e volta: agregado empatado vai para os pênaltis, decididos na volta
+  for (const v of s.copa.jogos.filter(x => FASES[x.fase].perna === 'volta')) {
+    const ida = s.copa.jogos.find(x => x.fase === v.fase - 1 && x.h === v.a && x.a === v.h);
+    assert.ok(ida, 'a volta inverte o mando da ida');
+    if (v.gols[0] + ida.gols[1] === v.gols[1] + ida.gols[0]) assert.ok(v.pen, 'agregado empatado precisa de pênaltis');
+  }
+  assert.ok(jogosCopa >= 2 && jogosCopa <= 10 && jogosCopa % 2 === 0);
   if (s.copa.campeao === ci) assert.ok(s.fin.extrato.some(e => e.desc.includes('campeão')));
   assert.deepEqual(penaltis('x'), penaltis('x'));
 });
@@ -378,7 +383,7 @@ test('continentais: grupos completos, mata-mata até o campeão, prêmios e vaga
     assert.equal(T.fase, FASES_CONT.length);
     assert.ok(T.campeao != null && T.vice != null && T.campeao !== T.vice);
     for (let g = 0; g < 8; g++) assert.ok(tabelaGrupo(T, g).every(l => l.j === 6));
-    assert.equal(T.jogos.length, 96 + 8 + 4 + 2 + 1);
+    assert.equal(T.jogos.length, 96 + 2 * (8 + 4 + 2) + 1);
   }
   assert.ok(s.cont.sup.jogo?.campeao != null);
   assert.ok(s.fin.extrato.some(e => e.desc.includes('Libertadores: cota da fase de grupos')));
@@ -530,7 +535,7 @@ test('eventos: afastado sai da escalação e cumpre os jogos; julgamento de dopi
   assert.ok(ev >= 4 && ev <= 18, `eventos em 30 rodadas: ${ev}`);
 });
 
-import { valorNaTroca, travado, podeSair, conversaFechada, rescindir, multaRescisao, exercerOpcao, chamarDeVolta, emprestar, pedirMais, abrirLeilao, resolverMercado, alternarLista } from '../public/js/motor/mercado.js';
+import { valorNaTroca, travado, podeSair, conversaFechada, rescindir, multaRescisao, exercerOpcao, chamarDeVolta, emprestar, pedirMais, abrirLeilao, resolverMercado, alternarLista, LIMITE_ELENCO } from '../public/js/motor/mercado.js';
 import { janelaAberta } from '../public/js/motor/mundo.js';
 test('mercado extras: troca, trava de 14 jogos, acordo com janela fechada, 3 recusas, rescisão, opção, volta, contraproposta, leilão e gigantes', () => {
   const ci = base.clubes.findIndex(c => c.n === 'Palmeiras'), s = novoJogo(base, { ...cfg(23), clube: ci });
@@ -872,7 +877,7 @@ test('regionais: amistosos, estaduais e copas regionais reais antes do Brasileir
   const go = s.reg.GO.etapas[0], vs = new Set(go.rodadas.flat().map(([h, a]) => [h, a].sort().join('-')));
   assert.equal(vs.size, 48);
   assert.ok(go.grupos.every(g => g.every(x => g.every(y => x === y || !vs.has([x, y].sort().join('-'))))));
-  assert.ok(janelaAberta(2026, 0) && !janelaAberta(2026, 1));
+  assert.ok(janelaAberta(2026, 0) && janelaAberta(2026, 2) && !janelaAberta(2026, 3), 'janela do 1º amistoso até a 3ª rodada');
   while (s.rodada < 1) avancar(base, s);
   for (const k of Object.keys(REGIONAIS)) {
     const T = s.reg[k], F = fasesReg(k);
@@ -896,4 +901,25 @@ test('regionais: amistosos, estaduais e copas regionais reais antes do Brasileir
   assert.equal(s.reg.ano, s.ano);
   assert.ok(sobem.every(c => s.reg.SP.clubes.includes(c)) && caem.every(c => s.reg.SP2.clubes.includes(c)));
   assert.ok(s.historico[0].reg?.campeoes.BA != null);
+});
+
+import { torcidaAposJogo } from '../public/js/motor/carreira.js';
+test('clássico perdido revolta a torcida (protesto, diretoria em goleada); empréstimo com a janela fechada vira acordo; elenco até 45', () => {
+  const s = novoJogo(base, cfg(141)), ci = s.tecnico.clube;
+  const t0 = s.torcida ?? 55, d0 = s.fin.diretoria;
+  torcidaAposJogo(s, ci, ci, [0, 4], { classico: true });
+  assert.ok(s.torcida < t0 - 8 && s.fin.diretoria < d0 && s.revolta.protesto && s.revolta.diretoria);
+  correioF(base, s);
+  assert.ok(s.noticias.some(n => /protestaram/.test(n.texto)) && s.msgs.some(m => m.assunto === 'Protesto da torcida'));
+  // empréstimo acertado com a janela fechada chega quando ela abrir
+  s.rodada = 5; s.fin.salarioBudget = folhaDia(base, s) * 3;
+  const alvo = [...base.jog.values()].filter(j => j.clube !== ci && base.clubes[j.clube].div === 'A' && j.idade <= 21 && vontade(base, s, j, ci) >= 60).sort((a, b) => a.ovr - b.ovr)[0];
+  assert.equal(bloqueioProposta(base, s, alvo, { tipo: 'emprestimo', salario: salarioPedido(base, s, alvo, 1), anos: 1 }), null);
+  s.acordos = [{ tipo: 'emprestimo', jogador: alvo.id, de: alvo.clube, cl: null }];
+  resolverMercado(base, s, 5);
+  assert.notEqual(alvo.clube, ci, 'não chega com a janela fechada');
+  let r = 5; while (!janelaAberta(s.ano, r + 1)) r++;
+  s.rodada = r; resolverMercado(base, s, r);
+  assert.equal(alvo.clube, ci); assert.ok(s.emprestimos[alvo.id]);
+  assert.equal(LIMITE_ELENCO, 45);
 });

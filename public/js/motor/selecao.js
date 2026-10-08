@@ -3,7 +3,7 @@
 import { clamp, PAISES } from './util.js';
 import { faseDe } from './forma.js';
 
-export const DATAS_FIFA = [17, 23, 30];   // rodada do Brasileirão em que sai a convocação (setembro, outubro e novembro; a de março cai nos regionais)
+export const DATAS_FIFA = [17, 24, 30];   // rodada do Brasileirão em que sai a convocação (setembro, outubro e novembro; a de março cai nos regionais)
 export const ESTRUTURA = { GOL: 3, ZAG: 4, LD: 2, LE: 2, VOL: 3, MC: 2, MEI: 2, PE: 2, PD: 2, CA: 4 };
 const BR = ['A', 'B', 'C'];
 const lista = n => n.length <= 1 ? n.join('') : `${n.slice(0, -1).join(', ')} e ${n.at(-1)}`;

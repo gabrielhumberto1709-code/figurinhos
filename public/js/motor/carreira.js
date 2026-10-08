@@ -43,6 +43,15 @@ export function torcidaAposJogo(s, ci, h, gols, { pen = null, mataMata = false, 
   if (Math.abs(my - ot) >= 3) v += won ? 2 : -2;
   if (classico) v *= 1.6;
   v += (55 - s.torcida) * 0.08;
+  // clássico perdido: a torcida se revolta (mais ainda em goleada ou em sequência) e, às vezes, a diretoria também cobra
+  if (classico) s.classicos = lost ? (s.classicos || 0) + 1 : 0;
+  if (classico && lost) {
+    const goleada = ot - my >= 3, seguidos = s.classicos >= 2;
+    v -= 3 + (goleada ? 3 : 0) + (seguidos ? 2 : 0);
+    const protesto = goleada || seguidos || s.torcida < 45, diretoria = goleada || (seguidos && s.torcida < 50);
+    if (diretoria && s.fin) s.fin.diretoria = clamp((s.fin.diretoria ?? 60) - (goleada ? 6 : 4), 0, 100);
+    s.revolta = { ano: s.ano, rodada: s.rodada, id: `${s.ano}-${s.rodada}-${h}-${gols.join('x')}`, placar: [my, ot], goleada, seguidos: s.classicos, protesto, diretoria, avisada: false };
+  }
   s.torcida = clamp(Math.round((s.torcida + v) * 10) / 10, 0, 100);
 }
 

@@ -15,7 +15,7 @@ import { orcamento, lancar, garantirFinancas, salarioDia, salarioBase, diasResta
 
 const arred = v => Math.max(50000, Math.round(v / 10000) * 10000);
 const arredSal = v => Math.max(10, Math.round(v / 10) * 10);
-export const LIMITE_ELENCO = 40, MINIMO_ELENCO = 18, ABRE_PRE = 19, MAX_PRE = 5, TRAVA = 14;
+export const LIMITE_ELENCO = 45, MINIMO_ELENCO = 18, ABRE_PRE = 19, MAX_PRE = 5, TRAVA = 14;
 const ehLivre = (base, ci) => base.clubes[ci].div === 'L';
 const BR = ['A', 'B', 'C'];
 const fmt = v => v >= 1e6 ? `€ ${(v / 1e6).toFixed(1).replace('.', ',').replace(',0', '')} mi` : `€ ${Math.round(v / 1000)} mil`;
@@ -152,7 +152,6 @@ export function bloqueioProposta(base, s, j, o) {
   if (s.emprestimos[j.id] && o.tipo !== 'pre') return 'Está emprestado até o fim da temporada.';
   if (o.tipo === 'pre' && s.rodada >= ABRE_PRE && vaiAposentar(s, j)) return 'Ele vai se aposentar no fim da temporada.';
   if (!tiposPossiveis(base, s, j).includes(o.tipo)) return o.tipo === 'pre' ? `Pré-contrato só com contrato no fim, a partir da ${ABRE_PRE + 1}ª rodada (metade do Brasileirão). Ele chega na temporada seguinte.` : o.tipo === 'emprestimo' ? 'Esse clube não empresta.' : 'Esse tipo de proposta não vale para ele.';
-  if (o.tipo === 'emprestimo' && !janela) return 'A janela de transferências está fechada.'; // compra com a janela fechada vira acordo
   if (o.tipo === 'emprestimo' && (o.cl?.taxa || 0) > s.caixa) return 'A taxa de empréstimo passa do que tem em caixa.';
   const t = o.troca && base.jog.get(o.troca);
   if (o.troca) {
@@ -424,6 +423,7 @@ export function cumprirAcordos(base, s, add) {
   for (const a of (s.acordos || []).splice(0)) {
     const j = base.jog.get(a.jogador), t = a.troca && base.jog.get(a.troca);
     if (!j || j.clube !== a.de || (t && t.clube !== meu)) { add(`O acordo por ${j?.curto || 'um reforço'} caiu: a situação mudou antes de a janela abrir.`); continue; }
+    if (a.tipo === 'emprestimo') { emprestar(base, s, j, meu, a.cl); add(`Chegou: ${j.curto}, emprestado pelo ${base.clubes[a.de].n} (acertado com a janela fechada).`); continue; }
     if (t) { transferir(base, s, t, a.de, 0); s.historicoTransf[0].tipo = 'troca'; }
     transferir(base, s, j, meu, a.valor, { salario: a.salario, anos: a.anos });
     add(`Chegou: ${j.curto}, acertado com o ${base.clubes[a.de].n} com a janela fechada.`);
@@ -644,7 +644,7 @@ export function resolverMercado(base, s, rd, semana = 0) {
     if (preContratoDe(s, j.id)) { p.estado = 'cancelada'; p.motivo = 'assinou pré-contrato com outro clube'; continue; }
     if (p.troca && (!t || t.clube !== meu)) { p.estado = 'cancelada'; p.motivo = 'o jogador da troca não está mais no elenco'; continue; }
     if (t && vontade(base, s, t, j.clube) < 35) { falha(`${t.curto} não quer ir para o ${nome(j.clube)}`, `${t.curto} não aceita ir para o ${nome(j.clube)} na troca por ${j.curto}.`); continue; }
-    const fechada = tipo === 'compra' && !aberta(rd + 1), vt = t ? valorNaTroca(base, s, t, j.clube) : 0;
+    const fechada = ['compra', 'emprestimo'].includes(tipo) && !aberta(rd + 1), vt = t ? valorNaTroca(base, s, t, j.clube) : 0;
     if (tipo !== 'livre' && !p.clubeOk && rivais(base, j.clube, meu) && r() < 0.9) { falha('o clube não negocia com o rival', `O ${nome(j.clube)} nem abre conversa: não negocia ${j.curto} com o rival.`); continue; }
     if (tipo === 'compra' && !p.clubeOk && !p.aceitouContra) {
       const pedido = Math.min(precoPedido(base, s, j), p.pedido || Infinity); // o clube honra o preço que pediu na hora da proposta
@@ -688,6 +688,7 @@ export function resolverMercado(base, s, rd, semana = 0) {
     p.estado = 'concluida';
     const pago = `${p.valor ? fmt(p.valor) : ''}${p.valor && t ? ' + ' : ''}${t ? `${t.curto} na troca` : ''}`;
     if (tipo === 'pre') { s.preContratos.push({ jogador: j.id, de, para: meu, salario: p.salario, anos: p.anos, rodada: rd }); add(`Pré-contrato assinado: ${j.curto} chega do ${nome(de)} em janeiro de ${s.ano + 1}.`); }
+    else if (tipo === 'emprestimo' && fechada) { p.motivo = 'chega quando a janela abrir'; s.acordos.push({ tipo: 'emprestimo', jogador: j.id, de, cl: p.cl || limpaCl(base, s, j) }); add(`Empréstimo acertado: ${j.curto} chega do ${nome(de)} quando a janela abrir.`); }
     else if (tipo === 'emprestimo') { const cl = p.cl || limpaCl(base, s, j), res = resumoCl(cl); emprestar(base, s, j, meu, cl); add(`Reforço por empréstimo: ${j.curto} chega do ${nome(de)} até o fim da temporada${res ? ` (${res})` : ''}.`); }
     else if (fechada) { p.motivo = 'chega quando a janela abrir'; s.acordos.push({ jogador: j.id, de, valor: p.valor, salario: p.salario, anos: p.anos, troca: p.troca || 0 }); add(`Acordo fechado: ${j.curto} chega do ${nome(de)} (${pago}) quando a janela abrir.`); }
     else {

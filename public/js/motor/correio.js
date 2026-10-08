@@ -58,6 +58,14 @@ export function correio(base, s) {
     const pend = el.filter(j => pendurado(s, j.id, comp) && !indisponivel(s, j.id, comp));
     if (pend.length) enviar(s, 'diretor', `pend-${tag}`, 'Pendurados', `${lista(pend.map(j => j.curto))} ${pend.length > 1 ? 'estão pendurados' : 'está pendurado'} ${COMP_DE[comp] || ''}. Mais um amarelo e ${pend.length > 1 ? 'ficam' : 'fica'} fora do jogo seguinte.`, { link: '#/dm' });
   }
+  // revolta depois de clássico perdido
+  const rv = s.revolta;
+  if (rv && !rv.avisada && rv.ano === s.ano) {
+    rv.avisada = true;
+    const tx = rv.protesto ? (rv.goleada ? `Torcedores protestaram na porta do CT depois do ${rv.placar[0]} a ${rv.placar[1]} no clássico, com faixas cobrando elenco e comissão técnica.` : `Torcedores protestaram na saída do estádio depois de mais uma derrota no clássico${rv.seguidos >= 2 ? ` (${rv.seguidos} seguidas)` : ''}.`) : `A torcida não engoliu a derrota no clássico: muita vaia e cobrança nas redes.`;
+    s.noticias.unshift({ rodada: s.rodada, tipo: 'clube', clube: ci, imprensa: true, div: base.clubes[ci].div, texto: `${tx}${rv.diretoria ? ' A diretoria se reuniu e o clima esquentou.' : ''}` });
+    enviar(s, rv.diretoria ? 'presidente' : 'diretor', `revolta-${rv.id}`, rv.protesto ? 'Protesto da torcida' : 'Clássico perdido', `${tx} ${rv.diretoria ? 'Professor, perder clássico desse jeito pesa aqui em cima também. Preciso de uma resposta já no próximo jogo.' : 'Clássico é outro campeonato pra eles. O próximo precisa ser diferente.'}`, { link: '#/clube' });
+  }
   // convocados para a data FIFA
   const cv = s.convocados, conv = cv?.ano === s.ano && s.rodada < cv.ate ? cv.ids.map(id => base.jog.get(id)).filter(j => j?.clube === ci) : [];
   if (conv.length) enviar(s, 'diretor', `fifa-${s.ano}-${cv.rodada}`, 'Data FIFA', `${lista(conv.map(j => j.curto))} ${conv.length > 1 ? 'foram convocados e ficam' : 'foi convocado e fica'} fora das próximas 2 rodadas. É vitrine para o clube, mas o time sente.`, { link: '#/elenco' });

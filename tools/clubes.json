@@ -713,7 +713,7 @@
    "liga": "Série D",
    "tier": 0,
    "nat": "BRA",
-   "lvl": 52
+   "lvl": 47
   },
   {
    "n": "Sousa",
@@ -734,7 +734,7 @@
    "liga": "Série D",
    "tier": 0,
    "nat": "BRA",
-   "lvl": 51
+   "lvl": 46
   },
   {
    "n": "Fluminense-PI",
@@ -755,7 +755,7 @@
    "liga": "Série D",
    "tier": 0,
    "nat": "BRA",
-   "lvl": 49
+   "lvl": 44
   },
   {
    "n": "Juazeirense",
@@ -776,7 +776,7 @@
    "liga": "Série D",
    "tier": 0,
    "nat": "BRA",
-   "lvl": 51
+   "lvl": 46
   },
   {
    "n": "Piauí",
@@ -797,7 +797,7 @@
    "liga": "Série D",
    "tier": 0,
    "nat": "BRA",
-   "lvl": 50
+   "lvl": 45
   },
   {
    "n": "América-RN",
@@ -818,7 +818,7 @@
    "liga": "Série D",
    "tier": 0,
    "nat": "BRA",
-   "lvl": 55
+   "lvl": 50
   },
   {
    "n": "Imperatriz",
@@ -839,7 +839,7 @@
    "liga": "Série D",
    "tier": 0,
    "nat": "BRA",
-   "lvl": 50
+   "lvl": 45
   },
   {
    "n": "Ferroviário",
@@ -860,7 +860,7 @@
    "liga": "Série D",
    "tier": 0,
    "nat": "BRA",
-   "lvl": 54
+   "lvl": 49
   },
   {
    "n": "Retrô",
@@ -881,7 +881,7 @@
    "liga": "Série D",
    "tier": 0,
    "nat": "BRA",
-   "lvl": 54
+   "lvl": 49
   },
   {
    "n": "ABC",
@@ -902,7 +902,7 @@
    "liga": "Série D",
    "tier": 0,
    "nat": "BRA",
-   "lvl": 56
+   "lvl": 51
   },
   {
    "n": "Jacuipense",
@@ -923,7 +923,7 @@
    "liga": "Série D",
    "tier": 0,
    "nat": "BRA",
-   "lvl": 50
+   "lvl": 45
   },
   {
    "n": "Sampaio Corrêa-RJ",
@@ -944,7 +944,7 @@
    "liga": "Série D",
    "tier": 0,
    "nat": "BRA",
-   "lvl": 52
+   "lvl": 47
   },
   {
    "n": "Tombense",
@@ -965,7 +965,7 @@
    "liga": "Série D",
    "tier": 0,
    "nat": "BRA",
-   "lvl": 55
+   "lvl": 50
   },
   {
    "n": "Cianorte",
@@ -986,7 +986,7 @@
    "liga": "Série D",
    "tier": 0,
    "nat": "BRA",
-   "lvl": 52
+   "lvl": 47
   },
   {
    "n": "Nacional-AM",
@@ -1007,7 +1007,7 @@
    "liga": "Série D",
    "tier": 0,
    "nat": "BRA",
-   "lvl": 51
+   "lvl": 46
   },
   {
    "n": "Independência",
@@ -1028,7 +1028,7 @@
    "liga": "Série D",
    "tier": 0,
    "nat": "BRA",
-   "lvl": 47
+   "lvl": 42
   },
   {
    "n": "Guaporé",
@@ -1049,7 +1049,7 @@
    "liga": "Série D",
    "tier": 0,
    "nat": "BRA",
-   "lvl": 47
+   "lvl": 42
   },
   {
    "n": "Trem",
@@ -1070,7 +1070,7 @@
    "liga": "Série D",
    "tier": 0,
    "nat": "BRA",
-   "lvl": 47
+   "lvl": 42
   },
   {
    "n": "Grêmio Sampaio",
@@ -1091,7 +1091,7 @@
    "liga": "Série D",
    "tier": 0,
    "nat": "BRA",
-   "lvl": 46
+   "lvl": 41
   },
   {
    "n": "Galvez",
@@ -1112,7 +1112,7 @@
    "liga": "Série D",
    "tier": 0,
    "nat": "BRA",
-   "lvl": 47
+   "lvl": 42
   },
   {
    "n": "Gazin Porto Velho",
@@ -1133,7 +1133,7 @@
    "liga": "Série D",
    "tier": 0,
    "nat": "BRA",
-   "lvl": 47
+   "lvl": 42
   },
   {
    "n": "Águia de Marabá",
@@ -1154,7 +1154,7 @@
    "liga": "Série D",
    "tier": 0,
    "nat": "BRA",
-   "lvl": 51
+   "lvl": 46
   },
   {
    "n": "Monte Roraima",
@@ -1175,7 +1175,7 @@
    "liga": "Série D",
    "tier": 0,
    "nat": "BRA",
-   "lvl": 46
+   "lvl": 41
   },
   {
    "n": "Primavera",
@@ -1196,7 +1196,7 @@
    "liga": "Série D",
    "tier": 0,
    "nat": "BRA",
-   "lvl": 49
+   "lvl": 44
   },
   {
    "n": "Capital-DF",
@@ -1217,7 +1217,7 @@
    "liga": "Série D",
    "tier": 0,
    "nat": "BRA",
-   "lvl": 51
+   "lvl": 46
   },
   {
    "n": "Rio Branco-ES",
@@ -1238,7 +1238,7 @@
    "liga": "Série D",
    "tier": 0,
    "nat": "BRA",
-   "lvl": 48
+   "lvl": 43
   },
   {
    "n": "Araguaína",
@@ -1259,7 +1259,7 @@
    "liga": "Série D",
    "tier": 0,
    "nat": "BRA",
-   "lvl": 48
+   "lvl": 43
   },
   {
    "n": "Operário-MS",
@@ -1280,7 +1280,7 @@
    "liga": "Série D",
    "tier": 0,
    "nat": "BRA",
-   "lvl": 49
+   "lvl": 44
   },
   {
    "n": "Gama",
@@ -1301,7 +1301,7 @@
    "liga": "Série D",
    "tier": 0,
    "nat": "BRA",
-   "lvl": 50
+   "lvl": 45
   },
   {
    "n": "Porto Vitória",
@@ -1322,7 +1322,7 @@
    "liga": "Série D",
    "tier": 0,
    "nat": "BRA",
-   "lvl": 48
+   "lvl": 43
   },
   {
    "n": "Tocantinópolis",
@@ -1343,7 +1343,7 @@
    "liga": "Série D",
    "tier": 0,
    "nat": "BRA",
-   "lvl": 46
+   "lvl": 41
   },
   {
    "n": "Atlético-BA",
@@ -1364,7 +1364,7 @@
    "liga": "Série D",
    "tier": 0,
    "nat": "BRA",
-   "lvl": 51
+   "lvl": 46
   },
   {
    "n": "Bahia de Feira",
@@ -1385,7 +1385,7 @@
    "liga": "Estadual",
    "tier": 0,
    "nat": "BRA",
-   "lvl": 47
+   "lvl": 42
   },
   {
    "n": "Barcelona de Ilhéus",
@@ -1406,7 +1406,7 @@
    "liga": "Estadual",
    "tier": 0,
    "nat": "BRA",
-   "lvl": 47
+   "lvl": 42
   },
   {
    "n": "Galícia",
@@ -1427,7 +1427,7 @@
    "liga": "Estadual",
    "tier": 0,
    "nat": "BRA",
-   "lvl": 47
+   "lvl": 42
   },
   {
    "n": "Jequié",
@@ -1448,7 +1448,7 @@
    "liga": "Estadual",
    "tier": 0,
    "nat": "BRA",
-   "lvl": 47
+   "lvl": 42
   },
   {
    "n": "Porto-BA",
@@ -1469,7 +1469,7 @@
    "liga": "Série D",
    "tier": 0,
    "nat": "BRA",
-   "lvl": 51
+   "lvl": 46
   },
   {
    "n": "Decisão",
@@ -1490,7 +1490,7 @@
    "liga": "Série D",
    "tier": 0,
    "nat": "BRA",
-   "lvl": 51
+   "lvl": 46
   },
   {
    "n": "Jaguar",
@@ -1511,7 +1511,7 @@
    "liga": "Estadual",
    "tier": 0,
    "nat": "BRA",
-   "lvl": 47
+   "lvl": 42
   },
   {
    "n": "Maguary",
@@ -1532,7 +1532,7 @@
    "liga": "Série D",
    "tier": 0,
    "nat": "BRA",
-   "lvl": 51
+   "lvl": 46
   },
   {
    "n": "Vitória das Tabocas",
@@ -1553,7 +1553,7 @@
    "liga": "Estadual",
    "tier": 0,
    "nat": "BRA",
-   "lvl": 47
+   "lvl": 42
   },
   {
    "n": "Horizonte",
@@ -1574,7 +1574,7 @@
    "liga": "Estadual",
    "tier": 0,
    "nat": "BRA",
-   "lvl": 47
+   "lvl": 42
   },
   {
    "n": "Iguatu",
@@ -1595,7 +1595,7 @@
    "liga": "Série D",
    "tier": 0,
    "nat": "BRA",
-   "lvl": 51
+   "lvl": 46
   },
   {
    "n": "Maracanã",
@@ -1616,7 +1616,7 @@
    "liga": "Série D",
    "tier": 0,
    "nat": "BRA",
-   "lvl": 51
+   "lvl": 46
   },
   {
    "n": "Maranguape",
@@ -1637,7 +1637,7 @@
    "liga": "Estadual",
    "tier": 0,
    "nat": "BRA",
-   "lvl": 47
+   "lvl": 42
   },
   {
    "n": "Quixadá",
@@ -1658,7 +1658,7 @@
    "liga": "Estadual",
    "tier": 0,
    "nat": "BRA",
-   "lvl": 47
+   "lvl": 42
   },
   {
    "n": "Tirol",
@@ -1679,7 +1679,7 @@
    "liga": "Série D",
    "tier": 0,
    "nat": "BRA",
-   "lvl": 51
+   "lvl": 46
   },
   {
    "n": "CSA",
@@ -1700,7 +1700,7 @@
    "liga": "Série D",
    "tier": 0,
    "nat": "BRA",
-   "lvl": 54
+   "lvl": 49
   },
   {
    "n": "CSE",
@@ -1721,7 +1721,7 @@
    "liga": "Série D",
    "tier": 0,
    "nat": "BRA",
-   "lvl": 50
+   "lvl": 45
   },
   {
    "n": "Coruripe",
@@ -1742,7 +1742,7 @@
    "liga": "Estadual",
    "tier": 0,
    "nat": "BRA",
-   "lvl": 46
+   "lvl": 41
   },
   {
    "n": "Cruzeiro-AL",
@@ -1763,7 +1763,7 @@
    "liga": "Estadual",
    "tier": 0,
    "nat": "BRA",
-   "lvl": 46
+   "lvl": 41
   },
   {
    "n": "Murici",
@@ -1784,7 +1784,7 @@
    "liga": "Estadual",
    "tier": 0,
    "nat": "BRA",
-   "lvl": 46
+   "lvl": 41
   },
   {
    "n": "Penedense",
@@ -1805,7 +1805,7 @@
    "liga": "Estadual",
    "tier": 0,
    "nat": "BRA",
-   "lvl": 46
+   "lvl": 41
   },
   {
    "n": "Sergipe",
@@ -1826,7 +1826,7 @@
    "liga": "Série D",
    "tier": 0,
    "nat": "BRA",
-   "lvl": 50
+   "lvl": 45
   },
   {
    "n": "Lagarto",
@@ -1847,7 +1847,7 @@
    "liga": "Série D",
    "tier": 0,
    "nat": "BRA",
-   "lvl": 50
+   "lvl": 45
   },
   {
    "n": "América de Propriá",
@@ -1868,7 +1868,7 @@
    "liga": "Estadual",
    "tier": 0,
    "nat": "BRA",
-   "lvl": 46
+   "lvl": 41
   },
   {
    "n": "Atlético Gloriense",
@@ -1889,7 +1889,7 @@
    "liga": "Estadual",
    "tier": 0,
    "nat": "BRA",
-   "lvl": 46
+   "lvl": 41
   },
   {
    "n": "Desportiva Aracaju",
@@ -1910,7 +1910,7 @@
    "liga": "Estadual",
    "tier": 0,
    "nat": "BRA",
-   "lvl": 46
+   "lvl": 41
   },
   {
    "n": "Dorense",
@@ -1931,7 +1931,7 @@
    "liga": "Estadual",
    "tier": 0,
    "nat": "BRA",
-   "lvl": 46
+   "lvl": 41
   },
   {
    "n": "Falcon",
@@ -1952,7 +1952,7 @@
    "liga": "Estadual",
    "tier": 0,
    "nat": "BRA",
-   "lvl": 46
+   "lvl": 41
   },
   {
    "n": "Guarany-SE",
@@ -1973,7 +1973,7 @@
    "liga": "Estadual",
    "tier": 0,
    "nat": "BRA",
-   "lvl": 46
+   "lvl": 41
   },
   {
    "n": "Treze",
@@ -1994,7 +1994,7 @@
    "liga": "Série D",
    "tier": 0,
    "nat": "BRA",
-   "lvl": 50
+   "lvl": 45
   },
   {
    "n": "Campinense",
@@ -2015,7 +2015,7 @@
    "liga": "Estadual",
    "tier": 0,
    "nat": "BRA",
-   "lvl": 46
+   "lvl": 41
   },
   {
    "n": "Serra Branca",
@@ -2036,7 +2036,7 @@
    "liga": "Série D",
    "tier": 0,
    "nat": "BRA",
-   "lvl": 50
+   "lvl": 45
   },
   {
    "n": "Atlético-PB",
@@ -2057,7 +2057,7 @@
    "liga": "Estadual",
    "tier": 0,
    "nat": "BRA",
-   "lvl": 46
+   "lvl": 41
   },
   {
    "n": "Esporte de Patos",
@@ -2078,7 +2078,7 @@
    "liga": "Estadual",
    "tier": 0,
    "nat": "BRA",
-   "lvl": 46
+   "lvl": 41
   },
   {
    "n": "Nacional de Patos",
@@ -2099,7 +2099,7 @@
    "liga": "Estadual",
    "tier": 0,
    "nat": "BRA",
-   "lvl": 46
+   "lvl": 41
   },
   {
    "n": "Pombal",
@@ -2120,7 +2120,7 @@
    "liga": "Estadual",
    "tier": 0,
    "nat": "BRA",
-   "lvl": 46
+   "lvl": 41
   },
   {
    "n": "Confiança-PB",
@@ -2141,7 +2141,7 @@
    "liga": "Estadual",
    "tier": 0,
    "nat": "BRA",
-   "lvl": 46
+   "lvl": 41
   },
   {
    "n": "Tuna Luso",
@@ -2162,7 +2162,7 @@
    "liga": "Série D",
    "tier": 0,
    "nat": "BRA",
-   "lvl": 51
+   "lvl": 46
   },
   {
    "n": "Cametá",
@@ -2183,7 +2183,7 @@
    "liga": "Estadual",
    "tier": 0,
    "nat": "BRA",
-   "lvl": 47
+   "lvl": 42
   },
   {
    "n": "Capitão Poço",
@@ -2204,7 +2204,7 @@
    "liga": "Estadual",
    "tier": 0,
    "nat": "BRA",
-   "lvl": 47
+   "lvl": 42
   },
   {
    "n": "Castanhal",
@@ -2225,7 +2225,7 @@
    "liga": "Estadual",
    "tier": 0,
    "nat": "BRA",
-   "lvl": 47
+   "lvl": 42
   },
   {
    "n": "Santa Rosa",
@@ -2246,7 +2246,7 @@
    "liga": "Estadual",
    "tier": 0,
    "nat": "BRA",
-   "lvl": 47
+   "lvl": 42
   },
   {
    "n": "São Francisco-PA",
@@ -2267,7 +2267,7 @@
    "liga": "Estadual",
    "tier": 0,
    "nat": "BRA",
-   "lvl": 47
+   "lvl": 42
   },
   {
    "n": "São Raimundo-PA",
@@ -2288,7 +2288,7 @@
    "liga": "Estadual",
    "tier": 0,
    "nat": "BRA",
-   "lvl": 47
+   "lvl": 42
   },
   {
    "n": "Amazônia Independente",
@@ -2309,7 +2309,7 @@
    "liga": "Estadual",
    "tier": 0,
    "nat": "BRA",
-   "lvl": 47
+   "lvl": 42
   },
   {
    "n": "Bragantino-PA",
@@ -2330,7 +2330,7 @@
    "liga": "Estadual",
    "tier": 0,
    "nat": "BRA",
-   "lvl": 47
+   "lvl": 42
   },
   {
    "n": "Manaus",
@@ -2351,7 +2351,7 @@
    "liga": "Série D",
    "tier": 0,
    "nat": "BRA",
-   "lvl": 50
+   "lvl": 45
   },
   {
    "n": "Manauara",
@@ -2372,7 +2372,7 @@
    "liga": "Série D",
    "tier": 0,
    "nat": "BRA",
-   "lvl": 50
+   "lvl": 45
   },
   {
    "n": "Princesa do Solimões",
@@ -2393,7 +2393,7 @@
    "liga": "Estadual",
    "tier": 0,
    "nat": "BRA",
-   "lvl": 46
+   "lvl": 41
   },
   {
    "n": "Parintins",
@@ -2414,7 +2414,7 @@
    "liga": "Estadual",
    "tier": 0,
    "nat": "BRA",
-   "lvl": 46
+   "lvl": 41
   },
   {
    "n": "Itacoatiara",
@@ -2435,7 +2435,7 @@
    "liga": "Estadual",
    "tier": 0,
    "nat": "BRA",
-   "lvl": 46
+   "lvl": 41
   },
   {
    "n": "São Raimundo-AM",
@@ -2456,7 +2456,7 @@
    "liga": "Estadual",
    "tier": 0,
    "nat": "BRA",
-   "lvl": 46
+   "lvl": 41
   },
   {
    "n": "Mixto",
@@ -2477,7 +2477,7 @@
    "liga": "Série D",
    "tier": 0,
    "nat": "BRA",
-   "lvl": 50
+   "lvl": 45
   },
   {
    "n": "Luverdense",
@@ -2498,7 +2498,7 @@
    "liga": "Série D",
    "tier": 0,
    "nat": "BRA",
-   "lvl": 50
+   "lvl": 45
   },
   {
    "n": "Operário-MT",
@@ -2519,7 +2519,7 @@
    "liga": "Série D",
    "tier": 0,
    "nat": "BRA",
-   "lvl": 50
+   "lvl": 45
   },
   {
    "n": "Sport Sinop",
@@ -2540,7 +2540,7 @@
    "liga": "Estadual",
    "tier": 0,
    "nat": "BRA",
-   "lvl": 46
+   "lvl": 41
   },
   {
    "n": "Nova Mutum",
@@ -2561,7 +2561,7 @@
    "liga": "Estadual",
    "tier": 0,
    "nat": "BRA",
-   "lvl": 46
+   "lvl": 41
   },
   {
    "n": "Chapada",
@@ -2582,7 +2582,7 @@
    "liga": "Estadual",
    "tier": 0,
    "nat": "BRA",
-   "lvl": 46
+   "lvl": 41
   },
   {
    "n": "União Rondonópolis",
@@ -2603,7 +2603,7 @@
    "liga": "Série D",
    "tier": 0,
    "nat": "BRA",
-   "lvl": 50
+   "lvl": 45
   },
   {
    "n": "Várzea Grande",
@@ -2624,7 +2624,7 @@
    "liga": "Estadual",
    "tier": 0,
    "nat": "BRA",
-   "lvl": 46
+   "lvl": 41
   },
   {
    "n": "Sampaio Corrêa",
@@ -2645,7 +2645,7 @@
    "liga": "Série D",
    "tier": 0,
    "nat": "BRA",
-   "lvl": 53
+   "lvl": 48
   },
   {
    "n": "Moto Club",
@@ -2666,7 +2666,7 @@
    "liga": "Série D",
    "tier": 0,
    "nat": "BRA",
-   "lvl": 50
+   "lvl": 45
   },
   {
    "n": "IAPE",
@@ -2687,7 +2687,7 @@
    "liga": "Série D",
    "tier": 0,
    "nat": "BRA",
-   "lvl": 50
+   "lvl": 45
   },
   {
    "n": "Luminense",
@@ -2708,7 +2708,7 @@
    "liga": "Estadual",
    "tier": 0,
    "nat": "BRA",
-   "lvl": 46
+   "lvl": 41
   },
   {
    "n": "Tuntum",
@@ -2729,7 +2729,7 @@
    "liga": "Estadual",
    "tier": 0,
    "nat": "BRA",
-   "lvl": 46
+   "lvl": 41
   },
   {
    "n": "ITZ",
@@ -2750,7 +2750,7 @@
    "liga": "Estadual",
    "tier": 0,
    "nat": "BRA",
-   "lvl": 46
+   "lvl": 41
   },
   {
    "n": "São José-RS",
@@ -2771,7 +2771,7 @@
    "liga": "Série D",
    "tier": 0,
    "nat": "BRA",
-   "lvl": 52
+   "lvl": 47
   },
   {
    "n": "São Luiz",
@@ -2792,7 +2792,7 @@
    "liga": "Série D",
    "tier": 0,
    "nat": "BRA",
-   "lvl": 52
+   "lvl": 47
   },
   {
    "n": "Avenida",
@@ -2813,7 +2813,7 @@
    "liga": "Estadual",
    "tier": 0,
    "nat": "BRA",
-   "lvl": 48
+   "lvl": 43
   },
   {
    "n": "Guarany de Bagé",
@@ -2834,7 +2834,7 @@
    "liga": "Série D",
    "tier": 0,
    "nat": "BRA",
-   "lvl": 52
+   "lvl": 47
   },
   {
    "n": "Inter-SM",
@@ -2855,7 +2855,7 @@
    "liga": "Estadual",
    "tier": 0,
    "nat": "BRA",
-   "lvl": 48
+   "lvl": 43
   },
   {
    "n": "Monsoon",
@@ -2876,7 +2876,7 @@
    "liga": "Estadual",
    "tier": 0,
    "nat": "BRA",
-   "lvl": 48
+   "lvl": 43
   },
   {
    "n": "Novo Hamburgo",
@@ -2897,7 +2897,7 @@
    "liga": "Estadual",
    "tier": 0,
    "nat": "BRA",
-   "lvl": 48
+   "lvl": 43
   },
   {
    "n": "São Joseense",
@@ -2918,7 +2918,7 @@
    "liga": "Série D",
    "tier": 0,
    "nat": "BRA",
-   "lvl": 52
+   "lvl": 47
   },
   {
    "n": "Cascavel",
@@ -2939,7 +2939,7 @@
    "liga": "Série D",
    "tier": 0,
    "nat": "BRA",
-   "lvl": 52
+   "lvl": 47
   },
   {
    "n": "Foz do Iguaçu",
@@ -2960,7 +2960,7 @@
    "liga": "Estadual",
    "tier": 0,
    "nat": "BRA",
-   "lvl": 48
+   "lvl": 43
   },
   {
    "n": "Azuriz",
@@ -2981,7 +2981,7 @@
    "liga": "Série D",
    "tier": 0,
    "nat": "BRA",
-   "lvl": 52
+   "lvl": 47
   },
   {
    "n": "Andraus",
@@ -3002,7 +3002,7 @@
    "liga": "Estadual",
    "tier": 0,
    "nat": "BRA",
-   "lvl": 48
+   "lvl": 43
   },
   {
    "n": "Galo Maringá",
@@ -3023,7 +3023,7 @@
    "liga": "Estadual",
    "tier": 0,
    "nat": "BRA",
-   "lvl": 48
+   "lvl": 43
   },
   {
    "n": "Camboriú",
@@ -3044,7 +3044,7 @@
    "liga": "Estadual",
    "tier": 0,
    "nat": "BRA",
-   "lvl": 48
+   "lvl": 43
   },
   {
    "n": "Concórdia",
@@ -3065,7 +3065,7 @@
    "liga": "Estadual",
    "tier": 0,
    "nat": "BRA",
-   "lvl": 48
+   "lvl": 43
   },
   {
    "n": "Marcílio Dias",
@@ -3086,7 +3086,7 @@
    "liga": "Série D",
    "tier": 0,
    "nat": "BRA",
-   "lvl": 52
+   "lvl": 47
   },
   {
    "n": "Joinville",
@@ -3107,7 +3107,7 @@
    "liga": "Série D",
    "tier": 0,
    "nat": "BRA",
-   "lvl": 53
+   "lvl": 48
   },
   {
    "n": "Santa Catarina",
@@ -3128,7 +3128,7 @@
    "liga": "Série D",
    "tier": 0,
    "nat": "BRA",
-   "lvl": 52
+   "lvl": 47
   },
   {
    "n": "Carlos Renaux",
@@ -3149,7 +3149,7 @@
    "liga": "Estadual",
    "tier": 0,
    "nat": "BRA",
-   "lvl": 48
+   "lvl": 43
   },
   {
    "n": "CRAC",
@@ -3170,7 +3170,7 @@
    "liga": "Série D",
    "tier": 0,
    "nat": "BRA",
-   "lvl": 51
+   "lvl": 46
   },
   {
    "n": "Inhumas",
@@ -3191,7 +3191,7 @@
    "liga": "Série D",
    "tier": 0,
    "nat": "BRA",
-   "lvl": 51
+   "lvl": 46
   },
   {
    "n": "Goiatuba",
@@ -3212,7 +3212,7 @@
    "liga": "Série D",
    "tier": 0,
    "nat": "BRA",
-   "lvl": 51
+   "lvl": 46
   },
   {
    "n": "Jataiense",
@@ -3233,7 +3233,7 @@
    "liga": "Estadual",
    "tier": 0,
    "nat": "BRA",
-   "lvl": 47
+   "lvl": 42
   },
   {
    "n": "Aparecidense",
@@ -3254,7 +3254,7 @@
    "liga": "Série D",
    "tier": 0,
    "nat": "BRA",
-   "lvl": 51
+   "lvl": 46
   },
   {
    "n": "ABECAT",
@@ -3275,7 +3275,7 @@
    "liga": "Série D",
    "tier": 0,
    "nat": "BRA",
-   "lvl": 51
+   "lvl": 46
   },
   {
    "n": "Centro Oeste",
@@ -3296,7 +3296,7 @@
    "liga": "Estadual",
    "tier": 0,
    "nat": "BRA",
-   "lvl": 47
+   "lvl": 42
   },
   {
    "n": "Anapolina",
@@ -3317,7 +3317,7 @@
    "liga": "Estadual",
    "tier": 0,
    "nat": "BRA",
-   "lvl": 47
+   "lvl": 42
   },
   {
    "n": "Portuguesa",
@@ -3338,7 +3338,7 @@
    "liga": "Série D",
    "tier": 0,
    "nat": "BRA",
-   "lvl": 55
+   "lvl": 50
   },
   {
    "n": "Velo Clube",
@@ -3359,7 +3359,7 @@
    "liga": "Série D",
    "tier": 0,
    "nat": "BRA",
-   "lvl": 54
+   "lvl": 49
   },
   {
    "n": "Capivariano",
@@ -3380,7 +3380,7 @@
    "liga": "Estadual",
    "tier": 0,
    "nat": "BRA",
-   "lvl": 50
+   "lvl": 45
   },
   {
    "n": "Noroeste",
@@ -3401,7 +3401,7 @@
    "liga": "Série D",
    "tier": 0,
    "nat": "BRA",
-   "lvl": 54
+   "lvl": 49
   },
   {
    "n": "Primavera-SP",
@@ -3422,7 +3422,7 @@
    "liga": "Estadual",
    "tier": 0,
    "nat": "BRA",
-   "lvl": 50
+   "lvl": 45
   },
   {
    "n": "Água Santa",
@@ -3443,7 +3443,7 @@
    "liga": "Série D",
    "tier": 0,
    "nat": "BRA",
-   "lvl": 54
+   "lvl": 49
   },
   {
    "n": "XV de Piracicaba",
@@ -3464,7 +3464,7 @@
    "liga": "Série D",
    "tier": 0,
    "nat": "BRA",
-   "lvl": 53
+   "lvl": 48
   },
   {
    "n": "Juventus-SP",
@@ -3485,7 +3485,7 @@
    "liga": "Estadual",
    "tier": 0,
    "nat": "BRA",
-   "lvl": 53
+   "lvl": 48
   },
   {
    "n": "Grêmio Prudente",
@@ -3506,7 +3506,7 @@
    "liga": "Estadual",
    "tier": 0,
    "nat": "BRA",
-   "lvl": 50
+   "lvl": 45
   },
   {
    "n": "Linense",
@@ -3527,7 +3527,7 @@
    "liga": "Estadual",
    "tier": 0,
    "nat": "BRA",
-   "lvl": 50
+   "lvl": 45
   },
   {
    "n": "Monte Azul",
@@ -3548,7 +3548,7 @@
    "liga": "Estadual",
    "tier": 0,
    "nat": "BRA",
-   "lvl": 50
+   "lvl": 45
   },
   {
    "n": "Osasco Sporting",
@@ -3569,7 +3569,7 @@
    "liga": "Estadual",
    "tier": 0,
    "nat": "BRA",
-   "lvl": 50
+   "lvl": 45
   },
   {
    "n": "Santo André",
@@ -3590,7 +3590,7 @@
    "liga": "Estadual",
    "tier": 0,
    "nat": "BRA",
-   "lvl": 53
+   "lvl": 48
   },
   {
    "n": "São Bento",
@@ -3611,7 +3611,7 @@
    "liga": "Estadual",
    "tier": 0,
    "nat": "BRA",
-   "lvl": 50
+   "lvl": 45
   },
   {
    "n": "São José-SP",
@@ -3632,7 +3632,7 @@
    "liga": "Estadual",
    "tier": 0,
    "nat": "BRA",
-   "lvl": 50
+   "lvl": 45
   },
   {
    "n": "Sertãozinho",
@@ -3653,7 +3653,7 @@
    "liga": "Estadual",
    "tier": 0,
    "nat": "BRA",
-   "lvl": 50
+   "lvl": 45
   },
   {
    "n": "Taubaté",
@@ -3674,7 +3674,7 @@
    "liga": "Estadual",
    "tier": 0,
    "nat": "BRA",
-   "lvl": 50
+   "lvl": 45
   },
   {
    "n": "Votuporanguense",
@@ -3695,7 +3695,7 @@
    "liga": "Estadual",
    "tier": 0,
    "nat": "BRA",
-   "lvl": 50
+   "lvl": 45
   },
   {
    "n": "Bangu",
@@ -3716,7 +3716,7 @@
    "liga": "Estadual",
    "tier": 0,
    "nat": "BRA",
-   "lvl": 48
+   "lvl": 43
   },
   {
    "n": "Boavista",
@@ -3737,7 +3737,7 @@
    "liga": "Estadual",
    "tier": 0,
    "nat": "BRA",
-   "lvl": 48
+   "lvl": 43
   },
   {
    "n": "Madureira",
@@ -3758,7 +3758,7 @@
    "liga": "Série D",
    "tier": 0,
    "nat": "BRA",
-   "lvl": 52
+   "lvl": 47
   },
   {
    "n": "Maricá",
@@ -3779,7 +3779,7 @@
    "liga": "Série D",
    "tier": 0,
    "nat": "BRA",
-   "lvl": 52
+   "lvl": 47
   },
   {
    "n": "Nova Iguaçu",
@@ -3800,7 +3800,7 @@
    "liga": "Série D",
    "tier": 0,
    "nat": "BRA",
-   "lvl": 52
+   "lvl": 47
   },
   {
    "n": "Portuguesa-RJ",
@@ -3821,7 +3821,7 @@
    "liga": "Série D",
    "tier": 0,
    "nat": "BRA",
-   "lvl": 52
+   "lvl": 47
   },
   {
    "n": "Uberlândia",
@@ -3842,7 +3842,7 @@
    "liga": "Série D",
    "tier": 0,
    "nat": "BRA",
-   "lvl": 52
+   "lvl": 47
   },
   {
    "n": "Pouso Alegre",
@@ -3863,7 +3863,7 @@
    "liga": "Série D",
    "tier": 0,
    "nat": "BRA",
-   "lvl": 52
+   "lvl": 47
   },
   {
    "n": "Betim",
@@ -3884,7 +3884,7 @@
    "liga": "Série D",
    "tier": 0,
    "nat": "BRA",
-   "lvl": 52
+   "lvl": 47
   },
   {
    "n": "Democrata-GV",
@@ -3905,7 +3905,7 @@
    "liga": "Série D",
    "tier": 0,
    "nat": "BRA",
-   "lvl": 52
+   "lvl": 47
   },
   {
    "n": "Itabirito",
@@ -3926,7 +3926,7 @@
    "liga": "Estadual",
    "tier": 0,
    "nat": "BRA",
-   "lvl": 48
+   "lvl": 43
   },
   {
    "n": "North",
@@ -3947,7 +3947,7 @@
    "liga": "Estadual",
    "tier": 0,
    "nat": "BRA",
-   "lvl": 48
+   "lvl": 43
   },
   {
    "n": "URT",
@@ -3968,7 +3968,7 @@
    "liga": "Estadual",
    "tier": 0,
    "nat": "BRA",
-   "lvl": 48
+   "lvl": 43
   }
  ]
 }

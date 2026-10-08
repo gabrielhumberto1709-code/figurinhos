@@ -1,16 +1,11 @@
-// Copa do Brasil: 32 clubes (os 20 da Série A e os 12 mais fortes da B), mata-mata em jogo único com pênaltis
-// e final em ida e volta. Os jogos caem na quarta-feira livre entre duas rodadas do Brasileirão.
+// Copa do Brasil: 32 clubes (os 20 da Série A e os 12 mais fortes da B), mata-mata todo em ida e volta, com o mando
+// sorteado em cada confronto; empate no agregado vai para os pênaltis. Os jogos caem nas quartas livres do Brasileirão.
 import { rng, shuffle } from './util.js';
 import { APOS_COPA, dataCopa as diaCopa } from './calendario.js';
 
-export const FASES = [
-  { k: '1f', nome: '1ª fase', curto: '1ª fase' },
-  { k: 'oit', nome: 'Oitavas de final', curto: 'Oitavas' },
-  { k: 'qua', nome: 'Quartas de final', curto: 'Quartas' },
-  { k: 'sem', nome: 'Semifinal', curto: 'Semi' },
-  { k: 'f1', nome: 'Final · ida', curto: 'Final (ida)' },
-  { k: 'f2', nome: 'Final · volta', curto: 'Final (volta)' },
-].map((f, i) => ({ ...f, apos: APOS_COPA[i] })); // cada fase na quarta livre depois da rodada "apos" do Brasileirão
+export const FASES = [['1f', '1ª fase', '1ª fase'], ['oit', 'Oitavas de final', 'Oitavas'], ['qua', 'Quartas de final', 'Quartas'], ['sem', 'Semifinal', 'Semi'], ['fin', 'Final', 'Final']]
+  .flatMap(([k, nome, curto]) => ['ida', 'volta'].map(perna => ({ k, perna, nome: `${nome} · ${perna}`, curto: `${curto} (${perna})` })))
+  .map((f, i) => ({ ...f, apos: APOS_COPA[i] })); // cada jogo na quarta livre depois da rodada "apos" do Brasileirão
 // prêmio por chegar a cada fase (entra quando o clube se classifica) e pelo título
 export const PREMIOS = { '1f': 4e5, oit: 6e5, qua: 9e5, sem: 1.6e6, vice: 5e6, campeao: 12e6 };
 export const dataCopa = (_, ano, i) => diaCopa(ano, i);
@@ -20,17 +15,17 @@ export function participantes(base) {
   return [...da('A'), ...da('B').slice(0, 12)];
 }
 
-// sorteio: na 1ª fase os 16 mais fortes pegam os 16 mais fracos, e o mais fraco tem o mando
+// sorteio: na 1ª fase os 16 mais fortes pegam os 16 mais fracos; quem manda a ida também é sorteado (chave = [ida, volta])
 export function novaCopa(base, s) {
   const r = rng(`copa${s.seed}-${s.ano}`), lista = participantes(base).sort((a, b) => base.forca(b) - base.forca(a));
   const fortes = shuffle(r, lista.slice(0, 16)), fracos = shuffle(r, lista.slice(16));
-  s.copa = { ano: s.ano, fase: 0, chaves: fortes.map((f, i) => [fracos[i], f]), jogos: [], art: {}, campeao: null, vice: null };
+  s.copa = { ano: s.ano, fase: 0, chaves: fortes.map((f, i) => r() < 0.5 ? [fracos[i], f] : [f, fracos[i]]), jogos: [], art: {}, campeao: null, vice: null };
   return s.copa;
 }
 export const copaDevida = s => !!s.copa && s.copa.fase < FASES.length && FASES[s.copa.fase].apos < s.rodada;
 export const naCopa = (s, ci) => !!s.copa && s.copa.fase < FASES.length && s.copa.chaves.some(c => c.includes(ci));
-// mando do jogo da fase: na volta da final inverte
-export const mandoDe = (fase, [x, y]) => FASES[fase].k === 'f2' ? [y, x] : [x, y];
+// mando do jogo da fase: na volta inverte
+export const mandoDe = (fase, [x, y]) => FASES[fase].perna === 'volta' ? [y, x] : [x, y];
 
 // disputa de pênaltis: cinco cobranças e depois alternadas. Com quem estava em campo, cada um bate na sua vez
 // (o cobrador oficial abre) e a chance depende da finalização dele e do goleiro do outro lado.
@@ -48,23 +43,23 @@ export function penaltis(seed, campo) {
 }
 // gols da ida vistos pelo mando do jogo de volta (para somar o agregado)
 export function agregadoIda(s, h, a) {
-  const ida = s.copa.jogos.find(j => j.fase === 4 && j.h === a && j.a === h);
+  const ida = s.copa.jogos.find(j => j.fase === s.copa.fase - 1 && j.h === a && j.a === h);
   return ida ? [ida.gols[1], ida.gols[0]] : [0, 0];
 }
-// quem passa: jogo único ou agregado da final; empate vai para os pênaltis (mesma semente do jogo)
+// quem passa: agregado dos dois jogos; empate vai para os pênaltis (mesma semente do jogo)
 export function decidir(s, fase, h, a, gols, seed, campo) {
-  if (FASES[fase].k === 'f1') return { vencedor: null };
-  const ag = FASES[fase].k === 'f2' ? agregadoIda(s, h, a) : [0, 0], t = [gols[0] + ag[0], gols[1] + ag[1]];
-  if (t[0] !== t[1]) return { vencedor: t[0] > t[1] ? h : a, perdedor: t[0] > t[1] ? a : h };
+  if (FASES[fase].perna === 'ida') return { vencedor: null };
+  const ag = agregadoIda(s, h, a), t = [gols[0] + ag[0], gols[1] + ag[1]];
+  if (t[0] !== t[1]) return { vencedor: t[0] > t[1] ? h : a, perdedor: t[0] > t[1] ? a : h, agg: t };
   const pen = penaltis(seed, campo);
-  return { vencedor: pen[0] > pen[1] ? h : a, perdedor: pen[0] > pen[1] ? a : h, pen: [pen[0], pen[1]], seq: pen.seq };
+  return { vencedor: pen[0] > pen[1] ? h : a, perdedor: pen[0] > pen[1] ? a : h, pen: [pen[0], pen[1]], seq: pen.seq, agg: t };
 }
-// próxima fase: sorteio livre entre os classificados (a final mantém o par)
+// próxima fase: sorteio livre entre os classificados (e do mando da ida)
 export function avancarFase(s, vencedores) {
-  const c = s.copa, k = FASES[c.fase].k;
+  const c = s.copa, F = FASES[c.fase];
   c.fase++;
-  if (k === 'f1') return;
-  if (k === 'f2') { [c.campeao] = vencedores; c.vice = c.chaves[0].find(x => x !== c.campeao); c.chaves = []; return; }
+  if (F.perna === 'ida') return;
+  if (F.k === 'fin') { [c.campeao] = vencedores; c.vice = c.chaves[0].find(x => x !== c.campeao); c.chaves = []; return; }
   const r = rng(`sorteio${s.seed}-${s.ano}-${c.fase}`), l = shuffle(r, vencedores);
   c.chaves = []; for (let i = 0; i < l.length; i += 2) c.chaves.push([l[i], l[i + 1]]);
 }

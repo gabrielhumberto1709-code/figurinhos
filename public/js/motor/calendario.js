@@ -29,15 +29,18 @@ export function pontosCorridos(times, seed) {
 // - semanas 0 a 12: só regionais, com a janela de transferências aberta. Estaduais nos domingos (e nas quartas das
 //   3 primeiras semanas); Copa do Nordeste, Sul-Sudeste e Verde nas quartas das semanas 3 a 12; Supercopa na quarta
 //   da semana 3 (quem joga a Supercopa está na Libertadores e não disputa copa regional);
-// - semana 13 (meio de abril) em diante: Brasileirão até o começo de dezembro, com pausa de 6 semanas em junho/julho.
+// - semana 13 (meio de abril) em diante: Brasileirão até meados de dezembro, com pausa de 5 semanas em junho/julho.
 //   Toda semana tem rodada no domingo; a quarta é de Libertadores/Sul-Americana (L), Copa do Brasil (C), rodada (R) ou livre (-).
+//   Quem só joga o Brasileirão entra em campo uma vez por semana (e 7 vezes numa quarta); quem joga copa, duas.
+//   Libertadores: 6 rodadas de grupos até o fim de maio, pausa e o mata-mata em ida e volta de agosto a outubro, final em
+//   novembro. Copa do Brasil: tudo em ida e volta, de abril a novembro.
 const DIA = 864e5;
 export const semana0 = ano => { const d = new Date(Date.UTC(ano, 0, 1)).getUTCDay(); return Date.UTC(ano, 0, 1 + (7 - d) % 7 + 7); };
 const dia = (ano, semana, quarta) => new Date(semana0(ano) + (semana * 7 + (quarta ? 3 : 0)) * DIA);
-const QUARTAS = 'LLCLLCLLRCRLR-CRLR-R-LRCRCLR-';
+const QUARTAS = 'LLCLLCLLRCCRLLCCRLLRCCLLRCCLRR-';
 const LIGA = [], COPA = [], CONT = [];
 for (let a = 0; a < QUARTAS.length; a++) {
-  const w = 13 + a + (a >= 8 ? 6 : 0);
+  const w = 13 + a + (a >= 8 ? 5 : 0);
   LIGA.push([w, 0]);
   ({ R: LIGA, C: COPA, L: CONT }[QUARTAS[a]] || []).push([w, 1]);
 }

@@ -81,7 +81,7 @@ const chips = (rot, itens, acao, ativo, extra = '') => `<div class="chips" role=
 
 function janelaInfo(s) {
   // pré-temporada e regionais: aberta até a estreia no Brasileirão
-  if (s.rodada === 0) { const d = dataRodada(s.ano, 0), hoje = s.ultimaData ?? +dataAmistoso(s.ano, 0); return { aberta: true, dias: Math.max(0, Math.round((d - hoje) / 864e5)), data: d }; }
+  if (s.rodada === 0) { const d = dataRodada(s.ano, 2), hoje = s.ultimaData ?? +dataAmistoso(s.ano, 0); return { aberta: true, dias: Math.max(0, Math.round((d - hoje) / 864e5)), data: d }; }
   const aberta = janelaAberta(s.ano, s.rodada), hoje = dataRodada(s.ano, Math.min(s.rodada, 37));
   for (let r = s.rodada + 1; r <= 37; r++) if (janelaAberta(s.ano, r) !== aberta) { const d = dataRodada(s.ano, r); return { aberta, dias: Math.round((d - hoje) / 864e5), data: d }; }
   return { aberta, dias: null };
@@ -90,7 +90,7 @@ const ddmm = d => `${String(d.getUTCDate()).padStart(2, '0')}/${String(d.getUTCM
 function faixaJanela(s) {
   const J = janelaInfo(s);
   const txt = J.aberta ? (J.dias != null ? `Janela aberta · fecha em ${J.dias} dias (${ddmm(J.data)})` : 'Janela aberta') : J.dias != null ? `Janela fechada · abre em ${J.dias} dias (${ddmm(J.data)})` : 'Janela fechada até a próxima temporada';
-  return `<p class="janela ${J.aberta ? 'aberta' : ''}"><b>${txt}</b><small>Livres e pré-contratos não dependem da janela. Com ela fechada, compra vira acordo e o jogador chega quando abrir. Propostas são respondidas na rodada seguinte (na pré-temporada e nos regionais, no fim da semana).</small></p>`;
+  return `<p class="janela ${J.aberta ? 'aberta' : ''}"><b>${txt}</b><small>Livres e pré-contratos não dependem da janela. Com ela fechada, dá para fechar compra ou empréstimo do mesmo jeito: o negócio fica acertado e o jogador chega quando a janela abrir. Propostas são respondidas na rodada seguinte (na pré-temporada e nos regionais, no fim da semana).</small></p>`;
 }
 
 function abaBuscar(topo = faixaJanela(S())) {
@@ -183,7 +183,7 @@ function abaPropostas() {
     <p class="mudo">${H.imgEscudo(x.de, 16, 17)} ${H.esc(H.clube(x.de).n)} ${x.tipo === 'emprestimo' ? 'pede emprestado até o fim da temporada' : `oferece <b>${fmtDinheiro(x.valor)}</b> · vale ${fmtDinheiro(j.valor * 1000)}`}</p>${x.cl && M.resumoCl(x.cl) ? `<p class="mudo clausulas-txt">${H.esc(M.resumoCl(x.cl))}</p>` : ''}
     ${x.gigante ? `<p class="mudo">Salário oferecido: <b>${euro(x.salario)}/dia</b> (${String(x.mult).replace('.', ',')}x o atual) · ${FASE_TXT(j)} · ele ${M.textoVontade(x.vontade)}</p>` : ''}${x.quer ? `<p class="quer-ir">${H.esc(j.curto)} ${H.esc(x.quer)} e quer ir. Se você recusar, ele fica chateado.</p>` : x.vontade != null && x.vontade < 35 ? `<p class="quer-ir">${H.esc(j.curto)} não quer ir: se você aceitar, ele recusa.</p>` : ''}
     ${acoesRecebida(x)}</li>`; }).join('');
-  const acordos = (s.acordos || []).map(a => `<li><span>${H.imgEscudo(a.de, 14, 15)}</span><span><b>${H.esc(J(a.jogador).curto)}</b> · ${a.valor ? fmtDinheiro(a.valor) : ''}${a.troca ? ` + ${H.esc(J(a.troca).curto)}` : ''}</span></li>`).join('');
+  const acordos = (s.acordos || []).map(a => `<li><span>${H.imgEscudo(a.de, 14, 15)}</span><span><b>${H.esc(J(a.jogador).curto)}</b> · ${a.tipo === 'emprestimo' ? 'empréstimo' : a.valor ? fmtDinheiro(a.valor) : ''}${a.troca ? ` + ${H.esc(J(a.troca).curto)}` : ''}</span></li>`).join('');
   return `${acordos ? `<section class="cartao"><h3>Acertados: chegam quando a janela abrir</h3><ul class="noticias">${acordos}</ul></section>` : ''}<h3>Pelos seus jogadores</h3>${rec ? `<ul class="lista-propostas">${rec}</ul>` : '<section class="cartao"><p class="mudo">Nenhuma proposta agora. Quem joga bem, ou está listado, chama atenção.</p></section>'}
     <h3>Feitas por você</h3>${env ? `<ul class="lista-propostas">${env}</ul>` : '<section class="cartao"><p class="mudo">Você ainda não fez propostas. Busque um jogador e toque nele.</p></section>'}`;
 }

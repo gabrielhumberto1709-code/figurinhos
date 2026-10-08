@@ -261,10 +261,10 @@ export const finalReg = (k, F) => mataMataReg(F) && (F.m === REGIONAIS[k].mata.l
 
 // ---------- tabelas e campanha ----------
 function linhas(T, ids, filtro) {
-  const L = new Map(ids.map(c => [c, { clube: c, p: 0, j: 0, v: 0, e: 0, d: 0, gp: 0, gc: 0 }]));
+  const L = new Map(ids.map(c => [c, { clube: c, p: 0, j: 0, v: 0, e: 0, d: 0, gp: 0, gc: 0, ult: [] }]));
   for (const j of T.jogos) if (filtro(j)) for (const [c, eu, ele] of [[j.h, j.gols[0], j.gols[1]], [j.a, j.gols[1], j.gols[0]]]) {
     const l = L.get(c); if (!l) continue;
-    l.j++; l.gp += eu; l.gc += ele;
+    l.j++; l.gp += eu; l.gc += ele; l.ult.push(eu > ele ? 'V' : eu < ele ? 'D' : 'E');
     if (eu > ele) { l.v++; l.p += 3; } else if (eu < ele) l.d++; else { l.e++; l.p++; }
   }
   return [...L.values()].map(l => ({ ...l, sg: l.gp - l.gc }));

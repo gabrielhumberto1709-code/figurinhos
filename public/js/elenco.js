@@ -54,12 +54,12 @@ function telaJogadores() {
   const titulares = new Set(escalacao(app.base, s, ci).xi.map(j => j.id));
   const lista = app.base.elencos[ci].slice().sort({
     pos: (a, b) => POS_ORDEM.indexOf(a.pos) - POS_ORDEM.indexOf(b.pos) || b.ovr - a.ovr,
-    ovr: (a, b) => b.ovr - a.ovr, cond: (a, b) => (s.cond[a.id] ?? 100) - (s.cond[b.id] ?? 100), idade: (a, b) => a.idade - b.idade,
+    ovr: (a, b) => b.ovr - a.ovr, cond: (a, b) => (s.cond[a.id] ?? 100) - (s.cond[b.id] ?? 100), idade: (a, b) => a.idade - b.idade, contrato: (a, b) => a.contrato - b.contrato || b.ovr - a.ovr,
   }[ord]);
   return `<div class="titulo-linha"><h2>Jogadores</h2><span class="mudo">${lista.length} no elenco · ${titulares.size} titulares</span></div>
-    <div class="chips" role="group" aria-label="Ordenar">${[['pos', 'Posição'], ['ovr', 'Overall'], ['cond', 'Mais cansados'], ['idade', 'Mais novos']].map(([k, t]) => `<button type="button" class="chip" data-acao="ord-jog" data-o="${k}" aria-pressed="${ord === k}">${t}</button>`).join('')}</div>
+    <div class="chips" role="group" aria-label="Ordenar">${[['pos', 'Posição'], ['ovr', 'Overall'], ['cond', 'Mais cansados'], ['idade', 'Mais novos'], ['contrato', 'Contrato']].map(([k, t]) => `<button type="button" class="chip" data-acao="ord-jog" data-o="${k}" aria-pressed="${ord === k}">${t}</button>`).join('')}</div>
     <ul class="lista-jog">${lista.map(j => { const c = s.cond[j.id] ?? 100; return `<li><button type="button" class="linha-elenco ${titulares.has(j.id) ? 'tit' : ''}" data-acao="ficha" data-id="${j.id}">
-      <span class="pos-mini">${j.pos}</span>${boneco(j, j.pos === 'GOL')}<span class="le-nome"><b>${esc(j.curto)} ${seloFase(s, j.id)}${seloDM(s, j.id)}</b><small>${bandeira(j.nat)} ${j.idade} anos · ${fmtDinheiro(j.valor * 1000)} · até ${j.contrato}</small></span>
+      <span class="pos-mini">${j.pos}</span>${boneco(j, j.pos === 'GOL')}<span class="le-nome"><b>${esc(j.curto)} ${seloFase(s, j.id)}${seloDM(s, j.id)}${j.contrato <= s.ano ? `<span class="selo-fim" title="1 ano ou menos de contrato (até ${j.contrato})">FIM ${j.contrato}</span>` : ''}</b><small>${bandeira(j.nat)} ${j.idade} anos · até ${j.contrato} · ${fmtDinheiro(j.valor * 1000)}</small></span>
       ${carinha(s.mor[j.id])}${barraCond(c)}${chip(j.ovr, j.ovr)}</button></li>`; }).join('')}</ul>
     <p class="mudo" style="font-size:.95rem">Verde na borda: titular. A barrinha é a condição física; ela volta com descanso entre os jogos.</p>`;
 }
@@ -90,7 +90,7 @@ function telaEscalacao() {
         ${time.xi.map((j, i) => { const [, x, y] = POSICOES[time.formacao][i], r = rende(j, slots[i]), fora = encaixe(j.pos, slots[i]) < 0.9;
           return `<button class="jog-campo ${vaga === i ? 'sel' : ''}" style="left:${x}%;top:${y}%" data-acao="vaga" data-i="${i}" type="button" aria-label="${esc(j.curto)}, ${slots[i]}, rende ${r}">
             <span class="jc-fig">${boneco(j, slots[i] === 'GOL')}${carinha(s.mor[j.id])}${j.id === cap ? '<i class="braco">C</i>' : ''}</span>
-            <span class="jc-nome ${fora ? 'fora' : ''}">${esc(j.curto)}${seloFase(s, j.id)}</span>${chip(`${slots[i]} · ${r}`, r)}</button>`; }).join('')}
+            <span class="jc-nome ${fora ? 'fora' : ''}">${esc(j.curto)}${seloFase(s, j.id)}</span>${chip(`${slots[i]} · ${r}`, r)}${barraCond(s.cond[j.id] ?? 100)}</button>`; }).join('')}
       </div>
       ${slotSel && !app.editPos ? `<h3>Melhores opções para ${slotSel}</h3><div class="album opcoes-vaga">${opcoes.map(j => H.figurinha(j, titulares.has(j.id) ? 'titular escolha' : 'escolha', false, rende(j, slotSel))).join('')}</div>` : ''}
       <div class="setores">${[['Ataque', set.ataque], ['Meio', set.meio], ['Defesa', set.defesa], ['Goleiro', set.goleiro]].map(([t, v]) => `<div class="setor"><small>${t}</small><b class="num">${v}</b></div>`).join('')}</div>
