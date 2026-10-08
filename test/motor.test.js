@@ -923,3 +923,25 @@ test('clássico perdido revolta a torcida (protesto, diretoria em goleada); empr
   assert.equal(alvo.clube, ci); assert.ok(s.emprestimos[alvo.id]);
   assert.equal(LIMITE_ELENCO, 45);
 });
+
+import { acompanharPromessas, medoDoBanco, palavraQuebrada, PROMESSA } from '../public/js/motor/mercado.js';
+test('promessa de titularidade: tira o medo do banco; quebrada, ele quer sair e o mercado desconfia; cumprida, ele agradece', () => {
+  const ci = base.clubes.findIndex(c => c.n === 'Palmeiras'), s = novoJogo(base, { ...cfg(151), clube: ci });
+  const alvo = [...base.jog.values()].filter(j => j.clube !== ci && ['A', 'B'].includes(base.clubes[j.clube].div) && medoDoBanco(base, j, ci) >= 2 && vontade(base, s, j, ci) >= 25 && vontade(base, s, j, ci) <= 55).sort((a, b) => b.ovr - a.ovr)[0];
+  const sem = vontade(base, s, alvo, ci), com = vontade(base, s, alvo, ci, true);
+  assert.ok(com >= sem + 30, `promessa ${sem} -> ${com}`);
+  // chega com promessa e fica no banco: na 5ª reserva a promessa cai
+  const j = base.elencos[ci].slice().sort((a, b) => a.ovr - b.ovr)[0];
+  s.promTit = { [j.id]: { ano: s.ano, jogos: 0, tit: 0 } };
+  const banco = { notas: [{}, {}], eventos: [] };
+  for (let k = 0; k < PROMESSA.jogos - PROMESSA.titular + 1; k++) acompanharPromessas(base, s, banco, 0);
+  assert.ok(!s.promTit[j.id] && palavraQuebrada(s) === 1 && s.querSair[j.id]);
+  assert.ok(s.msgs.some(m => m.assunto === 'Promessa quebrada'));
+  const sem2 = vontade(base, s, alvo, ci), com2 = vontade(base, s, alvo, ci, true);
+  assert.ok(sem2 < sem && com2 - sem2 < com - sem, 'quem teme o banco desconfia e a promessa vale menos');
+  // cumprida: 6 jogos como titular
+  const k2 = base.elencos[ci].slice().sort((a, b) => a.ovr - b.ovr)[1];
+  s.promTit = { [k2.id]: { ano: s.ano, jogos: 0, tit: 0 } };
+  for (let k = 0; k < PROMESSA.titular; k++) acompanharPromessas(base, s, { notas: [{ [k2.id]: 6.5 }, {}], eventos: [] }, 0);
+  assert.ok(!s.promTit[k2.id] && s.palavra.cumpridas === 1);
+});

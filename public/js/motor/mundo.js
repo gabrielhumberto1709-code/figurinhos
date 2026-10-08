@@ -13,7 +13,7 @@ import { vestiarioAposRodada } from './vestiario.js';
 import { eventosAposRodada } from './eventos.js';
 import { TORNEIOS, PREMIO_SUP, FASES_CONT, F_MATA, F_FIN, deFora, dataCont, dataSup, novaCont, contDevida, naCont, supDevida, jogosDaFase, decidirCont, avancarCont, timeFora, jogadorCont, agregadoCont } from './continental.js';
 import { gerarNoticias } from './noticias.js';
-import { resolverMercado, garantirMercado } from './mercado.js';
+import { resolverMercado, garantirMercado, acompanharPromessas } from './mercado.js';
 import { dataFifa } from './selecao.js';
 import { registrarConfronto } from './confrontos.js';
 import { REGIONAIS, novaReg, fasesReg, dataFaseReg, jogosDaFaseReg, naReg, regDevida, decidirReg, avancarReg, agregadoReg, mataMataReg, finalReg, vivoReg } from './regionais.js';
@@ -311,6 +311,7 @@ function aposJogo(base, s, h, a, sim) {
   if (ci === h || ci === a) {
     for (const n of evoluir(base, s, ci, sim.notas[ci === h ? 0 : 1])) s.noticias.unshift({ rodada: s.rodada, div: base.clubes[ci].div, clube: ci, ...n });
     const jogou = new Set(Object.keys(sim.notas[ci === h ? 0 : 1]).map(Number));
+    acompanharPromessas(base, s, sim, ci === h ? 0 : 1);
     for (const j of base.elencos[ci].slice().sort((x, y) => y.ovr - x.ovr).slice(0, 14)) {
       if (jogou.has(j.id)) { delete s.semJogar[j.id]; continue; }
       s.semJogar[j.id] = (s.semJogar[j.id] || 0) + 1;

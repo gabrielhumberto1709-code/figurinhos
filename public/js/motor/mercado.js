@@ -12,6 +12,8 @@ import { temperamento, tratar } from './vestiario.js';
 import { interessados, media } from './noticias.js';
 import { janelaAberta, caixaInicial, aplicarSave, evolucao } from './mundo.js';
 import { orcamento, lancar, garantirFinancas, salarioDia, salarioBase, diasRestantes, registroBloqueado } from './financas.js';
+import { naSelecao } from './selecao.js';
+import { enviar } from './correio.js';
 
 const arred = v => Math.max(50000, Math.round(v / 10000) * 10000);
 const arredSal = v => Math.max(10, Math.round(v / 10) * 10);
@@ -90,7 +92,41 @@ export function precoPedido(base, s, j) {
 }
 
 // quanto o jogador quer vir (0-100). Clube maior, divisão, chance de ser titular, idade e nome do técnico pesam.
-export function vontade(base, s, j, destino) {
+// ---------- promessa de titularidade ----------
+// Quem teme o banco (tem gente igual ou melhor na posição) pode vir com a promessa de ser titular em 6 dos 10 primeiros
+// jogos que puder jogar. Promessa quebrada fica na sua fama por 2 temporadas: quem teme o banco desconfia de você e cada
+// promessa nova vale metade (com 2 quebradas, não vale nada).
+export const PROMESSA = { jogos: 10, titular: 6 };
+export const medoDoBanco = (base, j, destino) => base.elencos[destino].filter(x => x.pos === j.pos && x.id !== j.id && x.ovr >= j.ovr).length;
+export const palavraQuebrada = s => (s.palavra?.quebradas || []).filter(a => a >= s.ano - 1).length;
+function prometerTitular(base, s, j) { (s.promTit ||= {})[j.id] = { ano: s.ano, jogos: 0, tit: 0 }; }
+// depois de cada jogo oficial do seu clube: conta jogos e jogos como titular de quem tem promessa
+export function acompanharPromessas(base, s, sim, t) {
+  const P = s.promTit; if (!P || !Object.keys(P).length) return;
+  const ci = s.tecnico.clube, entrou = new Set(sim.eventos.filter(e => e.tipo === 'sub' && e.time === t).map(e => e.jogador)), nome = base.clubes[ci].n;
+  for (const [id, p] of Object.entries(P)) {
+    const j = base.jog.get(+id);
+    if (!j || j.clube !== ci) { delete P[id]; continue; }
+    const jogou = sim.notas[t][id] != null, titular = jogou && !entrou.has(+id);
+    const fora = (s.dm?.[id] && !s.dm[id].inf) || Object.values(s.susp?.[id] || {}).some(n => n > 0) || s.afast?.[id]?.n > 0 || naSelecao(s, +id);
+    if (!jogou && fora) continue;                                        // lesionado, suspenso ou convocado: o jogo não conta
+    p.jogos++; if (titular) p.tit++;
+    const noticia = texto => s.noticias.unshift({ rodada: s.rodada, tipo: 'clube', clube: ci, jogador: j.id, imprensa: true, div: base.clubes[ci].div, texto });
+    if (p.tit >= PROMESSA.titular) {
+      delete P[id]; s.palavra = { ...(s.palavra || {}), cumpridas: (s.palavra?.cumpridas || 0) + 1 };
+      s.mor[id] = clamp((s.mor[id] ?? 62) + 5, 0, 100); tratar(s, j.id, 2);
+      noticia(`${j.curto} agradece: "O professor prometeu que eu ia ser titular e cumpriu."`);
+    } else if (p.jogos - p.tit > PROMESSA.jogos - PROMESSA.titular) {
+      delete P[id]; s.palavra = { ...(s.palavra || {}), quebradas: [...(s.palavra?.quebradas || []), s.ano] };
+      s.mor[id] = clamp((s.mor[id] ?? 62) - 15, 0, 100); tratar(s, j.id, -4);
+      (s.querSair ||= {})[id] = { de: null, rodada: s.rodada, motivo: 'vim com a promessa de ser titular' };
+      noticia(`${j.curto} desabafa: "Vim para o ${nome} com a promessa de ser titular. Não foi o que aconteceu."`);
+      enviar(s, 'diretor', `promessa-${id}-${s.ano}-${s.rodada}`, 'Promessa quebrada', `${j.curto} veio com a promessa de ser titular e ficou no banco. Ele quer sair, e o mercado já sabe: jogador que tem medo de ficar na reserva vai desconfiar de qualquer promessa nossa pelas próximas duas temporadas.`, { jogador: j.id });
+    }
+  }
+}
+
+export function vontade(base, s, j, destino, promessa = false) {
   const daqui = base.clubes[j.clube], dela = base.clubes[destino], livre = daqui.div === 'L';
   let v = livre ? 62 + (base.forca(destino) - j.ovr) * 2 : 50 + (base.forca(destino) - base.forca(j.clube)) * 3;
   if (!livre) { const nd = nivelDiv(dela) - nivelDiv(daqui); v += nd > 0 ? -25 * nd : nd < 0 ? 15 * -nd : 0; }
@@ -98,6 +134,11 @@ export function vontade(base, s, j, destino) {
   const naPos = base.elencos[destino].filter(x => x.pos === j.pos && x.id !== j.id), acima = naPos.filter(x => x.ovr >= j.ovr).length;
   const peso = j.idade <= 23 ? 2 : 1;
   v += acima === 0 ? 15 * peso : acima >= 2 ? -20 * peso : 0;
+  if (destino === s.tecnico.clube && acima >= 1) {
+    const q = palavraQuebrada(s);
+    v -= 12 * Math.min(q, 3);                                                                     // fama de não cumprir
+    if (promessa) v += ((acima >= 2 ? 20 : 0) + 15) * peso * Math.max(0, 1 - q * 0.5);            // a promessa tira o medo
+  }
   if (j.idade >= 31) v += 10;
   if (j.ovr >= 80 && base.forca(destino) < base.forca(j.clube)) v -= 20;
   if (destino === s.tecnico.clube) v += (s.tecnico.reputacao || 0) * 4 - (mauPagador(s) ? 12 : 0);
@@ -115,9 +156,9 @@ function motivoRecusa(base, s, j) {
 
 // salário por dia que ele pede: o que ganha hoje ou o valor de mercado no destino, mais um tanto se não estiver animado.
 // Veterano quer contrato longo; cada ano a menos que três encarece.
-export function salarioPedido(base, s, j, anos = 3, destino = s.tecnico.clube) {
+export function salarioPedido(base, s, j, anos = 3, destino = s.tecnico.clube, promessa = false) {
   const atual = ehLivre(base, j.clube) ? 0 : salarioDia(base, s, j);
-  const v = vontade(base, s, j, destino);
+  const v = vontade(base, s, j, destino, promessa);
   let pede = Math.max(atual, salarioBase(base.clubes[destino].div, j.valor)) * (1.1 + clamp((60 - v) / 100, -0.1, 0.6));
   if (j.idade >= 30) pede *= 1 + 0.06 * Math.max(0, 3 - anos);
   if (ehLivre(base, j.clube)) pede *= 0.9;
@@ -176,7 +217,7 @@ export function bloqueioProposta(base, s, j, o) {
 
 export function fazerProposta(base, s, j, o) {
   const cl = o.tipo === 'emprestimo' ? limpaCl(base, s, j, o.cl) : null;
-  const oferta = { tipo: o.tipo || 'compra', valor: o.tipo === 'compra' && o.valor > 0 ? arred(o.valor) : 0, salario: cl ? Math.round(salarioDia(base, s, j) * cl.pct / 100) : arredSal(o.salario), anos: o.tipo === 'emprestimo' ? 1 : Math.round(o.anos || 3), troca: o.tipo === 'compra' && +o.troca || 0, ...(cl ? { cl } : {}) };
+  const oferta = { tipo: o.tipo || 'compra', valor: o.tipo === 'compra' && o.valor > 0 ? arred(o.valor) : 0, salario: cl ? Math.round(salarioDia(base, s, j) * cl.pct / 100) : arredSal(o.salario), anos: o.tipo === 'emprestimo' ? 1 : Math.round(o.anos || 3), troca: o.tipo === 'compra' && +o.troca || 0, ...(cl ? { cl } : {}), ...(o.promessa && o.tipo !== 'pre' && medoDoBanco(base, j, s.tecnico.clube) ? { promessa: true } : {}) };
   const erro = bloqueioProposta(base, s, j, oferta);
   if (erro) return erro;
   s.propostas.unshift({ id: `${j.id}-${s.rodada}`, jogador: j.id, de: j.clube, ...oferta, rodada: s.rodada, estado: 'aguardando', pedido: precoPedido(base, s, j) });
@@ -423,6 +464,7 @@ export function cumprirAcordos(base, s, add) {
   for (const a of (s.acordos || []).splice(0)) {
     const j = base.jog.get(a.jogador), t = a.troca && base.jog.get(a.troca);
     if (!j || j.clube !== a.de || (t && t.clube !== meu)) { add(`O acordo por ${j?.curto || 'um reforço'} caiu: a situação mudou antes de a janela abrir.`); continue; }
+    if (a.promessa) prometerTitular(base, s, j);
     if (a.tipo === 'emprestimo') { emprestar(base, s, j, meu, a.cl); add(`Chegou: ${j.curto}, emprestado pelo ${base.clubes[a.de].n} (acertado com a janela fechada).`); continue; }
     if (t) { transferir(base, s, t, a.de, 0); s.historicoTransf[0].tipo = 'troca'; }
     transferir(base, s, j, meu, a.valor, { salario: a.salario, anos: a.anos });
@@ -669,7 +711,7 @@ export function resolverMercado(base, s, rd, semana = 0) {
       for (const x of rivais) add(tipo === 'compra' ? `O ${nome(x.ci)} entra na disputa por ${j.curto} com ${fmt(x.valor)}.` : `O ${nome(x.ci)} também quer ${j.curto}.`);
       melhorRival = rivais.map(x => ({ ...x, v: vontade(base, s, j, x.ci) + (tipo === 'compra' ? (x.valor - p.valor) / Math.max(p.valor, 1) * 20 : 0) + (r() - 0.5) * 16 })).sort((a, b) => b.v - a.v)[0];
     }
-    const minha = vontade(base, s, j, meu) + (r() - 0.5) * 16 + (tipo === 'emprestimo' ? 10 : 0);
+    const minha = vontade(base, s, j, meu, p.promessa) + (r() - 0.5) * 16 + (tipo === 'emprestimo' ? 10 : 0);
     if (minha < 50) { falha(`${j.curto} ${motivoRecusa(base, s, j)}`, `${j.curto} recusa: ${motivoRecusa(base, s, j)}.`); continue; }
     if (melhorRival && melhorRival.v > minha) {
       p.estado = 'perdida'; p.motivo = `ele escolheu o ${nome(melhorRival.ci)}`;
@@ -679,7 +721,7 @@ export function resolverMercado(base, s, rd, semana = 0) {
       continue;
     }
     // salário: abaixo de 90% do que pede, ele faz contraproposta; entre 90% e 100%, pode topar
-    const pede = tipo === 'emprestimo' ? 0 : salarioPedido(base, s, j, p.anos);
+    const pede = tipo === 'emprestimo' ? 0 : salarioPedido(base, s, j, p.anos, meu, p.promessa);
     if (!p.salOk && p.salario < pede && !(p.salario >= pede * 0.9 && r() < (p.salario / pede - 0.9) * 10)) {
       p.estado = 'contraproposta'; p.contraSal = pede; add(`${j.curto} topa vir, mas pede € ${pede.toLocaleString('pt-BR')}/dia.`); continue;
     }
@@ -688,10 +730,11 @@ export function resolverMercado(base, s, rd, semana = 0) {
     p.estado = 'concluida';
     const pago = `${p.valor ? fmt(p.valor) : ''}${p.valor && t ? ' + ' : ''}${t ? `${t.curto} na troca` : ''}`;
     if (tipo === 'pre') { s.preContratos.push({ jogador: j.id, de, para: meu, salario: p.salario, anos: p.anos, rodada: rd }); add(`Pré-contrato assinado: ${j.curto} chega do ${nome(de)} em janeiro de ${s.ano + 1}.`); }
-    else if (tipo === 'emprestimo' && fechada) { p.motivo = 'chega quando a janela abrir'; s.acordos.push({ tipo: 'emprestimo', jogador: j.id, de, cl: p.cl || limpaCl(base, s, j) }); add(`Empréstimo acertado: ${j.curto} chega do ${nome(de)} quando a janela abrir.`); }
-    else if (tipo === 'emprestimo') { const cl = p.cl || limpaCl(base, s, j), res = resumoCl(cl); emprestar(base, s, j, meu, cl); add(`Reforço por empréstimo: ${j.curto} chega do ${nome(de)} até o fim da temporada${res ? ` (${res})` : ''}.`); }
-    else if (fechada) { p.motivo = 'chega quando a janela abrir'; s.acordos.push({ jogador: j.id, de, valor: p.valor, salario: p.salario, anos: p.anos, troca: p.troca || 0 }); add(`Acordo fechado: ${j.curto} chega do ${nome(de)} (${pago}) quando a janela abrir.`); }
+    else if (tipo === 'emprestimo' && fechada) { p.motivo = 'chega quando a janela abrir'; s.acordos.push({ tipo: 'emprestimo', jogador: j.id, de, cl: p.cl || limpaCl(base, s, j), promessa: !!p.promessa }); add(`Empréstimo acertado: ${j.curto} chega do ${nome(de)} quando a janela abrir.`); }
+    else if (tipo === 'emprestimo') { const cl = p.cl || limpaCl(base, s, j), res = resumoCl(cl); emprestar(base, s, j, meu, cl); if (p.promessa) prometerTitular(base, s, j); add(`Reforço por empréstimo: ${j.curto} chega do ${nome(de)} até o fim da temporada${res ? ` (${res})` : ''}.`); }
+    else if (fechada) { p.motivo = 'chega quando a janela abrir'; s.acordos.push({ jogador: j.id, de, valor: p.valor, salario: p.salario, anos: p.anos, troca: p.troca || 0, promessa: !!p.promessa }); add(`Acordo fechado: ${j.curto} chega do ${nome(de)} (${pago}) quando a janela abrir.`); }
     else {
+      if (p.promessa) prometerTitular(base, s, j);
       if (t) { transferir(base, s, t, de, 0); s.historicoTransf[0].tipo = 'troca'; }
       transferir(base, s, j, meu, p.valor, { salario: p.salario, anos: p.anos });
       add(`HERE WE GO! ${j.curto} é do ${nome(meu)}. ${tipo === 'livre' ? 'Chega sem custo' : pago}, contrato até ${s.ano + p.anos}.`, 'mercado', base.clubes[meu].div, { jogador: j.id, para: meu });

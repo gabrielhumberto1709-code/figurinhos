@@ -255,6 +255,7 @@ export function blocoFicha(j) {
     return `<section class="ficha-mercado"><div class="titulo-linha"><h3>Contrato</h3>${fav}</div>${tags}
       <dl><dt>Salário</dt><dd>${euro(salarioDia(b, s, j))}/dia</dd><dt>Contrato</dt><dd>até ${j.contrato}</dd></dl>
       ${pre ? `<p><b>Assinou pré-contrato com o ${H.esc(H.clube(pre.para).n)} e sai no fim da temporada.</b></p>` : ''}
+      ${s.promTit?.[j.id] ? (pr => `<p class="aviso-ficha">Promessa de titularidade: titular em ${pr.tit} de ${pr.jogos} jogo${pr.jogos === 1 ? '' : 's'}. Precisa de ${M.PROMESSA.titular} em ${M.PROMESSA.jogos}; mais ${M.PROMESSA.jogos - M.PROMESSA.titular - (pr.jogos - pr.tit) + 1 > 0 ? M.PROMESSA.jogos - M.PROMESSA.titular - (pr.jogos - pr.tit) + 1 : 0} no banco e a promessa cai.</p>`)(s.promTit[j.id]) : ''}
       ${emp ? `<p><b>Emprestado pelo ${H.esc(H.clube(emp.de).n)} até o fim da temporada.</b></p>${M.resumoCl(emp, M.jogosNoEmprestimo(s, j.id)) ? `<p class="mudo clausulas-txt">${H.esc(M.resumoCl(emp, M.jogosNoEmprestimo(s, j.id)))}</p>` : ''}${emp.opcao ? `<button class="botao peq" type="button" data-acao="opcao" data-id="${j.id}">Exercer opção de compra (${fmtDinheiro(emp.opcao)})</button>` : ''}` : ''}
       ${emp && barradoMedo(b, s, j.id, s.tecnico.clube) ? `<button class="botao peq" type="button" data-acao="pagar-medo" data-id="${j.id}">Pagar a multa do medo (${fmtDinheiro(multaMedo(j))}) para ele jogar contra o dono</button>` : ''}
       ${tr ? `<p class="mudo">Chegou há pouco: só pode ser negociado daqui a ${tr} jogo${tr > 1 ? 's' : ''}.</p>` : ''}
@@ -274,12 +275,13 @@ export function blocoFicha(j) {
   const ja = s.propostas.find(p => p.jogador === j.id && ['aguardando', 'contraproposta'].includes(p.estado));
   const tipo0 = tipos.includes(H.app.tipoProposta) ? H.app.tipoProposta : tipos[0];
   const geral = tipos.length ? M.bloqueioProposta(b, s, j, { tipo: tipo0, valor: 1, salario: 1, anos: 3 }) : 'Sem negócio possível agora.';
-  const pede = M.salarioPedido(b, s, j, 3), rel = s.relatorios[j.id];
+  const pede = M.salarioPedido(b, s, j, 3), rel = s.relatorios[j.id], medo = M.medoDoBanco(b, j, s.tecnico.clube), q = M.palavraQuebrada(s);
+  const promessa = medo && tipos.some(t => t !== 'pre') ? `<label class="check-promessa nao-pre"><input type="checkbox" name="promessa"> <span><b>Prometer titularidade</b>: titular em ${M.PROMESSA.titular} dos ${M.PROMESSA.jogos} primeiros jogos que ele puder jogar. Com a promessa, ${M.pistaVontade(M.vontade(b, s, j, s.tecnico.clube, true)).replace(/^O empresário diz que ele|^Ele/, 'ele').toLowerCase()}${q ? ` <span class="erro">Você quebrou ${q} promessa${q > 1 ? 's' : ''} de titularidade${q >= 2 ? ': ninguém mais acredita.' : ': ele desconfia.'}</span>` : ''} Se não cumprir, ele quer sair e o mercado fica sabendo.</span></label>` : '';
   const olheiro = rel?.exato ? '' : s.observar.includes(j.id) ? '<p class="mudo">O olheiro vai observá-lo na próxima rodada.</p>' : `<button type="button" class="botao sec peq" data-acao="observar" data-id="${j.id}">Mandar o olheiro observar</button>`;
   const fixo = geral && !/dinheiro|orçamento|salário|folga|janela|Elenco cheio|Limite/.test(geral); // erro que nenhum valor resolve
   return `<section class="ficha-mercado"><div class="titulo-linha"><h3>Mercado</h3>${fav}</div>${tags}
     <dl>${livre ? '' : `<dt>Preço pedido</dt><dd>${fmtDinheiro(pedido)}</dd>`}<dt>Salário hoje</dt><dd>${livre ? '—' : `${euro(salarioDia(b, s, j))}/dia`}</dd><dt>Seu caixa</dt><dd>${fmtDinheiro(s.caixa)}</dd></dl>
-    <p class="mudo">${M.pistaVontade(M.vontade(b, s, j, s.tecnico.clube))}</p>
+    <p class="mudo">${M.pistaVontade(M.vontade(b, s, j, s.tecnico.clube))}${medo ? ` Ele tem medo de ser reserva${medo >= 2 ? ': tem dois ou mais melhores na posição' : ''}.` : ''}</p>
     ${ja ? `<p><b>${ja.estado === 'contraproposta' ? 'Tem contraproposta esperando. Veja em Mercado › Propostas.' : 'Proposta enviada. Resposta na próxima rodada.'}</b></p>`
       : fixo ? `<p class="erro">${H.esc(geral)}</p>`
       : `<form class="proposta" data-form="proposta" data-id="${j.id}" data-pedido="${pedido}">
@@ -288,7 +290,7 @@ export function blocoFicha(j) {
           <div class="chips">${[0.85, 1, 1.15].map(f => `<button type="button" class="chip" data-acao="sugerir" data-v="${(pedido * f / 1e6).toFixed(2)}">${fmtDinheiro(Math.round(pedido * f / 1e4) * 1e4)}</button>`).join('')}</div>
           <label>Jogador na troca <select name="troca"><option value="">Sem troca</option>${b.elencos[s.tecnico.clube].filter(t => !s.emprestimos[t.id] && !M.travado(s, t.id) && !M.preContratoDe(s, t.id)).sort((x, y) => y.ovr - x.ovr).map(t => `<option value="${t.id}" data-v="${M.valorNaTroca(b, s, t, j.clube)}">${H.esc(t.curto)} · ${t.pos} ${t.ovr} · abate ~${fmtDinheiro(M.valorNaTroca(b, s, t, j.clube))}</option>`).join('')}</select></label></div>` : ''}
         <div class="campos-2 nao-emprestimo"><label>Salário por dia (€) <input type="number" name="salario" inputmode="numeric" min="10" step="10" value="${pede}"></label>${anosSelect('anos')}</div>
-        ${tipos.includes('emprestimo') ? formEmprestimo(j) : ''}
+        ${tipos.includes('emprestimo') ? formEmprestimo(j) : ''}${promessa}
         <p class="mudo" style="font-size:.95rem">Ele deve pedir perto de ${euro(pede)}/dia. Folga na sua folha: ${euro(M.folgaPara(b, s, j))}/dia.${tipos.includes('pre') ? ` Pré-contrato: chega em janeiro de ${s.ano + 1}, sem pagar nada ao clube.` : ''}</p>
         <p class="erro" role="alert">${geral ? H.esc(geral) : ''}</p><button class="botao" type="submit">Enviar proposta</button></form>`}
     ${rel ? `<p>Relatório do olheiro: ${potencialTxt(j)}</p>` : ''}${olheiro}</section>`;
@@ -304,7 +306,7 @@ export function enviar(form) {
     H.$('#ficha').close(); H.aviso(r.txt); H.render(); H.salvar(); return;
   }
   const tipo = form.querySelector('[name=tipo]:checked, [name=tipo][type=hidden]')?.value || 'compra';
-  const e = M.fazerProposta(b, s, j, { tipo, valor: Math.round((num('valor') || 0) * 1e6), salario: tipo === 'emprestimo' ? salarioDia(b, s, j) : Math.round(num('salario')), anos: Math.round(num('anos')), troca: tipo === 'compra' ? +form.troca?.value || 0 : 0, cl: tipo === 'emprestimo' ? lerCl(form) : null });
+  const e = M.fazerProposta(b, s, j, { tipo, valor: Math.round((num('valor') || 0) * 1e6), salario: tipo === 'emprestimo' ? salarioDia(b, s, j) : Math.round(num('salario')), anos: Math.round(num('anos')), troca: tipo === 'compra' ? +form.troca?.value || 0 : 0, promessa: !!form.promessa?.checked, cl: tipo === 'emprestimo' ? lerCl(form) : null });
   if (e) { erro.textContent = e; return; }
   H.$('#ficha').close(); H.aviso('Proposta enviada. A resposta sai na próxima rodada.'); H.render(); H.salvar();
 }

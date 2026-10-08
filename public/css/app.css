@@ -770,3 +770,7 @@ b.pos { color: var(--gramado); } b.neg { color: var(--cartao); }
 .cena-mesa { position: absolute; left: 0; right: 0; bottom: 0; height: 24%; background: linear-gradient(#2A2F3A 0 22%, var(--cm) 22%); border-top: 3px solid #11141A; }
 .cena-tablet { position: absolute; left: 74%; top: -42%; transform: translateX(-50%); padding: 3px 8px; background: #0B3D91; color: #fff; font-family: var(--f-pixel); font-size: clamp(.45rem, 1.6vw, .7rem); border: 3px solid #111; border-radius: 3px; white-space: nowrap; }
 .cena-mic { position: absolute; left: 50%; bottom: 9%; width: 6.5%; min-width: 16px; transform: translateX(-50%); }
+
+.proposta label.check-promessa, .check-promessa { display: flex; flex-direction: row; gap: 8px; align-items: flex-start; font-size: .95rem; padding: 8px 10px; border: 2px dashed var(--linha); border-radius: var(--raio); }
+.check-promessa input { width: 20px; height: 20px; margin-top: 2px; flex: none; }
+.proposta:has([name=tipo][value=pre]:checked) .nao-pre, .proposta:has(input[type=hidden][name=tipo][value=pre]) .nao-pre { display: none; }
