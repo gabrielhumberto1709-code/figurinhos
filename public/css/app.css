@@ -775,6 +775,63 @@ b.pos { color: var(--gramado); } b.neg { color: var(--cartao); }
 .cena-tablet { position: absolute; left: 74%; top: -42%; transform: translateX(-50%); padding: 3px 8px; background: #0B3D91; color: #fff; font-family: var(--f-pixel); font-size: clamp(.45rem, 1.6vw, .7rem); border: 3px solid #111; border-radius: 3px; white-space: nowrap; }
 .cena-mic { position: absolute; left: 50%; bottom: 9%; width: 6.5%; min-width: 16px; transform: translateX(-50%); }
 
+/* ---------- sala do leilão: parede vinho, lambri de madeira, placar de lances, Dr. Arremate no púlpito, plateia de placas ---------- */
+.lei-cena { position: relative; aspect-ratio: 16 / 9; max-width: 520px; width: 100%; margin: 0 auto 12px; overflow: hidden; border: 2px solid var(--linha); border-radius: var(--raio); box-shadow: var(--sombra);
+  background: linear-gradient(#5B1A24 0 60%, #A86A3D 60% 61.5%, #6B3E1E 61.5% 74%, #2A1A12 74%); }
+.lei-cena::before { content: ''; position: absolute; inset: 0 0 40% 0; background: repeating-linear-gradient(90deg, rgb(255 255 255 / .05) 0 4%, transparent 4% 12%); }
+.lei-placar { position: absolute; top: 5%; right: 4%; width: 57%; height: 18%; display: flex; align-items: center; justify-content: space-between; gap: 6px; padding: 0 3%; background: #1B1F2A; border: 3px solid #0B0D12; box-shadow: inset 0 0 0 2px #3A4152; }
+.lei-lote { display: flex; flex-direction: column; min-width: 0; font-family: var(--f-pixel); font-size: clamp(.45rem, 1.7vw, .7rem); line-height: 1.1; color: #A8A294; }
+.lei-lote b { color: #F3EBDD; font-size: clamp(.55rem, 2.1vw, .9rem); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.lei-valor { font-family: var(--f-placar); font-weight: 400; font-size: clamp(1.05rem, 4.8vw, 2.1rem); line-height: 1; color: #F2B33D; text-shadow: 0 0 6px rgb(242 179 61 / .45); white-space: nowrap; font-variant-numeric: tabular-nums; }
+.lei-dr { position: absolute; left: 8%; bottom: 33%; width: 24%; image-rendering: pixelated; }
+.lei-pulpito { position: absolute; left: 3%; width: 35%; bottom: 25%; height: 18%; display: flex; align-items: center; justify-content: center; background: linear-gradient(#A86A3D 0 16%, #6B3E1E 16%); border: 3px solid #2A1A12; border-bottom: 0; }
+.lei-pulpito span { padding: 1px 6px; background: #F2B33D; color: #2A1A12; border: 2px solid #2A1A12; font-family: var(--f-pixel); font-weight: 700; font-size: clamp(.42rem, 1.6vw, .7rem); white-space: nowrap; }
+.lei-martelo { position: absolute; left: 27%; bottom: 42%; width: 11%; transform-origin: 4% 50%; }
+.lei-martelo.toca { animation: lei-toca 240ms cubic-bezier(0.77, 0, 0.175, 1); }
+.lei-martelo.bate, .lei-cena.vendido .lei-martelo { animation: lei-bate 340ms cubic-bezier(0.77, 0, 0.175, 1) both; }
+@keyframes lei-toca { 40% { transform: rotate(-20deg); } 100% { transform: rotate(0); } }
+@keyframes lei-bate { 45% { transform: rotate(-42deg); } 80% { transform: rotate(3deg); } 100% { transform: rotate(0); } }
+.lei-carta { position: absolute; right: 8%; top: 28%; width: 19%; display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 4px 3px 3px; background: #F3EBDD; border: 2px solid #1B1F2A; border-radius: 4px; box-shadow: 2px 2px 0 #0B0D12; transform: rotate(2deg); }
+.lei-carta img { width: 86%; image-rendering: pixelated; background: #E6D9C3; }
+.lei-carta b { max-width: 100%; color: #1B1F2A; font-size: clamp(.5rem, 1.9vw, .8rem); line-height: 1.1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.lei-carta .nota { position: absolute; top: -6%; left: -8%; font-size: clamp(.6rem, 2.2vw, .95rem); min-width: 0; border: 2px solid #1B1F2A; }
+.lei-carimbo { position: absolute; left: 50%; top: 44%; padding: 1px 4px; border: 3px solid #C81F36; color: #C81F36; background: rgb(243 235 221 / .6); font-family: var(--f-pixel); font-style: normal; font-weight: 700; font-size: clamp(.45rem, 1.9vw, .82rem); letter-spacing: .04em; text-transform: uppercase; white-space: nowrap; opacity: 0; transform: translate(-50%, -50%) rotate(-14deg); }
+.lei-cena.vendido .lei-carimbo { animation: lei-carimbo 220ms cubic-bezier(0.23, 1, 0.32, 1) 270ms both; }
+@keyframes lei-carimbo { from { opacity: 0; transform: translate(-50%, -50%) rotate(-14deg) scale(1.7); } to { opacity: 1; transform: translate(-50%, -50%) rotate(-14deg) scale(1); } }
+.lei-cena.vendido { animation: lei-tremor 160ms ease-out 275ms; }
+@keyframes lei-tremor { 30% { transform: translateY(2px); } }
+.lei-plateia { position: absolute; left: 0; right: 0; bottom: 0; height: 26%; display: flex; justify-content: space-evenly; align-items: flex-end; }
+.lei-placa { display: flex; flex-direction: column; align-items: center; width: 17%; padding-bottom: 2px; transition: transform 200ms cubic-bezier(0.23, 1, 0.32, 1), opacity 200ms ease; }
+.lei-disco { display: grid; place-items: center; width: 44%; aspect-ratio: 1; border-radius: 50%; background: #F3EBDD; border: 2px solid #0B0D12; }
+.lei-disco img { width: 64%; image-rendering: pixelated; }
+.lei-placa::after { content: ''; order: 1; width: 3px; height: clamp(4px, 1.6vw, 8px); background: #C9A25A; }
+.lei-placa small { order: 2; font-family: var(--f-pixel); font-size: clamp(.42rem, 1.6vw, .66rem); line-height: 1.2; color: #F3EBDD; white-space: nowrap; max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
+.lei-placa.no-ar { transform: translateY(-28%); }
+.lei-placa.no-ar .lei-disco { border-color: #F2B33D; box-shadow: 0 0 0 2px #F2B33D; }
+.lei-placa.fora { opacity: .35; }
+.lei-balao { position: relative; max-width: 520px; margin: 4px auto 14px; padding: 10px 12px; background: #F3EBDD; color: #1B1F2A; border: 2px solid var(--linha); border-radius: var(--raio); box-shadow: var(--sombra); }
+.lei-balao::before, .lei-balao::after { content: ''; position: absolute; left: 16%; clip-path: polygon(0 100%, 50% 0, 100% 100%); }
+.lei-balao::before { top: -12px; width: 18px; height: 12px; margin-left: -9px; background: var(--linha); }
+.lei-balao::after { top: -8px; width: 12px; height: 9px; margin-left: -6px; background: #F3EBDD; }
+.lei-balao b { display: block; font-family: var(--f-pixel); font-size: .82rem; color: #7A1F2B; }
+.lei-balao p { margin: 2px 0 0; font-family: var(--f-pixel); font-size: .95rem; line-height: 1.35; min-height: 2.7em; }
+.lei-tempo { display: flex; align-items: center; gap: 10px; }
+.lei-tempo b { min-width: 2ch; font-family: var(--f-placar); font-weight: 400; font-size: 2.7rem; line-height: 1; text-align: right; font-variant-numeric: tabular-nums; }
+.lei-tempo b.urgente { color: var(--cartao); }
+.lei-barra { flex: 1; height: 14px; overflow: hidden; border: 2px solid var(--linha); border-radius: 2px; background: var(--encaixe); }
+.lei-barra i { display: block; height: 100%; background: var(--placar); transform-origin: left; }
+.lei-tempo:has(.urgente) .lei-barra i { background: var(--cartao); }
+.lei-form { display: grid; gap: 8px; }
+.lei-form label { display: grid; gap: 4px; min-width: 0; font-weight: 600; }
+.lei-form input { width: 100%; min-width: 0; min-height: 52px; padding: 8px 12px; border: 2px solid var(--linha); border-radius: var(--raio); background: var(--campo-bg); font-family: var(--f-placar); font-size: 1.7rem; }
+.lei-form .erro:empty { min-height: 0; }
+.chip[disabled] { opacity: .5; cursor: not-allowed; }
+.lei-log { margin: 0; padding: 0; list-style: none; max-height: 230px; overflow: auto; }
+.lei-log li { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 5px 0; border-bottom: 1px solid var(--linha-fraca); font-variant-numeric: tabular-nums; }
+.lei-log li span { display: flex; align-items: center; gap: 6px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.lei-log li b { flex: none; white-space: nowrap; }
+.lei-log li:first-child { font-weight: 700; }
+
 .proposta label.check-promessa, .check-promessa { display: flex; flex-direction: row; gap: 8px; align-items: flex-start; font-size: .95rem; padding: 8px 10px; border: 2px dashed var(--linha); border-radius: var(--raio); }
 .check-promessa input { width: 20px; height: 20px; margin-top: 2px; flex: none; }
 .proposta:has([name=tipo][value=pre]:checked) .nao-pre, .proposta:has(input[type=hidden][name=tipo][value=pre]) .nao-pre { display: none; }

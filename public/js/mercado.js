@@ -2,6 +2,7 @@
 // Propostas e Histórico. Também o bloco de mercado e contrato da ficha do jogador.
 import { janelaAberta, dataRodada, barradoMedo, pagarMedo, multaMedo } from './motor/mundo.js';
 import * as M from './motor/mercado.js';
+import { abrirLeilaoCompra, abrirLeilaoVenda } from './motor/leilao.js';
 import { orcamento, salarioDia, salarioBase, tetoSalarial } from './motor/financas.js';
 import { faseDe } from './motor/forma.js';
 import { POS_NOME, POS_ORDEM, SETOR, cartaDe, estrelas, fmtDinheiro, CONTINENTES, continenteDe } from './motor/util.js';
@@ -169,6 +170,7 @@ function abaOlheiros() {
 // botões de uma oferta recebida: vender, pedir mais (uma vez), leilão, recusar
 function acoesRecebida(x) {
   if (x.leilao === 'aberto') return '<p class="mudo">Leilão aberto: os lances saem na próxima rodada.</p>';
+  if (x.leilao === 'vivo') return '<a class="botao peq" href="#/leilao">Voltar à sala do leilão</a>';
   if (x.pedido) return `<p class="mudo">Você pediu ${fmtDinheiro(x.pedido)}. Resposta na próxima rodada.</p>`;
   const compra = x.tipo !== 'emprestimo', livre = compra && !x.contraFeita && !x.leilao;
   return `<div class="linha-botoes"><button class="botao peq" type="button" data-acao="aceitar-recebida" data-id="${x.id}">${compra ? 'Vender' : 'Emprestar'}</button>
@@ -180,7 +182,7 @@ const TIPO_HIST = { emprestimo: 'empréstimo', troca: 'na troca', volta: 'volta 
 function abaPropostas() {
   const s = S(), b = B(), J = id => b.jog.get(id);
   const env = s.propostas.slice(0, 40).map(p => { const j = J(p.jogador), tipo = p.tipo || 'compra'; return `<li class="cartao"><div class="titulo-linha"><button type="button" class="link" data-acao="ficha" data-id="${j.id}">${H.esc(j.curto)}</button><span class="tag ${p.estado === 'concluida' ? 'resultado' : ['recusada', 'perdida'].includes(p.estado) ? 'crise' : 'rumor'}">${ROTULO[p.estado]}</span></div>
-    <p class="mudo">${H.imgEscudo(p.de, 16, 17)} ${tipo === 'livre' ? 'Sem clube' : `${H.esc(H.clube(p.de).n)} · ${NOME_TIPO[tipo]}`}${tipo === 'compra' ? ` · ${fmtDinheiro(p.valor)}` : ''}${p.troca && J(p.troca) ? ` + ${H.esc(J(p.troca).curto)}` : ''}${p.salario ? ` · ${euro(p.salario)}/dia` : ''}${p.anos && tipo !== 'emprestimo' ? ` · ${p.anos} anos` : ''}${p.motivo ? ` · ${H.esc(p.motivo)}` : ''}</p>${p.cl && M.resumoCl(p.cl) ? `<p class="mudo clausulas-txt">${H.esc(M.resumoCl(p.cl))}</p>` : ''}
+    <p class="mudo">${H.imgEscudo(p.de, 16, 17)} ${tipo === 'livre' ? 'Sem clube' : `${H.esc(H.clube(p.de).n)} · ${NOME_TIPO[tipo]}`}${tipo === 'compra' ? ` · ${fmtDinheiro(p.valor)}` : ''}${p.troca && J(p.troca) ? ` + ${H.esc(J(p.troca).curto)}` : ''}${p.salario ? ` · ${euro(p.salario)}/dia` : ''}${p.anos && tipo !== 'emprestimo' ? ` · ${p.anos} anos` : ''}${p.leilao && p.estado === 'aguardando' ? ' · venceu o leilão, falta o salário' : ''}${p.motivo ? ` · ${H.esc(p.motivo)}` : ''}</p>${p.cl && M.resumoCl(p.cl) ? `<p class="mudo clausulas-txt">${H.esc(M.resumoCl(p.cl))}</p>` : ''}
     ${p.estado === 'contraproposta' ? `<p><b>${p.contra != null ? `O clube pede ${fmtDinheiro(p.contra)}.` : ''} ${p.contraSal != null ? `Ele pede ${euro(p.contraSal)}/dia.` : ''}</b></p><div class="linha-botoes"><button class="botao peq" type="button" data-acao="aceitar-contra" data-id="${p.id}">Aceitar</button><button class="botao peq sec" type="button" data-acao="desistir" data-id="${p.id}">Desistir</button></div>`
       : p.estado === 'aguardando' ? `<div class="linha-botoes"><button class="botao peq sec" type="button" data-acao="desistir" data-id="${p.id}">Cancelar proposta</button></div>` : ''}</li>`; }).join('');
   const rec = s.recebidas.map(x => { const j = J(x.jogador); return `<li class="cartao"><div class="titulo-linha"><button type="button" class="link" data-acao="ficha" data-id="${j.id}">${H.esc(j.curto)}</button>${x.gigante ? '<span class="tag destaque">Gigante</span>' : ''}<span class="nota ${cartaDe(j.ovr).k}">${j.ovr}</span></div>
@@ -313,7 +315,9 @@ export function enviar(form) {
   const tipo = form.querySelector('[name=tipo]:checked, [name=tipo][type=hidden]')?.value || 'compra';
   const e = M.fazerProposta(b, s, j, { tipo, valor: Math.round((num('valor') || 0) * 1e6), salario: tipo === 'emprestimo' ? salarioDia(b, s, j) : Math.round(num('salario')), anos: Math.round(num('anos')), troca: tipo === 'compra' ? +form.troca?.value || 0 : 0, promessa: !!form.promessa?.checked, cl: tipo === 'emprestimo' ? lerCl(form) : null });
   if (e) { erro.textContent = e; return; }
-  H.$('#ficha').close(); H.aviso('Proposta enviada. A resposta sai na próxima rodada.'); H.render(); H.salvar();
+  H.$('#ficha').close();
+  if (abrirLeilaoCompra(b, s, s.propostas[0].id)) { H.salvar(); location.hash = '#/leilao'; return; } // outro clube também quer: vira leilão na hora
+  H.aviso('Proposta enviada. A resposta sai na próxima rodada.'); H.render(); H.salvar();
 }
 
 // ---------- eventos ----------
@@ -344,7 +348,7 @@ export const acoes = {
   'aceitar-recebida': re(el => { H.aviso(M.aceitarRecebida(B(), S(), el.dataset.id) || 'Negócio fechado.'); if (H.$('#ficha').open) H.$('#ficha').close(); }, true),
   'pagar-medo': re(el => { H.aviso(pagarMedo(B(), S(), +el.dataset.id) || 'Multa paga: ele está liberado para este jogo.'); if (H.$('#ficha').open) H.$('#ficha').close(); }, true),
   'pedir-mais': re(el => { H.aviso(M.pedirMais(B(), S(), el.dataset.id, +el.dataset.f) || 'Contraproposta enviada. Resposta na próxima rodada.'); }, true),
-  leilao: re(el => { H.aviso(M.abrirLeilao(B(), S(), el.dataset.id) || 'Leilão aberto: os clubes dão os lances até a próxima rodada.'); }, true),
+  leilao: el => { const e = abrirLeilaoVenda(B(), S(), el.dataset.id); if (e) return H.aviso(e); if (H.$('#ficha').open) H.$('#ficha').close(); H.salvar(); location.hash = '#/leilao'; },
   opcao: re(el => { H.aviso(M.exercerOpcao(B(), S(), +el.dataset.id) || 'Opção exercida: ele é seu em definitivo.'); if (H.$('#ficha').open) H.$('#ficha').close(); }, true),
   'chamar-volta': re(el => { H.aviso(M.chamarDeVolta(B(), S(), +el.dataset.id) || 'Ele está de volta ao elenco.'); if (H.$('#ficha').open) H.$('#ficha').close(); }, true),
   rescindir: el => { // dois toques: o primeiro pede confirmação

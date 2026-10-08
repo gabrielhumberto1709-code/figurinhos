@@ -1014,3 +1014,75 @@ test('teto salarial da diretoria: recém-promovido ganha menos aporte, continent
   rem.fin.salarioBudget = 1e9; assert.equal(bloqueioProposta(base, rem, livre, { tipo: 'livre', salario: tR.teto, anos: 3 }), null);
   assert.match(bloqueioProposta(base, rem, livre, { tipo: 'livre', salario: tR.teto + 50, anos: 3 }), /teto salarial/);
 });
+
+import { novoLeilao, comecarLeilao, lanceLeilao, desistirLeilao, tickLeilao, minimo as minimoLeilao, terminarSemHumanos, abrirLeilaoCompra, abrirLeilaoVenda, fecharLeilao, encerrarPendente } from '../public/js/motor/leilao.js';
+import { pedidosDeQueda } from '../public/js/motor/mercado.js';
+
+test('leilão: lance volta o relógio, dou-lhe uma e duas, IA para no máximo, vence quem deu mais', () => {
+  const L = novoLeilao({ id: 'a', modo: 'compra', jogador: 1, vendedor: 9, valor: 1e6, lider: 0, reserva: 1.2e6, participantes: [{ ci: 0, humano: true, max: 3e6 }, { ci: 5, max: 1.6e6 }, { ci: 6, max: 2e6 }], seed: 'x' });
+  assert.deepEqual(tickLeilao(L, 5), [], 'só anda depois do Começar');
+  comecarLeilao(L);
+  assert.match(lanceLeilao(L, 0, 2e6), /mais alto já é seu/);
+  const ev = [];
+  while (L.lider === 0 && !L.fim) ev.push(...tickLeilao(L, 0.5));
+  assert.ok(L.valor >= 1.2e6 && L.relogio > 25, 'a IA cobre a partir do preço pedido e o relógio volta a 30');
+  assert.match(lanceLeilao(L, 0, L.valor + 1), /mínimo/);
+  assert.match(lanceLeilao(L, 0, 3.5e6), /pode gastar/);
+  assert.equal(lanceLeilao(L, 0, minimoLeilao(L)), null); assert.equal(L.lider, 0);
+  while (!L.fim) ev.push(...tickLeilao(L, 0.5));
+  assert.ok(L.lances.every((x, i) => !i || x.valor > L.lances[i - 1].valor), 'cada lance maior que o anterior');
+  assert.ok(Object.values(L.P).every(p => p.humano || L.lances.filter(x => L.P[x.ci] === p).every(x => x.valor <= p.max)), 'IA respeita o máximo');
+  const tipos = ev.map(e => e.tipo);
+  assert.ok(tipos.indexOf('uma') < tipos.indexOf('duas') && tipos.at(-1) === 'vendido');
+  assert.ok(L.valor <= 3e6 && (L.lider === 0 || L.valor <= 2e6));
+  // humano que desiste: a IA segue sozinha e o determinismo vale pela semente
+  const roda = () => { const M = novoLeilao({ id: 'b', modo: 'compra', jogador: 1, vendedor: 9, valor: 1e6, lider: 0, participantes: [{ ci: 0, humano: true, max: 9e6 }, { ci: 5, max: 4e6 }, { ci: 6, max: 3e6 }], seed: 'y' }); comecarLeilao(M); tickLeilao(M, 3); desistirLeilao(M, 0); return terminarSemHumanos(M); };
+  const A = roda(), B2 = roda();
+  assert.equal(A.lider, 5); assert.ok(A.valor >= 3e6 / 1.04 && A.valor <= 4e6, `${A.valor}`); assert.deepEqual(A.lances, B2.lances);
+});
+
+test('leilão no jogo: concorrência abre na hora, perder leva o jogador, vencer deixa só o salário; venda decide no fim', () => {
+  let s, j, L;
+  for (let seed = 1; seed < 40 && !L; seed++) {
+    s = novoJogo(base, cfg(70 + seed)); s.caixa = 60e6;
+    const meu = s.tecnico.clube;
+    j = [...base.jog.values()].filter(x => base.clubes[x.clube].div === 'A' && x.clube !== meu && x.ovr >= 76 && !rivais(base, x.clube, meu)).sort((a, b) => b.ovr - a.ovr)[seed % 7];
+    const ped = precoPedido(base, s, j);
+    if (fazerProposta(base, s, j, { tipo: 'compra', valor: ped * 0.9, salario: Math.min(tetoSalarial(base, s).teto, salarioPedido(base, s, j, 3)), anos: 3 })) continue;
+    L = abrirLeilaoCompra(base, s, s.propostas[0].id);
+  }
+  assert.ok(L, 'algum craque tem concorrência');
+  const de = j.clube, pid = L.id, rival = encerrarPendente(base, s); // fechou o app: a sala termina sem você
+  const p = s.propostas.find(x => x.id === pid);
+  assert.ok(!s.leilaoAtivo && rival.venceu === false && p.estado === 'perdida' && j.clube === rival.ci && j.clube !== de);
+  assert.equal(s.historicoTransf[0].valor, rival.valor);
+  // vencer: lance acima do máximo de todo mundo, o clube vendedor já topou e a conversa é só com o jogador
+  const s2 = novoJogo(base, cfg(71)); s2.caixa = 60e6;
+  const k = [...base.jog.values()].find(x => base.clubes[x.clube].div === 'B' && x.ovr >= 64), L2 = novoLeilao({ id: 'p1', modo: 'compra', jogador: k.id, vendedor: k.clube, valor: 5e5, lider: s2.tecnico.clube, reserva: 4e5, participantes: [{ ci: s2.tecnico.clube, humano: true, max: 9e6 }, { ci: 3, max: 6e5 }], seed: 1 });
+  s2.propostas.unshift({ id: 'p1', jogador: k.id, de: k.clube, tipo: 'compra', valor: 5e5, salario: 500, anos: 3, rodada: s2.rodada, estado: 'aguardando' });
+  s2.leilaoAtivo = L2; comecarLeilao(L2);
+  while (!L2.fim) { tickLeilao(L2, 1); if (L2.lider !== s2.tecnico.clube && !L2.fim) lanceLeilao(L2, s2.tecnico.clube, minimoLeilao(L2)); }
+  const r2 = fecharLeilao(base, s2);
+  assert.ok(r2.venceu && s2.propostas[0].clubeOk && s2.propostas[0].valor === L2.valor && s2.propostas[0].valor > 6e5);
+  // vendendo: a oferta vira a do vencedor e o jogador continua seu até você decidir
+  const s3 = novoJogo(base, cfg(72)), ci3 = s3.tecnico.clube, v = base.elencos[ci3].slice().sort((a, b) => b.ovr - a.ovr)[1];
+  s3.recebidas = [{ id: 'r1', tipo: 'compra', jogador: v.id, de: 3, valor: 1e6, rodada: s3.rodada }];
+  assert.equal(abrirLeilaoVenda(base, s3, 'r1'), null); assert.match(abrirLeilaoVenda(base, s3, 'r1'), /leilão/);
+  const r3 = encerrarPendente(base, s3);
+  assert.equal(v.clube, ci3); assert.equal(s3.recebidas.length, 1); assert.equal(s3.recebidas[0].id, r3.id); assert.ok(r3.valor >= 1e6 && s3.recebidas[0].leilao === 'fim');
+});
+
+test('rebaixado: os melhores com perfil pedem para sair e, sem venda até a janela fechar, rescindem pagando multa', () => {
+  const s = novoJogo(base, cfg(81)), meu = s.tecnico.clube, outro = base.clubes.findIndex((c, i) => c.div === 'A' && i !== meu && i > 5);
+  pedidosDeQueda(base, s, [meu, outro]);
+  const meus = Object.entries(s.querSair).filter(([, q]) => q.queda), ia = Object.keys(s.quedaIA);
+  assert.ok(meus.length >= 1 && meus.length <= 3 && ia.length >= 1 && ia.length <= 3);
+  for (const [id, q] of meus) { const j = base.jog.get(+id); assert.ok(q.queda.multa < j.valor * 1000 && q.queda.multa >= j.valor * 1000 * 0.38); }
+  assert.ok(ia.every(id => listasIA(base, s).venda.has(+id)), 'craque do rebaixado da IA vai à venda');
+  const cx = s.caixa, multas = meus.reduce((a, [, q]) => a + q.queda.multa, 0);
+  for (let k = 0; k < 400 && janelaAberta(s.ano, s.rodada + 1); k++) avancar(base, s);
+  for (const r0 = s.rodada; s.rodada === r0;) avancar(base, s); // a rodada em que a janela fecha
+  for (const [id] of meus) assert.notEqual(base.jog.get(+id).clube, meu);
+  assert.ok(s.caixa - cx > -5e6 && s.historicoTransf.some(h => h.tipo === 'rescisao' && h.de === meu && h.valor > 0) || multas === 0);
+  assert.ok(!Object.keys(s.quedaIA).length, 'na IA, quem sobrou rescindiu');
+});

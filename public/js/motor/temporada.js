@@ -6,7 +6,7 @@ import { FASES_CONT } from './continental.js';
 import { saidaPorQueda } from './carreira.js';
 import { FASES, novaCopa, campanha } from './copa.js';
 import { metaDiretoria, folhaDia, lancar, cotaTV, garantirFinancas, fairPlay, punirFPF, LIMITE_FPF, ANO_FPF, ANO_EQUILIBRIO } from './financas.js';
-import { garantirMercado, cumprirAcordos, fimDosEmprestimos } from './mercado.js';
+import { garantirMercado, cumprirAcordos, fimDosEmprestimos, pedidosDeQueda } from './mercado.js';
 import { viradaDM } from './dm.js';
 import { novaCont, campanhaCont } from './continental.js';
 import { novaReg, campanhaReg, regsDe, REGIONAIS } from './regionais.js';
@@ -162,7 +162,8 @@ export function virarTemporada(base, s) {
   viradaDM(base, s);
   s.forma = {}; s.afast = {}; s.julgamentos = [];
   for (const id in s.trato || {}) s.trato[id] = Math.trunc(s.trato[id] / 2); // a mágoa diminui com o tempo
-  Object.assign(s, { rodada: 0, feitas: { ano: s.ano, B: 0, C: 0 }, f2: {}, res: { A: {}, B: {}, C: {} }, cart: {}, est: {}, ultima: null, lider: {}, rumores: {}, destaques: {}, ultimaData: null, recuperado: null, cond: {}, mor: {}, semJogar: {}, xi: null, banco: null, recebidas: [], preContratos: [] });
+  Object.assign(s, { rodada: 0, feitas: { ano: s.ano, B: 0, C: 0 }, f2: {}, res: { A: {}, B: {}, C: {} }, cart: {}, est: {}, ultima: null, lider: {}, rumores: {}, destaques: {}, ultimaData: null, recuperado: null, cond: {}, mor: {}, semJogar: {}, xi: null, banco: null, recebidas: [], preContratos: [], querSair: {}, quedaIA: {} });
+  for (const t of pedidosDeQueda(base, s, [...cai.A, ...cai.B])) add(t, 'mercado'); // os melhores de quem caiu pedem para sair
   delete s._cal;
   s.propostas = s.propostas.filter(p => !['aguardando', 'contraproposta'].includes(p.estado)).slice(0, 30);
   s.listas = { venda: s.listas.venda.filter(id => base.jog.get(id)?.clube === ci), emprestimo: s.listas.emprestimo.filter(id => base.jog.get(id)?.clube === ci) };

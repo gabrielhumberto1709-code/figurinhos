@@ -490,6 +490,20 @@ function boneco(look, gk) {
   return g.toData();
 }
 
+// ---------- Dr. Arremate, o leiloeiro: busto 32x36 de chapéu-coco, bigode de guidão, colete vinho e gravata-borboleta ----------
+function leiloeiro() {
+  const d = portrait({ skin: 1, hair: 'grisalho', style: 'careca', beard: 'bigode', rosto: 'quadrado', sobrancelha: 'grossa', iris: 0, smile: true, kit: { c1: '#7A1F2B', c2: '#F2B33D', pat: 'liso', collar: 'v' } });
+  const g = new Grid(32, 36);
+  d.rows.forEach((row, y) => { for (let x = 0; x < row.length; x++) { const code = row.charCodeAt(x); if (row[x] !== '.') g.set(x, y + 4, d.pal[code - 65 - (code > 90 ? 6 : 0)]); } });
+  const P = '#1B1F2A', L = '#3A4152', FITA = '#C81F36', OURO = '#F2B33D', NO = '#A8741A', BIG = HAIR.grisalho[0];
+  g.hline(12, 19, 0, P); g.rect(11, 1, 10, 6, P); g.hline(11, 20, 5, FITA); g.hline(7, 24, 7, P); g.hline(8, 23, 8, P); // chapéu
+  g.set(13, 1, L); g.set(12, 2, L); g.set(12, 3, L); g.hline(9, 12, 7, L);
+  g.set(12, 21, BIG); g.set(19, 21, BIG); g.set(11, 20, BIG); g.set(20, 20, BIG); g.set(10, 19, BIG); g.set(21, 19, BIG); // bigode de guidão
+  g.set(13, 28, OURO); g.set(18, 28, OURO); g.hline(13, 18, 29, OURO); g.set(13, 30, OURO); g.set(18, 30, OURO);       // gravata
+  g.set(15, 29, NO); g.set(16, 29, NO);
+  return g.toData();
+}
+
 // ---------- desenho em canvas, com cache ----------
 const cache = new Map();
 function paraURL(d) {
@@ -504,5 +518,6 @@ export const urlEscudo = clube => mem(`e${clube.n}`, () => crest(escudoDe(clube)
 export const urlCamisa = clube => mem(`c${clube.n}`, () => shirt(kitDe(clube)));
 export const urlBotao = clube => mem(`b${clube.n}`, () => button(clube.c[0], clube.c[1]));
 export const urlBandeira = code => mem(`f${code}`, () => flag(code));
+export const urlLeiloeiro = () => mem('leiloeiro', leiloeiro);
 export const urlBoneco = (code, clube, gk = false) => mem(`p${code}${clube.n}${gk ? 'g' : ''}`, () => boneco(lookDe(code, { ...kitDe(clube), short: clube.so }), gk));
 export { portrait, button, crest, shirt, flag, pitch, boneco, SKIN, HAIR, shade };

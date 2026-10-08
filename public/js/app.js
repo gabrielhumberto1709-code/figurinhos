@@ -14,6 +14,8 @@ import * as AoVivo from './aovivo.js';
 import * as Elenco from './elenco.js';
 import * as Jornal from './jornal.js';
 import * as Coletiva from './coletiva.js';
+import * as Leilao from './leilao.js';
+import { encerrarPendente } from './motor/leilao.js';
 import { confronto, textoConfronto } from './motor/confrontos.js';
 import * as Gala from './gala.js';
 import { perfil, prePendente } from './motor/imprensa.js';
@@ -546,6 +548,7 @@ telas.partida = () => {
 telas.noticias = () => Jornal.tela();
 telas.coletiva = () => Coletiva.tela();
 telas.gala = () => Gala.tela();
+telas.leilao = () => Leilao.tela();
 
 // saves antigos ganham os campos novos; a base recebe as transferências deste save
 function migrar(s) {
@@ -553,6 +556,7 @@ function migrar(s) {
   s.anoInicial ??= s.ano;
   aplicarSave(app.base, s);
   s.est ||= {};
+  encerrarPendente(app.base, s); // leilão que ficou aberto quando o app fechou: a sala termina sem você
   copaSemVoce(app.base, s); // saves de antes da copa ganham a edição do ano (fases atrasadas se resolvem sozinhas)
   if (s.caixa == null) s.caixa = caixaInicial(app.base, s.tecnico.clube, s.dificuldade);
   garantirFinancas(app.base, s);
@@ -601,11 +605,13 @@ async function render() {
     if (!app.vivo.fim && !confirm('Sair agora encerra o jogo: o resto é simulado na hora. Sair mesmo?')) { history.replaceState(null, '', '#/ao-vivo'); return; }
     concluirAoVivo();
   }
+  // saiu da sala de leilão no meio: conta como desistência (pergunta antes)
+  if (app.aba === 'leilao' && rota !== 'leilao' && !Leilao.podeSair()) { history.replaceState(null, '', '#/leilao'); return; }
   if (rota === 'ao-vivo' && !app.vivo) { location.hash = app.s ? '#/clube' : '#/saves'; return; }
   if (rota === 'tabela') { location.hash = '#/torneios'; return; }
   if (rota === 'base' || rota === 'treino' || rota === 'dm') { app.abaElenco = rota; location.hash = '#/elenco'; return; }
   if (app.s?.demitido && ['elenco', 'mercado', 'financas', 'partida', 'calendario', 'coletiva'].includes(rota)) { location.hash = '#/clube'; return; } // sem clube: só propostas, tabelas e notícias
-  const precisaJogo = ['clube', 'elenco', 'torneios', 'calendario', 'partida', 'noticias', 'mercado', 'financas', 'carreira', 'coletiva', 'mensagens', 'gala'].includes(rota);
+  const precisaJogo = ['clube', 'elenco', 'torneios', 'calendario', 'partida', 'noticias', 'mercado', 'financas', 'carreira', 'coletiva', 'mensagens', 'gala', 'leilao'].includes(rota);
   if (!app.conta && rota !== 'entrar') { location.hash = '#/entrar'; return; }
   if (precisaJogo && !app.s) { location.hash = '#/saves'; return; }
   if (rota === 'novo' && !app.novo) { location.hash = '#/saves'; return; }
@@ -622,6 +628,7 @@ async function render() {
   desenhaTopo();
   $('.aba-sub[aria-selected=true], .abas-mercado [aria-pressed=true]')?.scrollIntoView({ inline: 'nearest', block: 'nearest' }); // aba escolhida sempre visível no celular
   if (rota === 'ao-vivo') AoVivo.comecar(app.vivo);
+  if (rota === 'leilao') Leilao.aoMostrar();
   if (render.anterior !== rota) { window.scrollTo(0, 0); main.focus({ preventScroll: true }); }
   render.anterior = rota;
 }
@@ -700,6 +707,7 @@ const acoes = {
   ...Elenco.acoes,
   ...Jornal.acoes,
   ...Coletiva.acoes,
+  ...Leilao.acoes,
   ...Gala.acoes,
   tema: () => {
     const novo = escuro() ? 'claro' : 'escuro';
@@ -750,6 +758,7 @@ document.addEventListener('input', e => {
 
 document.addEventListener('submit', async e => {
   if (['proposta', 'renovar'].includes(e.target.dataset.form)) { e.preventDefault(); Mercado.enviar(e.target); return; }
+  if (e.target.dataset.form === 'lance') { e.preventDefault(); Leilao.darLance(e.target); return; }
   if (e.target.dataset.form !== 'entrar') return;
   e.preventDefault();
   const f = e.target, modo = e.submitter?.value || 'entrar', erro = f.querySelector('.erro');
@@ -773,6 +782,7 @@ AoVivo.configurar({ app, clube, esc, imgEscudo, $, guardar: guardarVivo });
 Torneios.configurar({ app, clube, esc, imgEscudo, render: () => render() });
 Coletiva.configurar({ app, clube, esc, render: () => render(), salvar: () => salvar(), jogar: () => comecarJogo() });
 Gala.configurar({ app, clube, esc, imgEscudo, render: () => render() });
+Leilao.configurar({ app, clube, esc, imgEscudo, aviso, render: () => render(), salvar: () => salvar() });
 Jornal.configurar({ app, clube, esc, imgEscudo, render: () => render() });
 Mercado.configurar({ app, clube, esc, imgEscudo, $, aviso, render: () => render(), salvar: () => salvar() });
 Elenco.configurar({ app, clube, esc, imgEscudo, figurinha, render: () => render(), salvar: () => salvar(), aviso });

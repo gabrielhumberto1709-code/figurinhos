@@ -25,7 +25,19 @@ function torcida(dur, pico, freq = 900) {
   g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(pico, t + dur * 0.25); g.gain.exponentialRampToValueAtTime(0.001, t + dur);
   src.start(t);
 }
+// pancada de madeira: o martelo do leiloeiro (forte no "vendido", leve no "dou-lhe uma/duas")
+function pancada(forca = 1) {
+  const c = ac(); if (!c) return;
+  const t = c.currentTime, o = c.createOscillator(), g = c.createGain();
+  o.type = 'triangle'; o.frequency.setValueAtTime(forca < 1 ? 320 : 210, t); o.frequency.exponentialRampToValueAtTime(60, t + 0.12);
+  g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.32 * forca, t + 0.006); g.gain.exponentialRampToValueAtTime(0.001, t + 0.2);
+  o.connect(g); g.connect(c.destination); o.start(t); o.stop(t + 0.22);
+  torcida(0.07, 0.14 * forca, 1900);
+}
 export const SOM = {
+  lance: () => torcida(0.06, 0.05, 2600),
+  batidinha: () => pancada(0.45),
+  martelo: () => { pancada(1); setTimeout(() => torcida(1.4, 0.09, 650), 120); },
   inicio: () => apito(0.5),
   intervalo: () => apito(0.35, 2),
   fim: () => apito(0.35, 3),
