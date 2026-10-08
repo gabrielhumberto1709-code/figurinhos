@@ -16,7 +16,7 @@ import * as Gala from './gala.js';
 import { perfil } from './motor/imprensa.js';
 import { faseDe } from './motor/forma.js';
 import { remetente, naoLidas } from './motor/correio.js';
-import { TEMPERAMENTOS, temperamento, PRELECOES, efeitoPrelecao, prelecaoFeita, fazerPrelecao, CONVERSAS, podeConversar, conversar, responderAumento } from './motor/vestiario.js';
+import { TEMPERAMENTOS, temperamento, PRELECOES, efeitoPrelecao, prelecaoFeita, fazerPrelecao, CONVERSAS, podeConversar, conversar, responderAumento, responderJogador } from './motor/vestiario.js';
 import { POS_NOME, ATT, ATT_NOME, cartaDe, estrelas, fmtDinheiro, PAISES } from './motor/util.js';
 import { urlRosto, urlEscudo, urlBandeira, urlBotao } from './pixel.js';
 
@@ -262,9 +262,12 @@ function conversaHtml(j) {
 
 // ----- caixa de mensagens -----
 const ROSTO_REM = { diretor: '3220100000', presidente: '1612200000', medico: '2033100000', olheiro: '4141000000' };
-const cartaMsg = (m, curta = false) => { const r = remetente(app.s, m.de);
-  return `<article class="msg ${m.lida ? '' : 'nova'}"><div class="msg-topo"><img class="px" src="${urlRosto(ROSTO_REM[m.de] || ROSTO_REM.diretor, TERNO)}" width="32" height="32" alt=""><span><b>${esc(r.nome)}</b><small>${esc(r.cargo)} · ${m.rodada ? `rodada ${m.rodada}` : 'pré-temporada'}</small></span></div>
-    <h3>${esc(m.assunto)}</h3>${curta ? '' : `<p>${esc(m.texto)}</p>`}
+const cartaMsg = (m, curta = false) => {
+  const aut = m.de === 'jogador' && app.base.jog.get(m.autor), r = aut ? { nome: aut.curto, cargo: `${POS_NOME[aut.pos]} do elenco` } : remetente(app.s, m.de);
+  const foto = aut ? urlRosto(aut.rosto, clube(aut.clube)) : urlRosto(ROSTO_REM[m.de] || ROSTO_REM.diretor, TERNO);
+  const resp = m.opcoes && !curta ? (m.resp ? `<p class="mudo msg-resp">Você respondeu: ${esc(m.opcoes.find(o => o[0] === m.resp)?.[1] || '')}</p>` : `<div class="linha-botoes">${m.opcoes.map(([k, rot], i) => `<button class="botao peq ${i ? 'sec' : ''}" type="button" data-acao="msg-resp" data-m="${m.id}" data-r="${k}">${rot}</button>`).join('')}${m.tipoJ === 'reforco' ? `<a class="botao peq sec" href="#/mercado" data-acao="msg-aba" data-a="buscar" data-setor="${m.setor || ''}">Abrir o Mercado</a>` : ''}</div>`) : '';
+  return `<article class="msg ${m.lida ? '' : 'nova'} ${aut ? 'de-jogador' : ''}"><div class="msg-topo"><img class="px" src="${foto}" width="32" height="32" alt=""><span><b>${esc(r.nome)}</b><small>${esc(r.cargo)} · ${m.rodada ? `rodada ${m.rodada}` : 'pré-temporada'}</small></span></div>
+    <h3>${esc(m.assunto)}</h3>${curta ? '' : `<p>${esc(m.texto)}</p>${resp}`}
     ${curta ? '' : `<div class="linha-botoes">${m.jogador != null && app.base.jog.get(m.jogador) ? `<button class="botao peq sec" type="button" data-acao="ficha" data-id="${m.jogador}">Ver jogador</button>` : ''}${m.link ? `<a class="botao peq" href="${m.link}" ${m.aba ? `data-acao="msg-aba" data-a="${m.aba}"` : ''}>Resolver</a>` : ''}${m.aumento != null && (app.s.pedidosAumento || []).some(p => p.jogador === m.aumento) ? `<button class="botao peq" type="button" data-acao="aumento" data-id="${m.aumento}" data-sim="1">Dar aumento</button><button class="botao peq sec" type="button" data-acao="aumento" data-id="${m.aumento}">Negar</button>` : ''}</div>`}</article>`; };
 function recados() {
   const novas = (app.s.msgs || []).filter(m => !m.lida);
@@ -421,6 +424,15 @@ function dmFicha(j) {
     sp && `Suspenso: ${Object.entries(sp).map(([c, n]) => `${n} jogo${n > 1 ? 's' : ''} ${COMP_DE[c]}`).join(' e ')}.`,
     p.length && `Pendurado (2 amarelos) ${p.map(c => COMP_DE[c].replace(/^d/, 'n')).join(' e ')}.`].filter(Boolean).map(t => `<p class="aviso-ficha">${t}</p>`).join('');
 }
+// temporadas dele no jogo (Brasileirão) e prêmios de gala
+function historicoJogador(j) {
+  const s = app.s, e = s.est?.[j.id], linhas = [...(e?.[0] ? [[s.ano, j.clube, e[0], e[1], e[2], Math.round(e[3] / e[0]), true]] : []), ...(s.histJog?.[j.id] || []).slice().reverse()];
+  const premios = (s.galas || []).flatMap(g => Object.entries(g.divs).flatMap(([d, x]) => Object.entries(x.premios).filter(([k, l]) => k !== 'prancheta' && l[0]?.id === j.id).map(([k]) => `${GALA_NOME[k]} ${g.ano} (Série ${d})`)));
+  if (!linhas.length && !premios.length) return '';
+  return `<section class="hist-jog"><h3>Temporadas no jogo</h3>${linhas.length ? `<table class="tabela-hist"><thead><tr><th>Ano</th><th>Clube</th><th>J</th><th>G</th><th>A</th><th>Nota</th></tr></thead><tbody>${linhas.map(([a, c, jg, g, as, n, atual]) => `<tr><td>${a}${atual ? '*' : ''}</td><td>${imgEscudo(c, 14, 15)} ${esc(clube(c).n)}</td><td>${jg}</td><td>${g}</td><td>${as}</td><td>${(n / 10).toFixed(1).replace('.', ',')}</td></tr>`).join('')}</tbody></table>${linhas.some(l => l[6]) ? '<p class="mudo" style="font-size:.85rem">* temporada em andamento · só jogos do Brasileirão</p>' : ''}` : ''}
+    ${premios.length ? `<p class="premios-jog">Prêmios: ${premios.map(esc).join(' · ')}</p>` : ''}</section>`;
+}
+const GALA_NOME = { bola: 'Bola de Ouro', chuteira: 'Chuteira de Ouro', garcom: 'Garçom', luva: 'Luva de Ouro', revelacao: 'Revelação' };
 function abrirFicha(id) {
   const j = app.base.jog.get(+id); if (!j) return;
   const meu = j.clube === app.s?.tecnico.clube, carta = cartaDe(j.ovr);
@@ -434,6 +446,7 @@ function abrirFicha(id) {
     <div class="atts">${ATT.map(k => `<div class="att" style="--c:${corAtt(j.att[k])}"><span>${ATT_NOME[k]}</span><span class="num">${j.att[k]}</span><div><b style="width:${j.att[k]}%"></b></div></div>`).join('')}</div>
     ${app.s ? faseFicha(j) + dmFicha(j) : ''}${app.s && meu ? conversaHtml(j) : ''}${app.s?.evo?.[j.id] >= 1 ? `<p class="aviso-ficha evo">▲ +${Math.floor(app.s.evo[j.id])} de overall com o treino no clube.</p>` : ''}
     <dl><dt>Valor</dt><dd>${fmtDinheiro(j.valor * 1000)}</dd><dt>Contrato</dt><dd>até ${j.contrato}</dd></dl>
+    ${app.s ? historicoJogador(j) : ''}
     ${app.s ? Mercado.blocoFicha(j) : ''}
     <form method="dialog"><button class="botao sec" style="width:100%">Fechar</button></form></div>`;
   if (!d.open) d.showModal();
@@ -610,7 +623,8 @@ const acoes = {
   prelecao: el => { const m = fazerPrelecao(app.base, app.s, el.dataset.t); if (m) aviso(m); render(); salvar(); },
   conversar: el => { const r = conversar(app.base, app.s, el.dataset.id, el.dataset.t); aviso(r.txt); salvar(); abrirFicha(el.dataset.id); },
   aumento: el => { const m = responderAumento(app.base, app.s, el.dataset.id, el.dataset.sim === '1'); if (m) aviso(m); render(); salvar(); },
-  'msg-aba': el => { app.abaMercado = el.dataset.a; ir(el.getAttribute('href')); },
+  'msg-aba': el => { app.abaMercado = el.dataset.a; if (el.dataset.setor) Mercado.filtroSetor(el.dataset.setor); ir(el.getAttribute('href')); },
+  'msg-resp': el => { const m = responderJogador(app.base, app.s, el.dataset.m, el.dataset.r); if (m) aviso(m); render(); salvar(); },
   'aceitar-oferta': el => { const m = aceitarOferta(app.base, app.s, +el.dataset.c); if (m) return aviso(m); aviso(`Bem-vindo ao ${clube(app.s.tecnico.clube).n}!`); salvar(); location.hash === '#/clube' ? render() : ir('#/clube'); },
   'recusar-oferta': el => { recusarOferta(app.s, +el.dataset.c); render(); salvar(); },
   'pedir-demissao': el => { if (el.dataset.confirma !== '1') { el.dataset.confirma = '1'; el.textContent = 'Tem certeza? Toque de novo'; return; } pedirDemissao(app.base, app.s); salvar(); ir('#/clube'); },

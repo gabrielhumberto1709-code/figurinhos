@@ -55,6 +55,9 @@ export function virarTemporada(base, s) {
   const pos = tabs[div].findIndex(l => l.clube === ci) + 1, meta = metaDiretoria(base, s);
   const premiacao = arquivarGala(base, s, gala(base, s)); // antes de acesso, transferências e da estatística zerada
   const revisao = revisarPotencial(base, s), meusPot = revisao.filter(([j]) => j.clube === ci);
+  // histórico de cada jogador no jogo: [ano, clube, jogos, gols, assistências, nota média × 10]
+  s.histJog ||= {};
+  for (const [id, e] of Object.entries(s.est || {})) { const j = base.jog.get(+id); if (j && e[0]) (s.histJog[id] ||= []).push([s.ano, j.clube, e[0], e[1], e[2], Math.round(e[3] / e[0])]); }
   const artilheiro = d => { const t = Object.entries(s.est).map(([id, e]) => [base.jog.get(+id), e[1]]).filter(([j, g]) => j && g && base.clubes[j.clube].div === d).sort((a, b) => b[1] - a[1])[0]; return t ? { id: t[0].id, nome: t[0].curto, clube: t[0].clube, gols: t[1] } : null; };
   const sobe = { B: tabs.B.slice(0, 4).map(l => l.clube), C: tabs.C.slice(0, 4).map(l => l.clube) }, cai = { A: tabs.A.slice(16).map(l => l.clube), B: tabs.B.slice(16).map(l => l.clube) };
   s.historico ||= [];

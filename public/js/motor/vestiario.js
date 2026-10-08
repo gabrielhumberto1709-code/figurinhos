@@ -81,6 +81,31 @@ export function responderAumento(base, s, id, sim) {
   return `${j.curto} não gostou da resposta.`;
 }
 
+// ---------- resposta às mensagens dos jogadores ----------
+export function responderJogador(base, s, msgId, r) {
+  const m = (s.msgs || []).find(x => x.id === msgId); if (!m || m.resp || !m.opcoes) return 'Mensagem já respondida.';
+  const j = base.jog.get(m.autor), op = m.opcoes.find(o => o[0] === r); if (!j || !op) return null;
+  if (j.clube !== s.tecnico.clube) { m.resp = r; return `${j.curto} não está mais no clube.`; }
+  const t = temperamento(j), el = base.elencos[s.tecnico.clube];
+  let txt;
+  if (m.tipoJ === 'jogar') {
+    if (r === 'prometer') { s.promessas = { ...(s.promessas || {}), [j.id]: { rodada: s.rodada, ano: s.ano } }; mexe(s, j.id, 6); txt = `${j.curto} ficou animado. Ele vai cobrar a promessa nos próximos 3 jogos.`; }
+    else { mexe(s, j.id, t === 'profissional' ? 0 : t === 'sensivel' ? -5 : -3); txt = `${j.curto} vai esperar a vez dele.`; }
+  } else if (m.tipoJ === 'sair' || m.tipoJ === 'emprestimo') {
+    const lista = m.tipoJ === 'sair' ? 'venda' : 'emprestimo';
+    if (r === 'vender' || r === 'emprestar') { if (!s.listas[lista].includes(j.id)) { s.listas[lista === 'venda' ? 'emprestimo' : 'venda'] = s.listas[lista === 'venda' ? 'emprestimo' : 'venda'].filter(x => x !== j.id); s.listas[lista].push(j.id); } mexe(s, j.id, 4); txt = `${j.curto} está ${lista === 'venda' ? 'à venda' : 'na lista de empréstimo'}. As propostas chegam com a janela aberta.`; }
+    else { mexe(s, j.id, m.tipoJ === 'sair' ? -6 : -4); txt = `${j.curto} não gostou, mas fica.`; }
+  } else if (m.tipoJ === 'fase') {
+    if (r === 'apoiar') { mexe(s, j.id, 5); txt = `${j.curto} agradeceu o apoio.`; }
+    else { const d = t === 'profissional' ? 2 : t === 'ambicioso' ? 0 : -6; mexe(s, j.id, d); txt = d >= 0 ? `${j.curto} aceitou a cobrança.` : `${j.curto} sentiu a cobrança.`; }
+  } else if (m.tipoJ === 'reforco') {
+    if (r === 'prometer') { for (const x of el) mexe(s, x.id, 1); txt = 'O grupo gostou de ouvir. Agora é buscar no Mercado.'; }
+    else { mexe(s, j.id, -3); for (const x of el) if (x !== j) mexe(s, x.id, 1); txt = `${j.curto} esperava reforço, mas o grupo gostou da confiança.`; }
+  }
+  m.resp = r;
+  return txt;
+}
+
 // ---------- depois de cada rodada ----------
 export function vestiarioAposRodada(base, s, tabs) {
   const ci = s.tecnico.clube, el = base.elencos[ci], r = rng(`vest${s.seed}${s.ano}${s.rodada}`), N = [], add = (texto, extra = {}) => N.push({ tipo: 'clube', clube: ci, imprensa: true, texto, ...extra });

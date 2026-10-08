@@ -10,7 +10,7 @@ import { faseDe } from './forma.js';
 import { rng, clamp, pickW, shuffle, SETOR, nivelDiv, estrelas, continenteDe } from './util.js';
 import { temperamento } from './vestiario.js';
 import { interessados, media } from './noticias.js';
-import { janelaAberta, caixaInicial, aplicarSave } from './mundo.js';
+import { janelaAberta, caixaInicial, aplicarSave, evolucao } from './mundo.js';
 import { orcamento, lancar, garantirFinancas, salarioDia, salarioBase, diasRestantes } from './financas.js';
 
 const arred = v => Math.max(50000, Math.round(v / 10000) * 10000);
@@ -55,6 +55,8 @@ export function listasIA(base, s) {
   return (base._listas = { k, venda, emprestimo });
 }
 export const contratoNoFim = (s, j) => j.contrato <= s.ano;
+// vai pendurar as chuteiras no fim da temporada (a evolução do ano que vem já diz)
+export const vaiAposentar = (s, j) => !j.fora && j.idade >= 33 && evolucao(j, s.ano + 1 - j.anoBase).fora;
 export const preContratoDe = (s, id) => s.preContratos.find(p => p.jogador === id);
 export function situacao(base, s, j) {
   const L = listasIA(base, s), meu = j.clube === s.tecnico.clube, t = [];
@@ -64,6 +66,7 @@ export function situacao(base, s, j) {
   if (meu ? s.listas.emprestimo.includes(j.id) : L.emprestimo.has(j.id)) t.push('emprestimo');
   if (contratoNoFim(s, j)) t.push('fim');
   if (preContratoDe(s, j.id)) t.push('pre');
+  if (s.rodada >= ABRE_PRE && vaiAposentar(s, j)) t.push('aposenta');
   return t;
 }
 
@@ -131,7 +134,7 @@ export function tiposPossiveis(base, s, j) {
   if (ehLivre(base, j.clube)) return ['livre'];
   const t = [];
   if (!s.emprestimos[j.id]) t.push('compra');
-  if (contratoNoFim(s, j) && s.rodada >= ABRE_PRE && !preContratoDe(s, j.id)) t.push('pre');
+  if (contratoNoFim(s, j) && s.rodada >= ABRE_PRE && !preContratoDe(s, j.id) && !vaiAposentar(s, j)) t.push('pre');
   if (!s.emprestimos[j.id] && base.clubes[j.clube].div !== 'X') t.push('emprestimo'); // quem decide são as cláusulas
   return t;
 }
@@ -146,7 +149,8 @@ export function bloqueioProposta(base, s, j, o) {
   const pre = preContratoDe(s, j.id);
   if (pre) return `Já assinou pré-contrato com o ${base.clubes[pre.para].n}.`;
   if (s.emprestimos[j.id] && o.tipo !== 'pre') return 'Está emprestado até o fim da temporada.';
-  if (!tiposPossiveis(base, s, j).includes(o.tipo)) return o.tipo === 'pre' ? `Pré-contrato só com contrato no fim, a partir da ${ABRE_PRE + 1}ª rodada.` : o.tipo === 'emprestimo' ? 'Esse clube não empresta.' : 'Esse tipo de proposta não vale para ele.';
+  if (o.tipo === 'pre' && s.rodada >= ABRE_PRE && vaiAposentar(s, j)) return 'Ele vai se aposentar no fim da temporada.';
+  if (!tiposPossiveis(base, s, j).includes(o.tipo)) return o.tipo === 'pre' ? `Pré-contrato só com contrato no fim, a partir da ${ABRE_PRE + 1}ª rodada (metade do Brasileirão). Ele chega na temporada seguinte.` : o.tipo === 'emprestimo' ? 'Esse clube não empresta.' : 'Esse tipo de proposta não vale para ele.';
   if (o.tipo === 'emprestimo' && !janela) return 'A janela de transferências está fechada.'; // compra com a janela fechada vira acordo
   if (o.tipo === 'emprestimo' && (o.cl?.taxa || 0) > s.caixa) return 'A taxa de empréstimo passa do que tem em caixa.';
   const t = o.troca && base.jog.get(o.troca);
@@ -698,7 +702,7 @@ export function resolverMercado(base, s, rd) {
 
   // contrato acabando e sem renovação: a partir da 25ª rodada, outro clube pode assinar pré-contrato com ele
   if (rd >= 24) for (const j of base.elencos[meu]) {
-    if (!contratoNoFim(s, j) || preContratoDe(s, j.id) || s.emprestimos[j.id] || j.ovr < base.forca(meu) - 4 || r() > 0.15) continue;
+    if (!contratoNoFim(s, j) || preContratoDe(s, j.id) || s.emprestimos[j.id] || j.ovr < base.forca(meu) - 4 || vaiAposentar(s, j) || r() > 0.15) continue;
     const opcoes = interessados(base, j); if (!opcoes.length) continue;
     const para = pickW(r, opcoes, ci => base.clubes[ci].fan);
     s.preContratos.push({ jogador: j.id, de: meu, para, rodada: rd });

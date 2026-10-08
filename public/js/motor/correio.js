@@ -1,7 +1,8 @@
 // Caixa de mensagens: o diretor de futebol (e às vezes o presidente, o médico e o olheiro) escreve para o técnico
 // depois de cada jogo: desfalques, pendurados, propostas com a opinião dele, quem quer sair, contratos, janela,
 // dinheiro, cargo, fase dos jogadores, garotos que subiram de nível. Cada assunto sai uma vez só.
-import { rng, pick, fmtDinheiro } from './util.js';
+import { rng, pick, fmtDinheiro, SETOR } from './util.js';
+import { temperamento } from './vestiario.js';
 import { nomeTecnico, pilares } from './carreira.js';
 import { proximoEvento, compProxima, janelaAberta, tabela, barradoMedo, multaMedo } from './mundo.js';
 import { indisponivel, pendurado, LESOES, COMP_DE } from './dm.js';
@@ -71,9 +72,27 @@ export function correio(base, s) {
         : `Chegou proposta do ${nome(x.de)}: ${fmtDinheiro(x.valor)} por ${j.curto}. ${opiniao(base, s, j, x)} Ela vale por duas rodadas.`, { link: '#/mercado', aba: 'propostas', jogador: j.id });
   }
   // quem quer sair
-  for (const [id, q] of Object.entries(s.querSair || {})) { const j = base.jog.get(+id); if (j) enviar(s, 'diretor', `sair-${id}-${q.rodada}`, `${j.curto} quer sair`, `${j.curto} esteve na minha sala. Ele ${q.motivo} e não engoliu a recusa da proposta do ${nome(q.de)}. Está desanimado e não quer falar de renovação. Se aparecer outra proposta, eu pensaria com carinho.`, { jogador: j.id }); }
-  // pedidos de aumento
-  for (const p of s.pedidosAumento || []) { const j = base.jog.get(p.jogador); if (j) enviar(s, 'diretor', `aum-${p.jogador}-${p.rodada}-${s.ano}`, `${j.curto} pede aumento`, `${j.curto} veio conversar: está em grande fase e quer passar a ganhar ${fmtDinheiro(p.valor)} por dia (hoje ganha bem menos). ${faseDe(s, j.id).k === 'excelente' ? 'Eu daria: ele está carregando o time.' : 'Dá pra negociar, mas cuidado com a folha.'} Ele espera resposta em até 3 rodadas.`, { aumento: p.jogador, jogador: j.id }); }
+  // os próprios jogadores escrevem: quer sair, quer aumento, quer jogar, quer empréstimo, sabe que está mal, pede reforço
+  const primeira = m => m.replace(/^é /, 'era ').replace(/^sonha /, 'sonho ').replace(/^quer /, 'quero ').replace(/^está /, 'estou ').replace(/^não resiste /, 'não resisto ');
+  const fala = (j, chave, tipoJ, assunto, texto, opcoes, extra = {}) => enviar(s, 'jogador', chave, assunto, texto, { autor: j.id, jogador: j.id, tipoJ, opcoes, ...extra });
+  for (const [id, q] of Object.entries(s.querSair || {})) { const j = base.jog.get(+id); if (j?.clube === ci) fala(j, `sair-${id}-${q.rodada}`, 'sair', 'Quero ser negociado', `Professor, vou ser sincero: ${primeira(q.motivo)}. ${q.de !== ci ? `Não engoli a recusa da proposta do ${nome(q.de)}. ` : ''}Se aparecer outra proposta, me libera.`, [['vender', 'Colocar à venda'], ['segurar', 'Você fica']]); }
+  for (const p of s.pedidosAumento || []) { const j = base.jog.get(p.jogador); if (j) fala(j, `aum-${p.jogador}-${p.rodada}-${s.ano}`, 'aumento', 'Pedido de aumento', `Professor, acho que mereço ganhar mais. Estou carregando o time e queria passar para ${fmtDinheiro(p.valor)} por dia (hoje ganho ${fmtDinheiro(salarioDia(base, s, j))}). Espero resposta em até 3 rodadas.`, null, { aumento: p.jogador }); }
+  if (!s.demitido && ev) {
+    const ord = el.slice().sort((a, b) => b.ovr - a.ovr), rank = j => ord.indexOf(j), comp = compProxima(base, s);
+    const quer = el.filter(j => (s.semJogar?.[j.id] || 0) >= 3 && rank(j) < 22 && j.idade >= 19 && !indisponivel(s, j.id, comp) && (s.mor?.[j.id] ?? 62) < 66 && !s.promessas?.[j.id]).sort((a, b) => b.ovr - a.ovr)[0];
+    if (quer) fala(quer, `pj-jogar-${quer.id}-${s.ano}-${Math.floor(rd / 6)}`, 'jogar', 'Quero uma chance', `Professor, estou treinando forte e não jogo há ${s.semJogar[quer.id]} jogos. Só peço uma oportunidade pra mostrar serviço.`, [['prometer', 'Prometer minutos'], ['paciencia', 'Pedir paciência']]);
+    const emp = el.filter(j => j.idade <= 23 && (s.semJogar?.[j.id] || 0) >= 5 && rank(j) >= 14 && !s.listas?.emprestimo.includes(j.id) && !s.emprestimos?.[j.id]).sort((a, b) => b.pot - a.pot)[0];
+    if (emp) fala(emp, `pj-emp-${emp.id}-${s.ano}-${Math.floor(rd / 10)}`, 'emprestimo', 'Posso ser emprestado?', `Professor, sei que a concorrência aqui é grande. Queria ser emprestado pra ganhar ritmo de jogo e voltar melhor.`, [['emprestar', 'Colocar para empréstimo'], ['fica', 'Você fica']]);
+    for (const j of el) { const f = faseDe(s, j.id); if (f.d < 0 && temperamento(j) !== 'temperamental') fala(j, `pj-fase-${j.id}-${s.ano}-${Math.floor(rd / 8)}`, 'fase', 'Sei que não estou bem', `Professor, sei que não venho jogando bem (${f.nome.toLowerCase()}). Não precisa me poupar da cobrança: vou trabalhar dobrado pra voltar.`, [['apoiar', 'Apoiar'], ['cobrar', 'Cobrar']]); }
+    // o capitão pede reforço no setor mais fraco, com a janela aberta e o time mal
+    const derrotas = (tabela(base, s, base.clubes[ci].div).find(l => l.clube === ci)?.ultimos || []).slice(-3).filter(x => x === 'D').length;
+    if (janelaAberta(s.ano, rd) && rd >= 3 && derrotas >= 2) {
+      const cap = base.jog.get(s.capitao) || ord[0], setores = { DEF: 'a defesa', MEI: 'o meio-campo', ATA: 'o ataque' };
+      const media = st => { const l = ord.filter(j => SETOR[j.pos] === st).slice(0, st === 'DEF' ? 4 : 3); return l.reduce((a, j) => a + j.ovr, 0) / Math.max(1, l.length); };
+      const fraco = Object.keys(setores).sort((a, b) => media(a) - media(b))[0];
+      if (cap) fala(cap, `pj-ref-${s.ano}-${Math.floor(rd / 8)}`, 'reforco', 'O grupo precisa de reforço', `Professor, falo como capitão: o grupo está dando o sangue, mas ${setores[fraco]} precisa de reforço. Com a janela aberta, dá pra buscar alguém?`, [['prometer', 'Vou buscar'], ['confio', 'Confio nesse grupo']], { setor: fraco });
+    }
+  }
   // pré-contrato com outro clube
   for (const p of s.preContratos || []) if (p.de === ci && p.para !== ci) { const j = base.jog.get(p.jogador); if (j) enviar(s, 'diretor', `pre-${p.jogador}-${s.ano}`, `${j.curto} assinou com o ${nome(p.para)}`, `Perdemos ${j.curto}: o contrato acaba e ele já assinou pré-contrato com o ${nome(p.para)}. Sai de graça no fim da temporada.`, { jogador: j.id }); }
   // contratos acabando (no meio e na reta final)
@@ -89,11 +108,23 @@ export function correio(base, s) {
   const C = s.cargo, P = pilares(base, s);
   if (C?.ult) enviar(s, 'presidente', `ult-${s.ano}-${C.ult.j0}${C.ult.segunda ? 'b' : ''}`, 'Ultimato', `Vou ser direto: a diretoria quer ${C.ult.need} pontos nos próximos 3 jogos do campeonato. Diretoria ${P.D}, torcida ${P.T}, grupo ${P.G}. Conto com você.`, { link: '#/carreira' });
   else if (C?.st === 'risco') enviar(s, 'presidente', `risco-${s.ano}-${Math.floor(rd / 6)}`, 'Preocupação', `O momento não é bom e a cobrança aumentou. Preciso de resultados nas próximas rodadas.`, { link: '#/carreira' });
+  // diretor avisa quando diretoria, torcida ou elenco esfriam (queda de 8 desde o último aviso, ou ao cruzar 55 e 40)
+  const av = (s.avisoPilar ||= {}), DICA = {
+    D: ['A diretoria anda insatisfeita', 'Resultado, meta e contas pesam aqui. Pedir verba agora não é boa ideia.'],
+    T: ['A torcida está perdendo a paciência', 'Derrota em casa, clássico perdido e coletiva atravessada pesam. Uma vitória convincente acalma.'],
+    G: ['O elenco está com a moral em queda', 'Preleção, conversa individual, minutos para quem está encostado e salário em dia ajudam.'],
+  };
+  for (const k of ['D', 'T', 'G']) {
+    const v = P[k], ult = av[k] ?? v;
+    if (av[k] == null) { av[k] = v; continue; }
+    if (v <= ult - 8 || (ult >= 55 && v < 55) || (ult >= 40 && v < 40)) { enviar(s, 'diretor', `pilar-${k}-${s.ano}-${rd}`, DICA[k][0], `${DICA[k][0]}: ${v} de 100 (era ${ult}). ${v < 40 ? 'Está perigoso, professor. ' : ''}${DICA[k][1]}`, { link: '#/carreira' }); av[k] = v; }
+    else if (v > ult) av[k] = v;
+  }
   if (rd === 1) enviar(s, 'presidente', `meta-${s.ano}-${ci}`, `A meta para ${s.ano}`, `Boa sorte nesta temporada. A meta da diretoria é ${metaDiretoria(base, s).txt}. Dentro dela, você tem todo o meu apoio.`, { link: '#/carreira' });
   // fase dos jogadores
   for (const j of el) { const f = faseDe(s, j.id);
     if (f.k === 'excelente') enviar(s, 'diretor', `fase-${j.id}-${s.ano}-${Math.floor(rd / 8)}`, `${j.curto} está voando`, `${j.curto} vive fase excelente. Os olheiros dos grandes já estão de olho: prepare-se para propostas.`, { jogador: j.id });
-    if (f.k === 'pessima') enviar(s, 'diretor', `fasep-${j.id}-${s.ano}-${Math.floor(rd / 8)}`, `${j.curto} em baixa`, `${j.curto} atravessa fase péssima. Talvez seja hora de dar um descanso e testar outro.`, { jogador: j.id, link: '#/elenco' });
+    if (f.k === 'pessima' && temperamento(j) === 'temperamental') enviar(s, 'diretor', `fasep-${j.id}-${s.ano}-${Math.floor(rd / 8)}`, `${j.curto} em baixa`, `${j.curto} atravessa fase péssima. Talvez seja hora de dar um descanso e testar outro.`, { jogador: j.id, link: '#/elenco' });
   }
   // garotos que subiram de nível no treino
   for (const j of el) if ((s.evo?.[j.id] || 0) >= 1 && j.idade <= 21) enviar(s, 'diretor', `evo-${j.id}-${j.ovr}`, `${j.curto} evoluiu`, `O pessoal do treino está empolgado com ${j.curto}: já chegou a ${j.ovr} de overall. Merece minutos.`, { jogador: j.id });

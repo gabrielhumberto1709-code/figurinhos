@@ -748,3 +748,27 @@ test('potencial dinâmico: temporada boa sobe, ruim desce (jovem oscila mais), f
   assert.equal(s.caixa, cx + multaMedo(meu));
   barradoMedo(base, s, meu.id, adv); assert.equal(s.caixa, cx + multaMedo(meu), 'paga uma vez por jogo');
 });
+
+import { responderJogador } from '../public/js/motor/vestiario.js';
+import { vaiAposentar } from '../public/js/motor/mercado.js';
+test('caixa: jogador pede pra jogar e pra sair, responde com efeito; diretor avisa queda de moral; pré-contrato barra quem vai se aposentar', () => {
+  const s = novoJogo(base, cfg(104)), ci = s.tecnico.clube; ate(s, 2);
+  const el = base.elencos[ci].slice().sort((a, b) => b.ovr - a.ovr), banco = el[14], saidor = el[3];
+  s.semJogar = { [banco.id]: 4 }; s.mor[banco.id] = 50;
+  s.querSair = { [saidor.id]: { de: 7, rodada: s.rodada, motivo: 'quer jogar num clube maior' } };
+  correioF(base, s);
+  const mj = s.msgs.find(m => m.tipoJ === 'jogar' && m.autor === banco.id), ms = s.msgs.find(m => m.tipoJ === 'sair');
+  assert.ok(mj && ms && ms.texto.includes('quero jogar num clube maior'));
+  responderJogador(base, s, mj.id, 'prometer');
+  assert.ok(s.promessas[banco.id] && mj.resp === 'prometer');
+  assert.match(responderJogador(base, s, mj.id, 'paciencia'), /respondida/);
+  responderJogador(base, s, ms.id, 'vender');
+  assert.ok(s.listas.venda.includes(saidor.id));
+  // queda de moral da torcida
+  s.torcida = 70; correioF(base, s); s.torcida = 50; correioF(base, s);
+  assert.ok(s.msgs.some(m => m.assunto.startsWith('A torcida está perdendo')));
+  // quem vai se aposentar não assina pré-contrato
+  s.rodada = 20;
+  const vel = [...base.jog.values()].find(j => j.clube !== ci && base.clubes[j.clube].div === 'A' && j.contrato <= s.ano && vaiAposentar(s, j));
+  if (vel) assert.match(bloqueioProposta(base, s, vel, { tipo: 'pre', salario: 1000, anos: 2 }), /aposentar/);
+});

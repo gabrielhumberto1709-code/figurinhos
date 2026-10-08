@@ -738,3 +738,11 @@ b.pos { color: var(--gramado); } b.neg { color: var(--cartao); }
 .chance-emp { padding: 6px 10px; border-left: 4px solid var(--placar); background: var(--encaixe); }
 .clausulas-txt { font-size: .92rem; }
 .aviso-medo { border-left: 8px solid var(--placar); display: grid; gap: 8px; }
+.msg.de-jogador { border-left: 6px solid var(--gramado); }
+.msg-resp { font-style: italic; }
+.hist-jog { margin: 10px 0; }
+.tabela-hist { width: 100%; border-collapse: collapse; font-size: .92rem; }
+.tabela-hist th, .tabela-hist td { padding: 4px 6px; border-bottom: 1px solid var(--linha); text-align: right; }
+.tabela-hist th:nth-child(2), .tabela-hist td:nth-child(2) { text-align: left; }
+.tabela-hist td:nth-child(2) img { vertical-align: middle; }
+.premios-jog { font-weight: 700; margin-top: 6px; }
