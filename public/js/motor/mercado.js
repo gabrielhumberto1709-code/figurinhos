@@ -8,6 +8,7 @@ import { rivais } from './rivais.js';
 import { premiado } from './gala.js';
 import { faseDe } from './forma.js';
 import { rng, clamp, pickW, shuffle, SETOR, nivelDiv, estrelas, continenteDe } from './util.js';
+import { temperamento } from './vestiario.js';
 import { interessados, media } from './noticias.js';
 import { janelaAberta, caixaInicial, aplicarSave } from './mundo.js';
 import { orcamento, lancar, garantirFinancas, salarioDia, salarioBase, diasRestantes } from './financas.js';
@@ -131,7 +132,7 @@ export function tiposPossiveis(base, s, j) {
   const t = [];
   if (!s.emprestimos[j.id]) t.push('compra');
   if (contratoNoFim(s, j) && s.rodada >= ABRE_PRE && !preContratoDe(s, j.id)) t.push('pre');
-  if (listasIA(base, s).emprestimo.has(j.id)) t.push('emprestimo');
+  if (!s.emprestimos[j.id] && base.clubes[j.clube].div !== 'X') t.push('emprestimo'); // quem decide são as cláusulas
   return t;
 }
 
@@ -145,8 +146,9 @@ export function bloqueioProposta(base, s, j, o) {
   const pre = preContratoDe(s, j.id);
   if (pre) return `Já assinou pré-contrato com o ${base.clubes[pre.para].n}.`;
   if (s.emprestimos[j.id] && o.tipo !== 'pre') return 'Está emprestado até o fim da temporada.';
-  if (!tiposPossiveis(base, s, j).includes(o.tipo)) return o.tipo === 'pre' ? `Pré-contrato só com contrato no fim, a partir da ${ABRE_PRE + 1}ª rodada.` : o.tipo === 'emprestimo' ? 'O clube não quer emprestar.' : 'Esse tipo de proposta não vale para ele.';
+  if (!tiposPossiveis(base, s, j).includes(o.tipo)) return o.tipo === 'pre' ? `Pré-contrato só com contrato no fim, a partir da ${ABRE_PRE + 1}ª rodada.` : o.tipo === 'emprestimo' ? 'Esse clube não empresta.' : 'Esse tipo de proposta não vale para ele.';
   if (o.tipo === 'emprestimo' && !janela) return 'A janela de transferências está fechada.'; // compra com a janela fechada vira acordo
+  if (o.tipo === 'emprestimo' && (o.cl?.taxa || 0) > s.caixa) return 'A taxa de empréstimo passa do que tem em caixa.';
   const t = o.troca && base.jog.get(o.troca);
   if (o.troca) {
     if (o.tipo !== 'compra') return 'Troca só em proposta de compra.';
@@ -169,7 +171,8 @@ export function bloqueioProposta(base, s, j, o) {
 }
 
 export function fazerProposta(base, s, j, o) {
-  const oferta = { tipo: o.tipo || 'compra', valor: o.tipo === 'compra' && o.valor > 0 ? arred(o.valor) : 0, salario: arredSal(o.salario), anos: o.tipo === 'emprestimo' ? 1 : Math.round(o.anos || 3), troca: o.tipo === 'compra' && +o.troca || 0 };
+  const cl = o.tipo === 'emprestimo' ? limpaCl(base, s, j, o.cl) : null;
+  const oferta = { tipo: o.tipo || 'compra', valor: o.tipo === 'compra' && o.valor > 0 ? arred(o.valor) : 0, salario: cl ? Math.round(salarioDia(base, s, j) * cl.pct / 100) : arredSal(o.salario), anos: o.tipo === 'emprestimo' ? 1 : Math.round(o.anos || 3), troca: o.tipo === 'compra' && +o.troca || 0, ...(cl ? { cl } : {}) };
   const erro = bloqueioProposta(base, s, j, oferta);
   if (erro) return erro;
   s.propostas.unshift({ id: `${j.id}-${s.rodada}`, jogador: j.id, de: j.clube, ...oferta, rodada: s.rodada, estado: 'aguardando', pedido: precoPedido(base, s, j) });
@@ -192,6 +195,81 @@ export function valorNaTroca(base, s, t, ci) {
   return arred(t.valor * 1000 * (t.ovr >= base.forca(ci) - 5 ? 0.9 : 0.5) * (t.idade >= 31 ? 0.7 : 1));
 }
 export const opcaoCompra = (base, s, j) => arred(precoPedido(base, s, j) * 1.2);
+
+// ---------- cláusulas de empréstimo ----------
+// taxa paga na hora, quanto do salário quem recebe banca, opção ou obrigação de compra (gatilho: N jogos,
+// permanência na divisão ou fim do empréstimo), jogos mínimos com multa, cláusula do medo e revenda para o dono.
+export const GATILHOS = { jogos: 'após N jogos', permanencia: 'se o time não cair', fim: 'no fim do empréstimo' };
+export function limpaCl(base, s, j, c = {}) {
+  return {
+    taxa: Math.max(0, Math.round((+c.taxa || 0) / 1e4) * 1e4), pct: [50, 75, 100].includes(+c.pct) ? +c.pct : 100,
+    compra: ['opcao', 'obrigacao'].includes(c.compra) ? c.compra : 'nenhuma', valorCompra: c.valorCompra > 0 ? arred(c.valorCompra) : opcaoCompra(base, s, j),
+    gatilho: GATILHOS[c.gatilho] ? c.gatilho : 'jogos', jogos: clamp(Math.round(+c.jogos || 15), 1, 38), minimo: clamp(Math.round(+c.minimo || 0), 0, 30),
+    medo: !!c.medo, revenda: [0, 10, 20, 30].includes(+c.revenda) ? +c.revenda : 0,
+  };
+}
+// quanto o dono gosta da proposta (50 ou mais costuma fechar). Garoto da lista de empréstimo sai fácil;
+// titular só sai com obrigação de compra bem paga.
+export function notaEmprestimo(base, s, j, cl) {
+  const ref = precoPedido(base, s, j), rank = base.elencos[j.clube].slice().sort((a, b) => b.ovr - a.ovr).indexOf(j);
+  let n = listasIA(base, s).emprestimo.has(j.id) ? 60 : rank >= 18 ? 42 : rank >= 11 ? 30 : 8;
+  n += Math.min(20, cl.taxa / Math.max(ref, 1) * 100);                       // taxa de 10% do preço = +10
+  n += { 100: 8, 75: 0, 50: -12 }[cl.pct];
+  if (cl.compra !== 'nenhuma') n += (cl.compra === 'obrigacao' ? { fim: 32, permanencia: 26, jogos: 24 - Math.max(0, cl.jogos - 12) * 0.8 }[cl.gatilho] : 6) + clamp((cl.valorCompra / Math.max(ref, 1) - 1) * 40, -25, 15);
+  n += Math.min(10, cl.minimo * 0.6) + (cl.medo ? 4 : 0) + cl.revenda / 2;
+  if (rivais(base, j.clube, s.tecnico.clube)) n -= 30;
+  return Math.round(n);
+}
+const motivoEmp = (base, s, j, cl) => {
+  const rank = base.elencos[j.clube].slice().sort((a, b) => b.ovr - a.ovr).indexOf(j);
+  return rank < 11 && cl.compra !== 'obrigacao' ? 'titular só sai com obrigação de compra' : cl.pct < 100 ? 'quer que você pague o salário inteiro' : cl.compra !== 'nenhuma' && cl.valorCompra < precoPedido(base, s, j) ? 'achou baixo o valor da compra' : 'quer taxa maior ou uma cláusula de compra';
+};
+export function resumoCl(cl, jogou = null) {
+  if (!cl) return '';
+  const fm = v => fmt(v), t = [];
+  if (cl.taxa) t.push(`taxa de ${fm(cl.taxa)}`);
+  if (cl.pct && cl.pct < 100) t.push(`quem recebe paga ${cl.pct}% do salário`);
+  const ob = cl.obrig || (cl.compra === 'obrigacao' && { valor: cl.valorCompra, gatilho: cl.gatilho, jogos: cl.jogos }), op = cl.opcao || (cl.compra === 'opcao' && cl.valorCompra);
+  if (op) t.push(`opção de compra por ${fm(op)}`);
+  if (ob) t.push(`obrigação de compra de ${fm(ob.valor)} ${ob.gatilho === 'jogos' ? `após ${ob.jogos} jogos${jogou != null ? ` (jogou ${jogou})` : ''}` : GATILHOS[ob.gatilho]}`);
+  if (cl.minimo) t.push(`mínimo de ${cl.minimo} jogos${jogou != null ? ` (jogou ${jogou})` : ''}, senão multa`);
+  if (cl.medo) t.push('cláusula do medo');
+  if (cl.revenda) t.push(`${cl.revenda}% de uma venda futura para o dono`);
+  return t.join(' · ');
+}
+export const jogosNoEmprestimo = (s, id) => { const e = s.emprestimos[id]; return e ? (s.est?.[id]?.[0] || 0) - (e.jogos0 || 0) : 0; };
+// compra definitiva de quem está emprestado (opção exercida ou obrigação cumprida), nos dois sentidos
+function efetivar(base, s, j, e, valor, txt) {
+  const meu = s.tecnico.clube;
+  delete s.emprestimos[j.id];
+  s.contratos[j.id] = s.ano + 3;
+  if (e.para === meu) {
+    s.salarios[j.id] = e.cheio || s.salarios[j.id];
+    lancar(s, 'compra', `${txt}: ${j.curto} (${base.clubes[e.de].n})`, -valor); s.fin.temporada.compras += valor;
+    if (e.revenda) (s.revenda ||= {})[j.id] = { clube: e.de, pct: e.revenda };
+  } else if (e.de === meu) {
+    delete s.salarios[j.id];
+    lancar(s, 'venda', `${txt}: ${j.curto} (${base.clubes[e.para].n})`, valor); s.fin.temporada.vendas += valor;
+  }
+  aplicarSave(base, s);
+  s.historicoTransf.unshift({ rodada: s.rodada, jogador: j.id, nome: j.curto, de: e.de, para: e.para, valor, tipo: 'compra' });
+}
+// fim da temporada: multa de minutagem, obrigações por permanência/fim e a IA decidindo a opção pelo que ele jogou
+export function fimDosEmprestimos(base, s, caem, add) {
+  const meu = s.tecnico.clube, nome = c => base.clubes[c].n;
+  for (const [id, e] of Object.entries(s.emprestimos)) {
+    const j = base.jog.get(+id); if (!j || (e.para !== meu && e.de !== meu)) continue;
+    const jogou = jogosNoEmprestimo(s, id);
+    if (e.minimo && jogou < e.minimo) {
+      const v = arred(j.valor * 1000 * 0.1);
+      lancar(s, 'minutagem', `Multa de minutagem: ${j.curto}`, e.para === meu ? -v : v);
+      add(`Multa de minutagem: ${j.curto} jogou ${jogou} dos ${e.minimo} jogos combinados e o ${nome(e.para)} paga ${fmt(v)} ao ${nome(e.de)}.`);
+    }
+    const ob = e.obrig;
+    if (ob && (ob.gatilho === 'fim' || (ob.gatilho === 'permanencia' && !caem.includes(e.para)))) { efetivar(base, s, j, e, ob.valor, 'Obrigação de compra'); add(`Obrigação de compra: ${j.curto} fica em definitivo no ${nome(e.para)} por ${fmt(ob.valor)}.`); continue; }
+    if (e.de === meu && e.opcao && jogou >= 8 && media(s.est?.[id]) >= 6.6) { efetivar(base, s, j, e, e.opcao, 'Opção de compra'); add(`O ${nome(e.para)} exerce a opção e compra ${j.curto} por ${fmt(e.opcao)}.`); }
+  }
+}
 export function desistir(s, id) { const p = s.propostas.find(x => x.id === id); if (p) p.estado = 'cancelada'; }
 
 // ---------- movimentos ----------
@@ -206,14 +284,19 @@ export function transferir(base, s, j, para, valor, { salario, anos } = {}) {
   garantirFinancas(base, s);
   if (para === meu && valor) { lancar(s, 'compra', `Compra de ${j.curto} (${base.clubes[de].n})`, -valor); s.fin.temporada.compras += valor; }
   if (de === meu && valor) { lancar(s, 'venda', `Venda de ${j.curto} (${base.clubes[para].n})`, valor); s.fin.temporada.vendas += valor; }
+  const rv = de === meu && valor && s.revenda?.[j.id];
+  if (rv) { lancar(s, 'revenda', `Revenda: ${rv.pct}% da venda de ${j.curto} ao ${base.clubes[rv.clube].n}`, -Math.round(valor * rv.pct / 100)); delete s.revenda[j.id]; }
   if (s.xi && (para === meu || de === meu)) s.xi = null; // escalação manual refeita com o elenco novo
   s.historicoTransf.unshift({ rodada: s.rodada, jogador: j.id, nome: j.curto, de, para, valor, tipo: ehLivre(base, de) ? 'livre' : 'compra' });
 }
 // empréstimo até o fim da temporada; o salário continua o mesmo e quem está com ele paga
-export function emprestar(base, s, j, para) {
-  const de = j.clube, meu = s.tecnico.clube;
-  if (para === meu) s.salarios[j.id] = salarioDia(base, s, j);
-  s.emprestimos[j.id] = { de, para, ate: s.ano };
+export function emprestar(base, s, j, para, cl = null) {
+  const de = j.clube, meu = s.tecnico.clube, cheio = salarioDia(base, s, j);
+  if (para === meu) s.salarios[j.id] = Math.round(cheio * (cl?.pct ?? 100) / 100);
+  s.emprestimos[j.id] = { de, para, ate: s.ano, cheio, jogos0: s.est?.[j.id]?.[0] || 0, ...(cl ? { taxa: cl.taxa, pct: cl.pct, minimo: cl.minimo, medo: cl.medo, revenda: cl.revenda } : {}) };
+  if (cl?.compra === 'opcao') s.emprestimos[j.id].opcao = cl.valorCompra;
+  if (cl?.compra === 'obrigacao') s.emprestimos[j.id].obrig = { valor: cl.valorCompra, gatilho: cl.gatilho, jogos: cl.jogos };
+  if (cl?.taxa && (para === meu || de === meu)) lancar(s, 'emprestimo', `Taxa de empréstimo de ${j.curto} (${base.clubes[para === meu ? de : para].n})`, para === meu ? -cl.taxa : cl.taxa);
   s.transf[j.id] = para; marcarChegada(s, j.id);
   tirarDasListas(s, j.id);
   aplicarSave(base, s);
@@ -238,7 +321,8 @@ export function aceitarRecebida(base, s, id) {
   const p = s.recebidas.find(x => x.id === id); if (!p) return 'Proposta não existe mais.';
   const j = base.jog.get(p.jogador), erro = podeSair(base, s, j);
   if (erro) return erro;
-  if (p.tipo === 'emprestimo') emprestar(base, s, j, p.de);
+  if (p.vontade != null && p.vontade < 35) { s.recebidas = s.recebidas.filter(x => x !== p); return `${j.curto} não aceita ir para o ${base.clubes[p.de].n}: prefere seguir aqui. A proposta caiu.`; }
+  if (p.tipo === 'emprestimo') emprestar(base, s, j, p.de, p.cl);
   else transferir(base, s, j, p.de, p.valor, { anos: 3 });
   s.recebidas = s.recebidas.filter(x => x.jogador !== p.jogador);
   s.noticias.unshift({ rodada: s.rodada, tipo: 'clube', mercado: true, div: base.clubes[s.tecnico.clube].div, texto: p.tipo === 'emprestimo' ? `Emprestado: ${j.curto} vai jogar no ${base.clubes[p.de].n} até o fim da temporada.` : `Vendido: ${j.curto} acerta com o ${base.clubes[p.de].n} por ${fmt(p.valor)}.` });
@@ -287,11 +371,7 @@ export function exercerOpcao(base, s, id) {
   const j = base.jog.get(+id), e = s.emprestimos[+id], meu = s.tecnico.clube;
   if (!j || !e || e.para !== meu || !e.opcao) return 'Não há opção de compra para ele.';
   if (e.opcao > s.caixa) return 'Não tem dinheiro em caixa para isso.';
-  delete s.emprestimos[j.id];
-  s.contratos[j.id] = s.ano + 3;
-  lancar(s, 'compra', `Opção de compra: ${j.curto} (${base.clubes[e.de].n})`, -e.opcao); s.fin.temporada.compras += e.opcao;
-  aplicarSave(base, s);
-  s.historicoTransf.unshift({ rodada: s.rodada, jogador: j.id, nome: j.curto, de: e.de, para: meu, valor: e.opcao, tipo: 'compra' });
+  efetivar(base, s, j, e, e.opcao, 'Opção de compra');
   s.noticias.unshift({ rodada: s.rodada, tipo: 'clube', mercado: true, jogador: j.id, div: base.clubes[meu].div, texto: `Opção exercida: ${j.curto} fica em definitivo no ${base.clubes[meu].n} por ${fmt(e.opcao)}.` });
   return null;
 }
@@ -403,6 +483,20 @@ function trabalhoDoOlheiro(base, s, rd, r) {
 }
 
 // ---------- IA ----------
+// proposta de gigante: o valor acompanha a fase; árabe paga 3 a 4 vezes o salário (europeu, 1,5 a 2,2);
+// a vontade dele pesa salário, idade, temperamento, como está no clube e o sonho europeu
+const FATOR_FASE = { pessima: 1, ruim: 1.15, normal: 1.35, boa: 1.6, excelente: 1.9 };
+export function gigante(base, s, j, de, arabe, r) {
+  const f = faseDe(s, j.id), atual = salarioDia(base, s, j);
+  const valor = arred(precoPedido(base, s, j) / (1 + f.d * 0.05) * FATOR_FASE[f.k] * (0.95 + r() * 0.15));
+  const mult = Math.round((arabe ? 3 + r() + (f.k === 'excelente' ? 0.3 : 0) : 1.5 + r() * 0.7) * 10) / 10;
+  const t = temperamento(j), mor = s.mor[j.id] ?? 62;
+  let v = 40 + (mult - 1) * 9 + (arabe ? (j.idade >= 30 ? 15 : j.idade <= 24 ? -20 : 0) : 25 + (j.idade <= 27 ? 8 : j.idade >= 31 ? -12 : 0));
+  v += { ambicioso: 10, sensivel: -6, temperamental: 0, profissional: 0 }[t] + (s.querSair?.[j.id] ? 15 : 0) + (mor < 45 ? 10 : mor >= 75 ? -10 : 0) + (naContinental(s, s.tecnico.clube) ? -5 : 0);
+  v = clamp(Math.round(v + (r() - 0.5) * 10), 0, 100);
+  return { valor, mult, salario: Math.round(atual * mult / 10) * 10, vontade: v, quer: v >= 60 ? (arabe ? `não resiste a ganhar ${mult.toFixed(1).replace('.', ',')}x mais na Arábia` : 'sonha em jogar na Europa') : null };
+}
+export const textoVontade = v => v >= 75 ? 'está decidido a ir' : v >= 60 ? 'quer ir' : v >= 45 ? 'está balançado' : v >= 35 ? 'prefere ficar, mas ouviria' : 'não quer ir de jeito nenhum';
 const GIGANTE = c => c.div === 'X' && ((c.tier >= 5 && c.fan >= 9) || (c.liga === 'Saudi Pro League' && c.fan >= 6));
 const POS_CHAVE = ['GOL', 'ZAG', 'LD', 'LE', 'VOL', 'MC', 'MEI', 'PE', 'PD', 'CA'];
 function vendedorAguenta(base, s, j) {
@@ -461,6 +555,10 @@ export function resolverMercado(base, s, rd) {
   const add = (texto, tipo = 'clube', div = base.clubes[meu].div, extra) => N.push({ rodada: rd + 1, tipo, div, texto, mercado: true, ...extra });
   for (const [id, c] of Object.entries(s.chegou)) if (agora(s) - c >= TRAVA) delete s.chegou[id];
   if (s.acordos.length && janelaAberta(s.ano, rd + 1)) cumprirAcordos(base, s, add);
+  for (const [id, e] of Object.entries(s.emprestimos)) {
+    const j = base.jog.get(+id), jogou = jogosNoEmprestimo(s, id);
+    if (j && e.obrig?.gatilho === 'jogos' && jogou >= e.obrig.jogos) { efetivar(base, s, j, e, e.obrig.valor, 'Obrigação de compra'); add(`Obrigação de compra acionada: ${j.curto} completa ${jogou} jogos pelo ${nome(e.para)} e fica em definitivo por ${fmt(e.obrig.valor)}.`, 'clube', base.clubes[meu].div, { jogador: j.id }); }
+  }
 
   for (const p of s.propostas.filter(x => x.estado === 'aguardando' && x.rodada <= rd)) {
     const j = base.jog.get(p.jogador), tipo = p.tipo || 'compra', t = p.troca && base.jog.get(p.troca);
@@ -485,7 +583,11 @@ export function resolverMercado(base, s, rd) {
       }
       p.clubeOk = true;
     }
-    if (tipo === 'emprestimo' && !listasIA(base, s).emprestimo.has(j.id)) { falha('o clube desistiu de emprestar', `O ${nome(j.clube)} não quer mais emprestar ${j.curto}.`); continue; }
+    if (tipo === 'emprestimo' && !p.clubeOk) {
+      const cl = p.cl || limpaCl(base, s, j);
+      if (notaEmprestimo(base, s, j, cl) + (r() - 0.5) * 12 < 50) { const m = motivoEmp(base, s, j, cl); falha(`o clube ${m}`, `O ${nome(j.clube)} não empresta ${j.curto}: ${m}.`); continue; }
+      p.clubeOk = true;
+    }
     // disputa: clubes que também fariam sentido podem entrar na briga (por livre e pré-contrato também)
     let melhorRival = null;
     if (tipo !== 'emprestimo' && !fechada) {
@@ -514,7 +616,7 @@ export function resolverMercado(base, s, rd) {
     p.estado = 'concluida';
     const pago = `${p.valor ? fmt(p.valor) : ''}${p.valor && t ? ' + ' : ''}${t ? `${t.curto} na troca` : ''}`;
     if (tipo === 'pre') { s.preContratos.push({ jogador: j.id, de, para: meu, salario: p.salario, anos: p.anos, rodada: rd }); add(`Pré-contrato assinado: ${j.curto} chega do ${nome(de)} em janeiro de ${s.ano + 1}.`); }
-    else if (tipo === 'emprestimo') { const opcao = opcaoCompra(base, s, j); emprestar(base, s, j, meu); s.emprestimos[j.id].opcao = opcao; add(`Reforço por empréstimo: ${j.curto} chega do ${nome(de)} até o fim da temporada, com opção de compra por ${fmt(opcao)}.`); }
+    else if (tipo === 'emprestimo') { const cl = p.cl || limpaCl(base, s, j), res = resumoCl(cl); emprestar(base, s, j, meu, cl); add(`Reforço por empréstimo: ${j.curto} chega do ${nome(de)} até o fim da temporada${res ? ` (${res})` : ''}.`); }
     else if (fechada) { p.motivo = 'chega quando a janela abrir'; s.acordos.push({ jogador: j.id, de, valor: p.valor, salario: p.salario, anos: p.anos, troca: p.troca || 0 }); add(`Acordo fechado: ${j.curto} chega do ${nome(de)} (${pago}) quando a janela abrir.`); }
     else {
       if (t) { transferir(base, s, t, de, 0); s.historicoTransf[0].tipo = 'troca'; }
@@ -557,9 +659,9 @@ export function resolverMercado(base, s, rd) {
       const j = pickW(r, craques, x => x.ovr - 70), arabe = j.idade >= 29 || r() < 0.3;
       const ops = base.clubes.map((c, i) => i).filter(i => GIGANTE(base.clubes[i]) && (base.clubes[i].liga === 'Saudi Pro League') === arabe);
       if (ops.length) {
-        const de = pickW(r, ops, ci => base.clubes[ci].fan), valor = arred(precoPedido(base, s, j) * (1.4 + r() * 0.5)), quer = r() < 0.9 ? (arabe ? 'não resiste ao salário da Arábia' : 'sonha em jogar na Europa') : null;
-        s.recebidas.push({ id: `${j.id}-${de}-${rd}`, tipo: 'compra', jogador: j.id, de, valor, rodada: rd, quer, gigante: true });
-        add(`Proposta milionária: o ${nome(de)} oferece ${fmt(valor)} por ${j.curto}.${quer ? ` Ele ${quer} e quer ir.` : ''} Responda no Mercado.`, 'clube', base.clubes[meu].div, { jogador: j.id, imprensa: true });
+        const de = pickW(r, ops, ci => base.clubes[ci].fan), f = faseDe(s, j.id), x = gigante(base, s, j, de, arabe, r);
+        s.recebidas.push({ id: `${j.id}-${de}-${rd}`, tipo: 'compra', jogador: j.id, de, rodada: rd, gigante: true, arabe, ...x });
+        add(`Proposta milionária: o ${nome(de)} oferece ${fmt(x.valor)} por ${j.curto} e salário ${x.mult.toFixed(1).replace('.', ',')}x maior.${f.d > 0 ? ` A ${f.nome.toLowerCase()} valorizou o passe.` : ''} Responda no Mercado.`, 'clube', base.clubes[meu].div, { jogador: j.id, imprensa: true });
       }
     }
     let novas = 0;
@@ -572,8 +674,11 @@ export function resolverMercado(base, s, rd) {
         const opcoes = base.clubes.map((c, i) => i).filter(ci => BR.includes(base.clubes[ci].div) && ci !== meu && base.elencos[ci].filter(x => x.ovr > j.ovr).length < 14);
         if (!opcoes.length) continue;
         const de = pickW(r, opcoes, ci => base.clubes[ci].fan);
-        s.recebidas.push({ id: `${j.id}-${de}-${rd}`, tipo: 'emprestimo', jogador: j.id, de, valor: 0, rodada: rd });
-        add(`O ${nome(de)} pede ${j.curto} emprestado até o fim da temporada. Responda no Mercado.`);
+        const compra = r() < 0.3 ? 'opcao' : r() < 0.25 ? 'obrigacao' : 'nenhuma';
+        const cl = limpaCl(base, s, j, { taxa: r() < 0.4 ? j.valor * 1000 * (0.03 + r() * 0.07) : 0, compra, valorCompra: precoPedido(base, s, j) * (1 + r() * 0.3), gatilho: ['jogos', 'fim', 'permanencia'][Math.floor(r() * 3)], jogos: 10 + Math.floor(r() * 12), minimo: r() < 0.3 ? 10 : 0, medo: r() < 0.3 });
+        s.recebidas.push({ id: `${j.id}-${de}-${rd}`, tipo: 'emprestimo', jogador: j.id, de, valor: 0, rodada: rd, cl });
+        const res = resumoCl(cl);
+        add(`O ${nome(de)} pede ${j.curto} emprestado até o fim da temporada${res ? ` (${res})` : ''}. Responda no Mercado.`);
         continue;
       }
       const e = s.est?.[j.id], emAlta = e && e[0] >= 3 && (media(e) >= 6.9 || e[1] >= e[0] * 0.4), f = faseDe(s, j.id);

@@ -731,3 +731,9 @@ b.pos { color: var(--gramado); } b.neg { color: var(--cartao); }
 .jornal-gramado .bj-nome { color: var(--gramado); }
 .jornal-gramado .bj-tit { font-family: var(--f-placar); font-weight: 400; font-size: 1.35rem; line-height: 1; }
 @media (min-width: 760px) { .banca { grid-template-columns: repeat(3, 1fr); } .banca h3 { grid-column: 1 / -1; } }
+.clausulas { flex-direction: column; gap: 8px; }
+.proposta:has([name=tipo][value=emprestimo]:checked) .clausulas, .proposta:has(input[type=hidden][name=tipo][value=emprestimo]) .clausulas { display: flex; }
+.clausulas .check { display: flex; flex-direction: row; gap: 8px; align-items: center; font-weight: 600; }
+.clausulas .check input { width: auto; flex: none; margin: 0; }
+.chance-emp { padding: 6px 10px; border-left: 4px solid var(--placar); background: var(--encaixe); }
+.clausulas-txt { font-size: .92rem; }

@@ -202,8 +202,15 @@ export const compProxima = (base, s) => { const ev = proximoEvento(base, s); ret
 
 // IA escala os melhores (poupando cansados) no esquema dela; o seu time usa a escalação manual quando ela ainda vale.
 // Lesionados e suspensos ficam de fora; na escalação manual, a vaga deles é completada só para esse jogo.
+// cláusula do medo: emprestado não enfrenta o clube dono
+export function barradoMedo(base, s, id, ci) {
+  const e = s.emprestimos?.[id]; if (!e?.medo || e.para !== ci) return false;
+  const ev = proximoEvento(base, s);
+  return !!ev && [ev.h, ev.a].includes(e.de) && [ev.h, ev.a].includes(ci);
+}
 export function escalacao(base, s, ci, comp = compProxima(base, s)) {
   const elenco = base.elencos[ci], cond = s.cond || {}, fora = indisponiveis(s, elenco, comp);
+  for (const j of elenco) if (s.emprestimos?.[j.id]?.medo && barradoMedo(base, s, j.id, ci)) fora.add(j.id);
   if (ci !== s.tecnico.clube) { const t = taticaIA(base, ci); return { ...melhorTime(elenco, t.formacao, fora, cond, bonusFase(s)), estilo: t.estilo, gatilhos: t.gatilhos }; }
   let time = null, trocados = [];
   if (s.xi?.length === 11) {

@@ -667,3 +667,58 @@ test('jornais: três manchetes com linhas diferentes, crônica com os gols e tí
   assert.ok(N.some(t => t.startsWith('Rebaixado')));
   const n = N.length; matematicos(base, s, { A: tab(90), B: tab(84), C: tab(80) }, add); assert.equal(N.length, n, 'avisa uma vez só');
 });
+
+import { gigante, notaEmprestimo, limpaCl, fimDosEmprestimos, jogosNoEmprestimo, transferir, aceitarRecebida } from '../public/js/motor/mercado.js';
+import { escalacao as escalacaoM, barradoMedo, proximoEvento as proxEv } from '../public/js/motor/mundo.js';
+import { rng as rngU } from '../public/js/motor/util.js';
+import { salarioDia as salarioDiaF } from '../public/js/motor/financas.js';
+import { correio as correioF } from '../public/js/motor/correio.js';
+test('empréstimo com cláusulas: titular só com obrigação; obrigação por jogos, minutagem, medo e revenda', () => {
+  const ci = base.clubes.findIndex(c => c.n === 'Palmeiras'), s = novoJogo(base, { ...cfg(101), clube: ci });
+  s.caixa = 5e8; s.fin.salarioBudget = folhaDia(base, s) * 3;
+  const rank = c => base.elencos[c].slice().sort((a, b) => b.ovr - a.ovr);
+  const outro = base.clubes.findIndex((c, i) => i !== ci && c.div === 'A' && !rivais(base, i, ci));
+  const titular = rank(outro)[0], reserva = rank(outro).find((j, k) => k >= 11 && k < 18 && vontade(base, s, j, ci) >= 70) || rank(outro)[12];
+  assert.ok(notaEmprestimo(base, s, titular, limpaCl(base, s, titular)) < 40, 'titular sem obrigação: não');
+  assert.ok(notaEmprestimo(base, s, titular, limpaCl(base, s, titular, { compra: 'obrigacao', gatilho: 'fim', valorCompra: precoPedido(base, s, titular) * 1.1, taxa: precoPedido(base, s, titular) * 0.1 })) >= 50, 'com obrigação bem paga: sim');
+  const cl = { taxa: precoPedido(base, s, reserva) * 0.1, compra: 'obrigacao', gatilho: 'jogos', jogos: 2, valorCompra: precoPedido(base, s, reserva) * 1.1, minimo: 0, medo: true, revenda: 20 };
+  assert.equal(fazerProposta(base, s, reserva, { tipo: 'emprestimo', cl }), null);
+  rodada(s);
+  assert.equal(s.propostas[0].estado, 'concluida', s.propostas[0].motivo);
+  const e = s.emprestimos[reserva.id];
+  assert.ok(e && e.obrig?.jogos === 2 && e.medo && s.fin.extrato.some(x => x.tipo === 'emprestimo' && x.valor < 0));
+  // medo: contra o dono ele não joga
+  const ev = proxEv(base, s), adv = ev.h === ci ? ev.a : ev.h, dono = e.de; e.de = adv;
+  assert.ok(barradoMedo(base, s, reserva.id, ci) && !escalacaoM(base, s, ci).xi.some(j => j?.id === reserva.id));
+  e.de = dono;
+  // obrigação: completou os jogos, vira compra definitiva com revenda guardada
+  (s.est[reserva.id] ||= [0, 0, 0, 0, 0, 0])[0] = (e.jogos0 || 0) + 2;
+  assert.equal(jogosNoEmprestimo(s, reserva.id), 2);
+  resolverMercado(base, s, s.rodada);
+  assert.ok(!s.emprestimos[reserva.id] && reserva.clube === ci && s.revenda[reserva.id]?.pct === 20);
+  // revenda: na venda, 20% vão para o dono
+  transferir(base, s, reserva, outro, 1e7);
+  assert.ok(s.fin.extrato.some(x => x.tipo === 'revenda' && x.valor === -2e6));
+  // minutagem e obrigação por permanência no fim da temporada
+  const j2 = rank(outro).find(j => j.id !== reserva.id && j.idade <= 30 && !s.emprestimos[j.id]);
+  emprestar(base, s, j2, ci, limpaCl(base, s, j2, { minimo: 10, compra: 'obrigacao', gatilho: 'permanencia', valorCompra: 3e6 }));
+  const N = []; fimDosEmprestimos(base, s, [], t => N.push(t));
+  assert.ok(N.some(t => t.startsWith('Multa de minutagem')) && N.some(t => t.startsWith('Obrigação de compra')) && j2.clube === ci && !s.emprestimos[j2.id]);
+});
+
+test('proposta árabe: salário 3 a 4x, valor pela fase, vontade decide e o diretor explica', () => {
+  const ci = base.clubes.findIndex(c => c.n === 'Flamengo'), s = novoJogo(base, { ...cfg(102), clube: ci });
+  const j = base.elencos[ci].slice().sort((a, b) => b.ovr - a.ovr)[0], ar = base.clubes.findIndex(c => c.liga === 'Saudi Pro League');
+  s.forma = { [j.id]: 7.5 }; const exc = gigante(base, s, j, ar, true, rngU('g1'));
+  s.forma = { [j.id]: 5.0 }; const pes = gigante(base, s, j, ar, true, rngU('g1'));
+  assert.ok(exc.valor > pes.valor * 1.5, `${exc.valor} x ${pes.valor}`);
+  assert.ok(exc.mult >= 3 && exc.mult <= 4.3 && pes.mult >= 3 && pes.mult <= 4);
+  assert.ok(Math.abs(exc.salario - salarioDiaF(base, s, j) * exc.mult) < 20);
+  s.recebidas = [{ id: 'g', tipo: 'compra', jogador: j.id, de: ar, rodada: s.rodada, gigante: true, arabe: true, ...exc, vontade: 20, quer: null }];
+  assert.match(aceitarRecebida(base, s, 'g'), /não aceita ir/);
+  assert.equal(j.clube, ci);
+  s.recebidas = [{ id: 'g2', tipo: 'compra', jogador: j.id, de: ar, rodada: s.rodada, gigante: true, arabe: true, ...exc }];
+  correioF(base, s);
+  const m = s.msgs.find(x => x.assunto.startsWith('Proposta milionária'));
+  assert.ok(m && m.texto.includes('x o que ganha hoje') && /fase/.test(m.texto) && m.texto.includes('empresário'));
+});

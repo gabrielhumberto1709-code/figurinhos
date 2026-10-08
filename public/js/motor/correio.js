@@ -3,11 +3,11 @@
 // dinheiro, cargo, fase dos jogadores, garotos que subiram de nível. Cada assunto sai uma vez só.
 import { rng, pick, fmtDinheiro } from './util.js';
 import { nomeTecnico, pilares } from './carreira.js';
-import { proximoEvento, compProxima, janelaAberta, tabela } from './mundo.js';
+import { proximoEvento, compProxima, janelaAberta, tabela, barradoMedo } from './mundo.js';
 import { indisponivel, pendurado, LESOES, COMP_DE } from './dm.js';
 import { faseDe } from './forma.js';
-import { orcamento, metaDiretoria } from './financas.js';
-import { precoPedido } from './mercado.js';
+import { orcamento, metaDiretoria, salarioDia } from './financas.js';
+import { precoPedido, textoVontade, resumoCl } from './mercado.js';
 import { fimDeTemporada } from './temporada.js';
 
 export const REMETENTES = {
@@ -28,6 +28,14 @@ function enviar(s, de, chave, assunto, texto, extra = {}) {
 const lista = nomes => nomes.length <= 1 ? nomes.join('') : `${nomes.slice(0, -1).join(', ')} e ${nomes.at(-1)}`;
 
 // opinião do diretor sobre uma proposta recebida
+// proposta de gigante: o diretor conta a fase, o salário e a cabeça do jogador
+function opiniaoGigante(base, s, j, x) {
+  const f = faseDe(s, j.id), c = base.clubes[x.de], fm = v => fmtDinheiro(v);
+  const fase = f.d > 0 ? `Ele vive ${f.nome.toLowerCase()} e isso inflou o valor: sem a fase, não pagariam isso.` : f.d < 0 ? `Ele está em ${f.nome.toLowerCase()}. É uma chance de vender bem antes que o valor caia.` : 'Ele está em fase normal; o valor é o de mercado de um craque.';
+  const quer = `Conversei com o empresário: ${j.curto} ${textoVontade(x.vontade)}.`;
+  const conselho = x.vontade < 35 ? 'Mesmo que você aceite, ele não vai.' : x.vontade >= 60 ? 'Se segurar, vai ficar de cara feia.' : 'Dá pra segurar sem crise.';
+  return `O ${c.n} (${c.liga}) oferece ${fm(x.valor)} por ${j.curto} e quer pagar a ele ${fm(x.salario)} por dia, ${String(x.mult).replace('.', ',')}x o que ganha hoje (${fm(salarioDia(base, s, j))}). ${fase} ${quer} ${conselho}`;
+}
 function opiniao(base, s, j, x) {
   const el = base.elencos[s.tecnico.clube].slice().sort((a, b) => b.ovr - a.ovr), rank = el.indexOf(j), ref = precoPedido(base, s, j), r = x.valor / Math.max(1, ref);
   const papel = rank < 11 ? 'é titular' : rank < 18 ? 'é peça de rotação' : 'quase não joga';
@@ -43,9 +51,9 @@ export function correio(base, s) {
   // desfalques e pendurados do próximo jogo
   if (ev) {
     const comp = compProxima(base, s), adv = ev.h === ci ? ev.a : ev.h;
-    const fora = el.filter(j => indisponivel(s, j.id, comp)).sort((a, b) => b.ovr - a.ovr);
+    const fora = el.filter(j => indisponivel(s, j.id, comp) || barradoMedo(base, s, j.id, ci)).sort((a, b) => b.ovr - a.ovr);
     if (fora.length) enviar(s, 'diretor', `desf-${tag}`, `Desfalques contra o ${nome(adv)}`,
-      `Professor, para o jogo contra o ${nome(adv)} não teremos ${lista(fora.map(j => `${j.curto} (${{ lesao: `lesão, ${s.dm[j.id]?.n} jogo${s.dm[j.id]?.n > 1 ? 's' : ''}`, suspenso: 'suspenso', afastado: `afastado pelo clube (${s.afast?.[j.id]?.motivo})`, selecao: 'convocado pela seleção' }[indisponivel(s, j.id, comp)]})`))}. Confira a escalação antes de entrar em campo.`, { link: '#/elenco' });
+      `Professor, para o jogo contra o ${nome(adv)} não teremos ${lista(fora.map(j => `${j.curto} (${{ lesao: `lesão, ${s.dm[j.id]?.n} jogo${s.dm[j.id]?.n > 1 ? 's' : ''}`, suspenso: 'suspenso', afastado: `afastado pelo clube (${s.afast?.[j.id]?.motivo})`, selecao: 'convocado pela seleção', medo: 'cláusula do medo, não pode enfrentar o dono' }[indisponivel(s, j.id, comp) || 'medo']})`))}. Confira a escalação antes de entrar em campo.`, { link: '#/elenco' });
     const pend = el.filter(j => pendurado(s, j.id, comp) && !indisponivel(s, j.id, comp));
     if (pend.length) enviar(s, 'diretor', `pend-${tag}`, 'Pendurados', `${lista(pend.map(j => j.curto))} ${pend.length > 1 ? 'estão pendurados' : 'está pendurado'} ${COMP_DE[comp] || ''}. Mais um amarelo e ${pend.length > 1 ? 'ficam' : 'fica'} fora do jogo seguinte.`, { link: '#/dm' });
   }
@@ -57,8 +65,9 @@ export function correio(base, s) {
   // propostas recebidas, com a opinião do diretor
   for (const x of s.recebidas || []) {
     const j = base.jog.get(x.jogador); if (!j) continue;
-    enviar(s, 'diretor', `prop-${x.id}`, x.tipo === 'emprestimo' ? `Pedido de empréstimo: ${j.curto}` : `Proposta por ${j.curto}`,
-      x.tipo === 'emprestimo' ? `O ${nome(x.de)} quer ${j.curto} emprestado até o fim da temporada. ${faseDe(s, j.id).d < 0 || el.indexOf(j) > 17 ? 'Pode ser bom pra ele ganhar ritmo.' : 'Ele é útil aqui. Eu não emprestaria agora.'}`
+    enviar(s, 'diretor', `prop-${x.id}`, x.tipo === 'emprestimo' ? `Pedido de empréstimo: ${j.curto}` : x.gigante ? `Proposta milionária por ${j.curto}` : `Proposta por ${j.curto}`,
+      x.tipo === 'emprestimo' ? `O ${nome(x.de)} quer ${j.curto} emprestado até o fim da temporada${x.cl && resumoCl(x.cl) ? ` (${resumoCl(x.cl)})` : ''}. ${faseDe(s, j.id).d < 0 || el.indexOf(j) > 17 ? 'Pode ser bom pra ele ganhar ritmo.' : 'Ele é útil aqui. Eu não emprestaria agora.'}`
+        : x.gigante ? `${opiniaoGigante(base, s, j, x)} A proposta vale por duas rodadas.`
         : `Chegou proposta do ${nome(x.de)}: ${fmtDinheiro(x.valor)} por ${j.curto}. ${opiniao(base, s, j, x)} Ela vale por duas rodadas.`, { link: '#/mercado', aba: 'propostas', jogador: j.id });
   }
   // quem quer sair

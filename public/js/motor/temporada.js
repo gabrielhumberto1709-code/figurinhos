@@ -4,7 +4,7 @@ import { rng, pick, clamp, PERFIL } from './util.js';
 import { tabela, aplicarSave } from './mundo.js';
 import { FASES, novaCopa, campanha } from './copa.js';
 import { metaDiretoria, folhaDia, lancar, cotaTV, garantirFinancas } from './financas.js';
-import { garantirMercado, cumprirAcordos } from './mercado.js';
+import { garantirMercado, cumprirAcordos, fimDosEmprestimos } from './mercado.js';
 import { viradaDM } from './dm.js';
 import { novaCont, campanhaCont } from './continental.js';
 import { gala, arquivarGala, moralDosPremiados } from './gala.js';
@@ -73,7 +73,8 @@ export function virarTemporada(base, s) {
   if (sobe.B.includes(ci) || sobe.C.includes(ci)) add(`ACESSO! O ${nome(ci)} vai disputar a Série ${sobe.B.includes(ci) ? 'A' : 'B'} em ${s.ano + 1}.`, 'destaque');
   if (cai.A.includes(ci) || cai.B.includes(ci)) add(`Rebaixado. O ${nome(ci)} cai para a Série ${cai.A.includes(ci) ? 'B' : 'C'}.`, 'crise');
 
-  // empréstimos voltam e pré-contratos se cumprem
+  // empréstimos voltam (antes, as cláusulas de fim de temporada) e pré-contratos se cumprem
+  fimDosEmprestimos(base, s, [...cai.A, ...cai.B], t => add(t));
   for (const [id, e] of Object.entries(s.emprestimos)) {
     const j = base.jog.get(+id); if (!j) continue;
     if (e.de === j.clubeOrig) delete s.transf[id]; else s.transf[id] = e.de;

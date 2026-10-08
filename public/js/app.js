@@ -1,5 +1,5 @@
 // Interface do Figurinhos: telas, navegação por hash e saves na nuvem.
-import { Base, novoJogo, iniciarRodada, concluirRodada, iniciarCopa, concluirCopa, iniciarCont, concluirCont, iniciarSup, concluirSup, proximoEvento, copaSemVoce, tabela, rodadasDe, escalacao, paraSalvar, resumo, REPUTACOES, DIFICULDADES, dataRodada, janelaAberta, caixaInicial, aplicarSave, compProxima, longevo, previa } from './motor/mundo.js';
+import { Base, novoJogo, iniciarRodada, concluirRodada, iniciarCopa, concluirCopa, iniciarCont, concluirCont, iniciarSup, concluirSup, proximoEvento, copaSemVoce, tabela, rodadasDe, escalacao, paraSalvar, resumo, REPUTACOES, DIFICULDADES, dataRodada, janelaAberta, caixaInicial, aplicarSave, compProxima, longevo, previa, barradoMedo } from './motor/mundo.js';
 import { LESOES, COMP_DE, indisponivel, pendurado } from './motor/dm.js';
 import { garantirCarreira, pilares, aceitarOferta, recusarOferta, pedirDemissao } from './motor/carreira.js';
 import { virarTemporada, fimDeTemporada } from './motor/temporada.js';
@@ -235,8 +235,8 @@ telas.novo = () => {
 // ----- clube -----
 // quem não joga a próxima partida (lesão ou suspensão naquela competição)
 function desfalques(ci, fim) {
-  const s = app.s, comp = compProxima(app.base, s), d = fim ? [] : app.base.elencos[ci].filter(j => indisponivel(s, j.id, comp));
-  return d.length ? `<a class="cartao aviso-contratos aviso-dm" href="#/dm"><b>Desfalques no próximo jogo</b><span>${d.map(j => `${esc(j.curto)} (${{ lesao: `lesão, ${s.dm[j.id]?.n} jogo${s.dm[j.id]?.n > 1 ? 's' : ''}`, suspenso: 'suspenso', afastado: `afastado, ${s.afast?.[j.id]?.n} jogo${s.afast?.[j.id]?.n > 1 ? 's' : ''}`, selecao: 'na seleção' }[indisponivel(s, j.id, comp)]})`).join(', ')}</span></a>` : '';
+  const s = app.s, comp = compProxima(app.base, s), d = fim ? [] : app.base.elencos[ci].filter(j => indisponivel(s, j.id, comp) || barradoMedo(app.base, s, j.id, ci));
+  return d.length ? `<a class="cartao aviso-contratos aviso-dm" href="#/dm"><b>Desfalques no próximo jogo</b><span>${d.map(j => `${esc(j.curto)} (${{ lesao: `lesão, ${s.dm[j.id]?.n} jogo${s.dm[j.id]?.n > 1 ? 's' : ''}`, suspenso: 'suspenso', afastado: `afastado, ${s.afast?.[j.id]?.n} jogo${s.afast?.[j.id]?.n > 1 ? 's' : ''}`, selecao: 'na seleção', medo: 'cláusula do medo' }[indisponivel(s, j.id, comp) || 'medo']})`).join(', ')}</span></a>` : '';
 }
 const MESES = ['JAN', 'FEV', 'MAR', 'ABR', 'MAI', 'JUN', 'JUL', 'AGO', 'SET', 'OUT', 'NOV', 'DEZ'], SEMANA = ['DOM', 'SEG', 'TER', 'QUA', 'QUI', 'SEX', 'SÁB'];
 const ATALHOS = [
@@ -334,7 +334,7 @@ telas.clube = () => {
 };
 
 // ----- finanças -----
-const ROT_FIN = { bilheteria: 'Bilheteria', tv: 'Cota de TV', patrocinio: 'Patrocínio', premio: 'Prêmios', venda: 'Vendas', verba: 'Verba da diretoria', socorro: 'Socorro (adiantamentos)', salarios: 'Salários', compra: 'Compras', rescisao: 'Rescisões', multa: 'Multas de jogadores', investidor: 'Investidores', calote: 'Calotes', penhora: 'Penhoras', show: 'Shows no estádio', vaquinha: 'Vaquinha da torcida', reembolso: 'Reembolsos de empréstimo' };
+const ROT_FIN = { bilheteria: 'Bilheteria', tv: 'Cota de TV', patrocinio: 'Patrocínio', premio: 'Prêmios', venda: 'Vendas', verba: 'Verba da diretoria', socorro: 'Socorro (adiantamentos)', salarios: 'Salários', compra: 'Compras', rescisao: 'Rescisões', emprestimo: 'Taxas de empréstimo', revenda: 'Percentual de revenda', minutagem: 'Multas de minutagem', multa: 'Multas de jogadores', investidor: 'Investidores', calote: 'Calotes', penhora: 'Penhoras', show: 'Shows no estádio', vaquinha: 'Vaquinha da torcida', reembolso: 'Reembolsos de empréstimo' };
 telas.financas = () => {
   const s = app.s, ci = s.tecnico.clube, c = clube(ci), aba = app.abaFin || 'resumo';
   garantirFinancas(app.base, s);
