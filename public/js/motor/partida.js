@@ -18,6 +18,16 @@ export const POSICOES = {
 export const FORMACOES = Object.fromEntries(Object.entries(POSICOES).map(([f, v]) => [f, v.map(x => x[0])]));
 // faixa lateral de cada vaga (0 = esquerda do time, 100 = direita), para a bola andar pelo lado certo
 export const COORD_Y = Object.fromEntries(Object.entries(POSICOES).map(([f, v]) => [f, v.map(x => x[1])]));
+// formação personalizada: cada vaga pode mudar de posição e anda para o lugar típico dela no campo
+export const PERS = 'Personalizada';
+const PROF_POS = { GOL: 90, ZAG: 74, LE: 66, LD: 66, VOL: 56, MC: 48, ME: 44, MD: 44, MEI: 36, PE: 24, PD: 24, SA: 22, CA: 15 };
+export function usarFormacao(slots) { POSICOES[PERS] = slots; FORMACOES[PERS] = slots.map(x => x[0]); COORD_Y[PERS] = slots.map(x => x[1]); }
+export function vagaPara([antiga, x], pos) {
+  const esq = ['LE', 'ME', 'PE'], dir = ['LD', 'MD', 'PD'];
+  if (esq.includes(pos)) x = Math.min(x, 16); else if (dir.includes(pos)) x = Math.max(x, 84);
+  else if (esq.includes(antiga)) x = 32; else if (dir.includes(antiga)) x = 68;
+  return [pos, x, PROF_POS[pos]];
+}
 
 // estilos de jogo: bônus de ataque/meio/defesa, multiplicadores de chances a favor/contra, cansaço, faltas, posse e qualidade do chute
 export const ESTILOS = {

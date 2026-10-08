@@ -746,3 +746,4 @@ b.pos { color: var(--gramado); } b.neg { color: var(--cartao); }
 .tabela-hist th:nth-child(2), .tabela-hist td:nth-child(2) { text-align: left; }
 .tabela-hist td:nth-child(2) img { vertical-align: middle; }
 .premios-jog { font-weight: 700; margin-top: 6px; }
+.retro-ingresso { display: block; font-size: .85rem; opacity: .85; margin: 4px 0 8px; }

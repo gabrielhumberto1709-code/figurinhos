@@ -772,3 +772,39 @@ test('caixa: jogador pede pra jogar e pra sair, responde com efeito; diretor avi
   const vel = [...base.jog.values()].find(j => j.clube !== ci && base.clubes[j.clube].div === 'A' && j.contrato <= s.ano && vaiAposentar(s, j));
   if (vel) assert.match(bloqueioProposta(base, s, vel, { tipo: 'pre', salario: 1000, anos: 2 }), /aposentar/);
 });
+
+import { editarVaga } from '../public/js/motor/mundo.js';
+import { FORMACOES as FORM } from '../public/js/motor/partida.js';
+test('tática: muda a posição de uma vaga e o time joga com a formação personalizada', () => {
+  const s = novoJogo(base, cfg(105)); s.formacao = '4-3-3';
+  assert.ok(editarVaga(base, s, 0, 'CA'), 'goleiro não muda');
+  assert.equal(editarVaga(base, s, 7, 'PE'), null);
+  assert.equal(s.formacao, 'Personalizada'); assert.equal(FORM.Personalizada[7], 'PE'); assert.equal(FORM['4-3-3'][7], 'MEI');
+  assert.equal(escalacao(base, s, s.tecnico.clube).xi.length, 11);
+  rodada(s); assert.equal(s.rodada, 1);
+});
+
+import { abrirColetivaPre, prePendente } from '../public/js/motor/imprensa.js';
+import { responder as responderCol } from '../public/js/motor/imprensa.js';
+import { confronto, textoConfronto } from '../public/js/motor/confrontos.js';
+test('pré-temporada com 3 amistosos; retrospecto contra cada time; coletiva pré-jogo com perguntas do jogo e do histórico', () => {
+  const s = novoJogo(base, cfg(106)), ci = s.tecnico.clube;
+  const tipos = []; for (let k = 0; k < 3; k++) { tipos.push(proxEv(base, s).tipo); avancar(base, s); }
+  assert.deepEqual(tipos, ['amistoso', 'amistoso', 'amistoso']);
+  assert.ok(s.amistosos.jogos.every(j => j.g) && s.rodada === 0 && s.ultima.div === 'AMI');
+  assert.ok(!prePendente(base, s) || proxEv(base, s).tipo !== 'amistoso');
+  assert.notEqual(proxEv(base, s).tipo, 'amistoso');
+  // retrospecto: força um histórico e a coletiva pré-jogo pergunta dele
+  const ev = proxEv(base, s), adv = ev.h === ci ? ev.a : ev.h;
+  s.h2h = { [`${ci}-${adv}`]: { j: 5, v: 0, e: 1, d: 4, gp: 2, gc: 11, maior: null, pior: [0, 4, 2026, 'Série A'], ult: ['d', 'd', 'e', 'd', 'd'] } };
+  assert.match(textoConfronto(confronto(s, ci, adv)), /5 jogos.*pior derrota 0 a 4/);
+  assert.ok(prePendente(base, s));
+  const C = abrirColetivaPre(base, s);
+  assert.equal(C.perguntas.length, 3);
+  assert.ok(C.perguntas.some(p => ['preTabu', 'preRetro'].includes(p.tema)), C.perguntas.map(p => p.tema).join());
+  for (let i = 0; i < 3; i++) assert.ok(responderCol(base, s, i, C.perguntas[i].respostas[0].tom, true));
+  assert.ok(C.feita && !prePendente(base, s));
+  // o jogo oficial entra no retrospecto
+  const j0 = confronto(s, ci, adv).j; rodada(s);
+  assert.equal(confronto(s, ci, adv).j, j0 + 1);
+});

@@ -90,6 +90,7 @@ export function agenda() {
     const [h, a] = rd.find(j => j.includes(ci)), g = s.res?.[d]?.[`${h}-${a}`];
     ev.push({ data: dataRodada(s.ano, i), comp: `Série ${d} · ${i + 1}ª`, h, a, g, prox: i === s.rodada });
   });
+  if (s.amistosos?.ano === s.ano) s.amistosos.jogos.forEach((j, i) => ev.push({ data: new Date(+dataRodada(s.ano, 0) - j.dias * 864e5), comp: `Amistoso ${i + 1}`, copa: true, h: j.h, a: j.a, g: j.g }));
   if (s.copa) {
     for (const j of s.copa.jogos.filter(x => x.h === ci || x.a === ci)) ev.push({ data: dataCopa(dataRodada, s.ano, j.fase), comp: `Copa · ${FASES[j.fase].curto}`, copa: true, h: j.h, a: j.a, g: j.gols, pen: j.pen });
     if (naCopa(s, ci)) for (let i = s.copa.fase; i < FASES.length; i++) {

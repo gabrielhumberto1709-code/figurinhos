@@ -1,5 +1,5 @@
 // Interface do Figurinhos: telas, navegação por hash e saves na nuvem.
-import { Base, novoJogo, iniciarRodada, concluirRodada, iniciarCopa, concluirCopa, iniciarCont, concluirCont, iniciarSup, concluirSup, proximoEvento, copaSemVoce, tabela, rodadasDe, escalacao, paraSalvar, resumo, REPUTACOES, DIFICULDADES, dataRodada, janelaAberta, caixaInicial, aplicarSave, compProxima, longevo, previa, barradoMedo, multaMedo } from './motor/mundo.js';
+import { Base, novoJogo, iniciarRodada, concluirRodada, iniciarCopa, concluirCopa, iniciarCont, concluirCont, iniciarSup, concluirSup, iniciarAmistoso, concluirAmistoso, proximoEvento, copaSemVoce, tabela, rodadasDe, escalacao, paraSalvar, resumo, REPUTACOES, DIFICULDADES, dataRodada, janelaAberta, caixaInicial, aplicarSave, compProxima, longevo, previa, barradoMedo, multaMedo } from './motor/mundo.js';
 import { LESOES, COMP_DE, indisponivel, pendurado } from './motor/dm.js';
 import { garantirCarreira, pilares, aceitarOferta, recusarOferta, pedirDemissao } from './motor/carreira.js';
 import { virarTemporada, fimDeTemporada } from './motor/temporada.js';
@@ -12,8 +12,9 @@ import * as AoVivo from './aovivo.js';
 import * as Elenco from './elenco.js';
 import * as Jornal from './jornal.js';
 import * as Coletiva from './coletiva.js';
+import { confronto, textoConfronto } from './motor/confrontos.js';
 import * as Gala from './gala.js';
-import { perfil } from './motor/imprensa.js';
+import { perfil, prePendente } from './motor/imprensa.js';
 import { faseDe } from './motor/forma.js';
 import { remetente, naoLidas } from './motor/correio.js';
 import { TEMPERAMENTOS, temperamento, PRELECOES, efeitoPrelecao, prelecaoFeita, fazerPrelecao, CONVERSAS, podeConversar, conversar, responderAumento, responderJogador } from './motor/vestiario.js';
@@ -321,6 +322,7 @@ telas.clube = () => {
         <div class="ingresso-jogo">${lado(jogo[0])}<span class="x">×</span>${lado(jogo[1])}</div>
         <span class="ingresso-local">${ev.neutro ? 'Estádio neutro' : esc(clube(jogo[0]).est[0])}</span>
         ${(p => `<span class="previa" title="Chance pelo que os elencos rendem hoje"><b>V ${p.vitoria}%</b><b>E ${p.empate}%</b><b>D ${p.derrota}%</b></span>`)(previa(app.base, s, ev))}
+        ${ev.tipo === 'amistoso' ? '' : `<span class="retro-ingresso">${esc(textoConfronto(confronto(s, ci, jogo[0] === ci ? jogo[1] : jogo[0])))}</span>`}
         <button class="botao grande" data-acao="jogar" type="button">Jogar</button></div></section>`}
     ${s.demitido || fim ? '' : prelecaoHtml()}${s.demitido ? '' : desfalques(ci, fim)}${ofertasHtml()}${recados()}
     ${acabando.length && !fim ? `<a class="cartao aviso-contratos" href="#/elenco"><b>${acabando.length} ${acabando.length > 1 ? 'contratos acabam' : 'contrato acaba'} no fim da temporada</b><span>${acabando.slice(0, 5).map(j => esc(j.curto)).join(', ')}${acabando.length > 5 ? '…' : ''}. Quem não renovar sai de graça, e outro clube pode assinar pré-contrato.</span></a>` : ''}
@@ -508,14 +510,24 @@ telas['ao-vivo'] = () => AoVivo.tela(app.vivo);
 function concluirAoVivo() {
   const V = app.vivo; if (!V) return;
   if (!V.fim) AoVivo.pular(V);
-  (V.R.copa ? concluirCopa : V.R.cont ? concluirCont : V.R.sup ? concluirSup : concluirRodada)(app.base, app.s, V.R, AoVivo.resultadoFinal(V));
+  (V.R.amistoso ? concluirAmistoso : V.R.copa ? concluirCopa : V.R.cont ? concluirCont : V.R.sup ? concluirSup : concluirRodada)(app.base, app.s, V.R, AoVivo.resultadoFinal(V));
   app.vivo = null;
   salvar();
+}
+
+function comecarJogo() {
+  const ev = proximoEvento(app.base, app.s), b = app.base, s = app.s;
+  const R = ev?.tipo === 'amistoso' ? iniciarAmistoso(b, s) : ev?.tipo === 'copa' ? iniciarCopa(b, s) : ev?.tipo === 'cont' ? iniciarCont(b, s, ev.k) : ev?.tipo === 'sup' ? iniciarSup(b, s) : iniciarRodada(b, s);
+  if (!R) return;
+  if (!R.meu) { concluirRodada(app.base, app.s, R, null); salvar(); ir('#/clube'); return render(); }
+  app.vivo = AoVivo.novaPartidaAoVivo(R);
+  ir('#/ao-vivo');
 }
 
 // ---------- navegação ----------
 async function render() {
   const rota = location.hash.replace(/^#\/?/, '') || (app.conta ? 'saves' : 'entrar');
+  if (rota !== 'coletiva') app.colPre = false;
   if (app.vivo && rota !== 'ao-vivo') concluirAoVivo(); // saiu no meio do jogo: termina na hora
   if (rota === 'ao-vivo' && !app.vivo) { location.hash = app.s ? '#/clube' : '#/saves'; return; }
   if (rota === 'tabela') { location.hash = '#/torneios'; return; }
@@ -593,16 +605,14 @@ const acoes = {
     render();
   },
 
+  // Jogar: primeiro a coletiva pré-jogo (amistoso não tem), depois o jogo ao vivo
   jogar: el => {
     el.disabled = true;
-    const ev = proximoEvento(app.base, app.s), b = app.base, s = app.s;
-    const R = ev?.tipo === 'copa' ? iniciarCopa(b, s) : ev?.tipo === 'cont' ? iniciarCont(b, s, ev.k) : ev?.tipo === 'sup' ? iniciarSup(b, s) : iniciarRodada(b, s);
-    if (!R) return;
-    if (!R.meu) { concluirRodada(app.base, app.s, R, null); salvar(); return render(); }
-    app.vivo = AoVivo.novaPartidaAoVivo(R);
-    ir('#/ao-vivo');
+    if (prePendente(app.base, app.s)) { app.colPre = true; ir('#/coletiva'); return; }
+    comecarJogo();
   },
-  'vivo-fim': () => { concluirAoVivo(); ir('#/partida'); },
+  // Continuar: depois do jogo oficial vem a coletiva pós-jogo
+  'vivo-fim': () => { concluirAoVivo(); const u = app.s.ultima; if (u && u.div !== 'AMI') { app.colPre = false; ir('#/coletiva'); } else ir('#/partida'); },
   'em-breve': el => aviso(`${el.dataset.t} chega numa próxima atualização.`),
   'aba-fin': el => { app.abaFin = el.dataset.a; render(); },
   ingresso: el => { app.s.fin.ingresso = el.dataset.p; render(); salvar(); },
@@ -683,7 +693,7 @@ document.addEventListener('submit', async e => {
 
 AoVivo.configurar({ app, clube, esc, imgEscudo, $ });
 Torneios.configurar({ app, clube, esc, imgEscudo, render: () => render() });
-Coletiva.configurar({ app, clube, esc, render: () => render(), salvar: () => salvar() });
+Coletiva.configurar({ app, clube, esc, render: () => render(), salvar: () => salvar(), jogar: () => comecarJogo() });
 Gala.configurar({ app, clube, esc, imgEscudo, render: () => render() });
 Jornal.configurar({ app, clube, esc, imgEscudo, render: () => render() });
 Mercado.configurar({ app, clube, esc, imgEscudo, $, aviso, render: () => render(), salvar: () => salvar() });
