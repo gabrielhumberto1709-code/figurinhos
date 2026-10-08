@@ -22,11 +22,15 @@ export const COORD_Y = Object.fromEntries(Object.entries(POSICOES).map(([f, v]) 
 export const PERS = 'Personalizada';
 const PROF_POS = { GOL: 90, ZAG: 74, LE: 66, LD: 66, VOL: 56, MC: 48, ME: 44, MD: 44, MEI: 36, PE: 24, PD: 24, SA: 22, CA: 15 };
 export function usarFormacao(slots) { POSICOES[PERS] = slots; FORMACOES[PERS] = slots.map(x => x[0]); COORD_Y[PERS] = slots.map(x => x[1]); }
-export function vagaPara([antiga, x], pos) {
+export function vagaPara([antiga, x, y0], pos, outras = []) {
+  const x0 = x;
   const esq = ['LE', 'ME', 'PE'], dir = ['LD', 'MD', 'PD'];
   if (esq.includes(pos)) x = Math.min(x, 16); else if (dir.includes(pos)) x = Math.max(x, 84);
   else if (esq.includes(antiga)) x = 32; else if (dir.includes(antiga)) x = 68;
-  return [pos, x, PROF_POS[pos]];
+  // não deixa duas vagas uma em cima da outra: tenta mais recuado, mais por dentro ou mais à frente
+  const y = PROF_POS[pos], dx = x < 50 ? 14 : -14, livre = ([a, b]) => outras.every(o => Math.hypot(o[1] - a, o[2] - b) >= 16);
+  const [nx, ny] = [[x, y], [x, y + 12], [x + dx, y], [x, y - 10], [x + dx, y + 12], [x + 2 * dx, y], [x0, y0]].find(livre) || [x0, y0];
+  return [pos, nx, ny];
 }
 
 // estilos de jogo: bônus de ataque/meio/defesa, multiplicadores de chances a favor/contra, cansaço, faltas, posse e qualidade do chute

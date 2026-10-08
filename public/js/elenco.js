@@ -1,6 +1,6 @@
 // Aba Elenco: Jogadores, Escalação (campo, capitão, estilo, planos, banco), Números, DM, Base e Treino.
 import { FORMACOES, POSICOES, ESTILOS, encaixe, forcaSetores, fatorCond } from './motor/partida.js';
-import { escalacao, escalar, trocarFormacao, definirCapitao, liderNatural, TATICA_PADRAO, compProxima, editarVaga, POS_VAGA } from './motor/mundo.js';
+import { escalacao, escalar, trocarFormacao, definirCapitao, liderNatural, TATICA_PADRAO, compProxima, editarVaga, moverVaga, POS_VAGA } from './motor/mundo.js';
 import { LESOES, CATEGORIA, COMP_NOME, COMP_DE, fragilidade, indisponivel, pendurado, infilInfo, infiltrar } from './motor/dm.js';
 import { POS_NOME, POS_ORDEM, SETOR, cartaDe, fmtDinheiro, estrelas } from './motor/util.js';
 import { ganho, idadeF, alternarFoco, MAX_FOCO } from './motor/treino.js';
@@ -84,7 +84,8 @@ function telaEscalacao() {
       <div class="chips" role="group" aria-label="Formação">${Object.keys(FORMACOES).map(f => `<button type="button" class="chip" data-acao="formacao" data-f="${f}" aria-pressed="${time.formacao === f}">${f}</button>`).join('')}</div>
       <div class="linha-botoes"><button type="button" class="chip" data-acao="editar-pos" aria-pressed="${!!app.editPos}">Editar posições</button></div>
       <p class="dica" role="status">${app.editPos ? (slotSel && vaga > 0 ? `Nova posição para a vaga de <b>${esc(time.xi[vaga].curto)}</b> (hoje ${slotSel}):` : 'Toque numa vaga do campo para mudar a posição dela (o goleiro não muda).') : slotSel ? `Quem entra no lugar de <b>${esc(time.xi[vaga].curto)}</b> (${slotSel})? Toque na figurinha. <button class="link" data-acao="vaga" data-i="${vaga}" type="button">Cancelar</button>` : 'Toque num jogador do campo para trocar.'}</p>
-      ${app.editPos && slotSel && vaga > 0 ? `<div class="chips" role="group" aria-label="Posição da vaga">${POS_VAGA.map(p => `<button type="button" class="chip" data-acao="pos-vaga" data-p="${p}" aria-pressed="${slotSel === p}">${p}</button>`).join('')}</div>` : ''}
+      ${app.editPos && slotSel && vaga > 0 ? `<div class="chips" role="group" aria-label="Posição da vaga">${POS_VAGA.map(p => `<button type="button" class="chip" data-acao="pos-vaga" data-p="${p}" aria-pressed="${slotSel === p}">${p}</button>`).join('')}</div>
+        <div class="chips setas-vaga" role="group" aria-label="Mover a vaga no campo">${[['←', -6, 0, 'esquerda'], ['→', 6, 0, 'direita'], ['↑', 0, -6, 'para a frente'], ['↓', 0, 6, 'para trás']].map(([s2, dx, dy, rot]) => `<button type="button" class="chip" data-acao="mover-vaga" data-dx="${dx}" data-dy="${dy}" aria-label="Mover ${rot}">${s2}</button>`).join('')}</div>` : ''}
       <div class="campo campo-esc"><span class="area cima"></span><span class="area baixo"></span><span class="meio"></span><span class="roda"></span>
         ${time.xi.map((j, i) => { const [, x, y] = POSICOES[time.formacao][i], r = rende(j, slots[i]), fora = encaixe(j.pos, slots[i]) < 0.9;
           return `<button class="jog-campo ${vaga === i ? 'sel' : ''}" style="left:${x}%;top:${y}%" data-acao="vaga" data-i="${i}" type="button" aria-label="${esc(j.curto)}, ${slots[i]}, rende ${r}">
@@ -185,6 +186,7 @@ export const acoes = {
   'ord-jog': el => { H.app.ordJog = el.dataset.o; H.render(); },
   'ord-num': el => { H.app.ordNum = el.dataset.o; H.render(); },
   'editar-pos': el => { H.app.editPos = !H.app.editPos; H.app.vaga = null; H.render(); },
+  'mover-vaga': el => { const e = moverVaga(H.app.base, H.app.s, H.app.vaga, +el.dataset.dx, +el.dataset.dy); if (e) H.aviso(e); H.render(); H.salvar(); },
   'pos-vaga': el => { const e = editarVaga(H.app.base, H.app.s, H.app.vaga, el.dataset.p); if (e) H.aviso(e); H.render(); H.salvar(); },
   formacao: el => { trocarFormacao(H.app.base, H.app.s, el.dataset.f); H.app.vaga = null; H.render(); H.salvar(); },
   vaga: el => { const i = +el.dataset.i; H.app.vaga = H.app.vaga === i ? null : i; H.render(); },

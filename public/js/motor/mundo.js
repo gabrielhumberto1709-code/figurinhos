@@ -335,7 +335,16 @@ export function editarVaga(base, s, i, pos) {
   if (s.formPers) usarFormacao(s.formPers);
   if (!(i > 0 && i < 11) || !POS_VAGA.includes(pos)) return 'Essa vaga não muda.';
   const slots = (POSICOES[s.formacao] || POSICOES['4-3-3']).map(x => x.slice());
-  slots[i] = vagaPara(slots[i], pos);
+  slots[i] = vagaPara(slots[i], pos, slots.filter((_, k) => k !== i));
+  s.formPers = slots; usarFormacao(slots); s.formacao = PERS;
+  return null;
+}
+// empurra a vaga no campo (setas no modo de editar posições)
+export function moverVaga(base, s, i, dx, dy) {
+  if (s.formPers) usarFormacao(s.formPers);
+  if (!(i > 0 && i < 11)) return 'O goleiro não sai do gol.';
+  const slots = (POSICOES[s.formacao] || POSICOES['4-3-3']).map(x => x.slice());
+  slots[i][1] = Math.max(6, Math.min(94, slots[i][1] + dx)); slots[i][2] = Math.max(10, Math.min(84, slots[i][2] + dy));
   s.formPers = slots; usarFormacao(slots); s.formacao = PERS;
   return null;
 }
