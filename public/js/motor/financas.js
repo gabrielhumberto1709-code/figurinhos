@@ -1,5 +1,5 @@
 // Finanças do seu clube: salários por dia, bilheteria, TV, patrocínio, prêmios, extrato, diretoria e socorro.
-import { clamp } from './util.js';
+import { clamp, rng } from './util.js';
 import { rivais } from './rivais.js';
 import { dataRodada, tabela } from './mundo.js';
 import { liberar } from './mercado.js';
@@ -111,7 +111,7 @@ export function pedirVerba(base, s, pos) {
   f.verbasRecentes = f.verbasRecentes.filter(r => rd - r < 8);
   const rep = 0.35 ** f.verbasRecentes.length;
   const chance = 0.6 * conf * sport * fin * rep;
-  if (Math.random() < chance) {
+  if (rng(`verba${s.seed}-${s.ano}-${rd}-${f.verbasRecentes.length}`)() < chance) { // sorteio fixo pela semente (igual no online)
     const valor = Math.round(sv * (0.012 + f.diretoria / 100 * 0.028) / 10000) * 10000;
     f.verbasRecentes.push(rd);
     lancar(s, 'verba', 'Verba extra da diretoria', valor);

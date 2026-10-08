@@ -148,7 +148,7 @@ for (let ci = 0; ci < clubes.length; ci++) {
     usados.add(j[13]);
   }
 }
-const dados = { versao: 2, ano: ANO, fonte: 'Treineiros 1.38.10 (uso autorizado)', clubes, jogadores, divisoes: DIV };
+const dados = { versao: 3, ano: ANO, fonte: 'Treineiros 1.38.10 (uso autorizado)', clubes, jogadores, divisoes: DIV };
 fs.mkdirSync(path.dirname(OUT), { recursive: true });
 fs.writeFileSync(OUT, JSON.stringify(dados));
 const porDiv = d => jogadores.filter(j => clubes[j[3]].div === d).length;

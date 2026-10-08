@@ -18,7 +18,7 @@ import { confronto, textoConfronto } from './motor/confrontos.js';
 import * as Gala from './gala.js';
 import { perfil, prePendente } from './motor/imprensa.js';
 import { faseDe } from './motor/forma.js';
-import { remetente, naoLidas } from './motor/correio.js';
+import { remetente, naoLidas, enviar } from './motor/correio.js';
 import { TEMPERAMENTOS, temperamento, PRELECOES, efeitoPrelecao, prelecaoFeita, fazerPrelecao, CONVERSAS, podeConversar, conversar, responderAumento, responderJogador } from './motor/vestiario.js';
 import { POS_NOME, ATT, ATT_NOME, cartaDe, estrelas, fmtDinheiro, PAISES } from './motor/util.js';
 import { urlRosto, urlEscudo, urlBandeira, urlBotao } from './pixel.js';
@@ -547,6 +547,11 @@ function migrar(s) {
   copaSemVoce(app.base, s); // saves de antes da copa ganham a edição do ano (fases atrasadas se resolvem sozinhas)
   if (s.caixa == null) s.caixa = caixaInicial(app.base, s.tecnico.clube, s.dificuldade);
   garantirFinancas(app.base, s);
+  // base de jogadores atualizada depois que a carreira começou: avisa (o save segue por cima da base nova)
+  if (s.dadosVersao !== app.base.dados.versao) {
+    enviar(s, 'diretor', `base-${app.base.dados.versao}`, 'Base de jogadores atualizada', 'Os dados do futebol brasileiro foram atualizados: overalls, valores e elencos da Série C mudaram. Suas contratações, contratos e resultados continuam valendo.');
+    s.dadosVersao = app.base.dados.versao;
+  }
   return s;
 }
 
@@ -632,7 +637,7 @@ const acoes = {
     if (n.modo === 'escolher' && n.clube == null) { $('.erro').textContent = 'Escolha um clube.'; return; }
     el.disabled = true;
     app.base.aplicarTransferencias({});
-    app.s = novoJogo(app.base, { tecnico: { ...n.tecnico, nome: n.tecnico.nome.trim() }, modo: n.modo, clube: n.clube, divisao: n.abaDiv, dificuldade: n.dificuldade });
+    app.s = novoJogo(app.base, { seed: crypto.getRandomValues(new Uint32Array(1))[0] % 1e9, tecnico: { ...n.tecnico, nome: n.tecnico.nome.trim() }, modo: n.modo, clube: n.clube, divisao: n.abaDiv, dificuldade: n.dificuldade });
     app.novo = null; app.ver = 0;
     ir('#/clube');
     if (n.modo !== 'escolher') aviso(`Você vai treinar o ${clube(app.s.tecnico.clube).n}!`);

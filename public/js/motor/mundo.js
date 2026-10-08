@@ -21,6 +21,9 @@ import { contasDaRodada, financasIniciais, bilheteria, lancar, folhaDia, garanti
 import { FASES, PREMIOS, novaCopa, copaDevida, naCopa, mandoDe, dataCopa, decidir, avancarFase, agregadoIda } from './copa.js';
 
 const DIVS = ['A', 'B', 'C'];
+// calibragem por divisão (temporada simulada × médias reais): ritmo mexe no número de chances, mando no fator casa.
+// A Série A tem mais qualidade na frente e passava de 2,7 gols por jogo; B e C empatavam demais e o mandante pesava pouco.
+const RITMO_DIV = { A: 0.9, B: 1, C: 1.05 }, MANDO_DIV = { A: 0, B: 0.02, C: 0.025 };
 
 export const REPUTACOES = [
   { k: 0, nome: 'Desconhecido', desc: 'Nunca treinou ninguém. Só clubes pequenos te chamam.', faixa: [0, 0.35] },
@@ -143,7 +146,7 @@ export function clubeParaReputacao(base, rep, seed) {
 
 export function novoJogo(base, cfg) {
   base.aplicarTransferencias({}); // carreira nova começa da base original
-  const seed = cfg.seed ?? Math.floor(Math.random() * 1e9);
+  const seed = cfg.seed ?? 1; // a semente vem de fora (interface ou servidor): o motor não sorteia nada sozinho
   let clube = cfg.clube;
   if (cfg.modo === 'sorteio') { const r = rng('sorteio' + seed), lista = base.clubes.map((c, i) => i).filter(i => base.clubes[i].div === cfg.divisao); clube = pick(r, lista); }
   if (cfg.modo === 'reputacao') clube = clubeParaReputacao(base, cfg.tecnico.reputacao, seed);
@@ -376,7 +379,7 @@ export function iniciarRodada(base, s) {
   let meu = null;
   for (const d of DIVS) for (const [h, a] of rodadasDe(base, s, d)[rd]) {
     const th = escalacao(base, s, h, 'L'), ta = escalacao(base, s, a, 'L'), seed = `${s.seed}-${d}-${rd}-${h}-${a}`;
-    const opts = { cond: s.cond, mor: s.mor, auto: [h === ci ? s.subsAuto !== false : true, a === ci ? s.subsAuto !== false : true], fragil: fragilDe(base, s), fase: fase(s), mando: fatorCasa(base, s, h, a), arbitro: arbitroDo(s, seed) };
+    const opts = { cond: s.cond, mor: s.mor, auto: [h === ci ? s.subsAuto !== false : true, a === ci ? s.subsAuto !== false : true], fragil: fragilDe(base, s), fase: fase(s), mando: fatorCasa(base, s, h, a) + MANDO_DIV[d], ritmo: RITMO_DIV[d], arbitro: arbitroDo(s, seed) };
     if (h === ci || a === ci) meu = { d, h, a, th, ta, seed, humano: h === ci ? 0 : 1, opts, capitao: (h === ci ? th : ta).capitao };
     else jogos.push({ d, h, a, sim: simular(th, ta, seed, opts) });
   }

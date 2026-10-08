@@ -150,7 +150,7 @@ export function criarPartida(casa, fora, seed, opts = {}) {
     notas: [new Map(), new Map()], expulsos: [new Set(), new Set()], entrada: {}, subs: [0, 0], verm: [0, 0], disparou: [{}, {}],
     cond: condDe([casa, fora], opts.cond || {}), mor: opts.mor || {}, auto: opts.auto || [true, true],
     r: rng('jogo' + seed), rn: rng('narra' + seed), ri: rng('ia' + seed), rl: rng('les' + seed), fragil: opts.fragil || (() => 1), fase: opts.fase || null,
-    mando: opts.neutro ? 1 : (opts.mando ?? 1.08), narrar: !!opts.narrar, humano: opts.humano ?? -1, bola: null,
+    mando: opts.neutro ? 1 : (opts.mando ?? 1.08), ritmo: opts.ritmo ?? 1, narrar: !!opts.narrar, humano: opts.humano ?? -1, bola: null,
     arbitro: opts.arbitro || null, rigor: opts.arbitro ? 0.7 + (opts.arbitro.rigor - 1) * 0.15 : 1, rv: rng('var' + seed),
   };
   P.fim = 90 + Math.floor(P.r() * 5);
@@ -219,7 +219,7 @@ export function passo(P) {
   P.st[t].posse++;
   const menos = P.expulsos[t].size - P.expulsos[o].size;
   const compensa = t === 0 ? base0 / posse0 : (1 - base0) / (1 - posse0);
-  const chance = CAL.chute * compensa * Math.exp((F[t].ata - F[o].def) / 50) * (1 - 0.12 * menos) * F[t].st.xgF * F[o].st.xgA / F[t].st.q;
+  const chance = CAL.chute * P.ritmo * compensa * Math.exp((F[t].ata - F[o].def) / 50) * (1 - 0.12 * menos) * F[t].st.xgF * F[o].st.xgA / F[t].st.q;
   const gk = () => P.emCampo(o).find(j => P.slotDe(o, j) === 'GOL');
   if (r() < 0.003 * compensa * (0.85 + 0.15 * P.rigor)) penalti(P, t, o, N); // pênalti também não cresce só com a posse
   else if (r() < chance) {

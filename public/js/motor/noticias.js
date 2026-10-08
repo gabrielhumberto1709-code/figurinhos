@@ -37,7 +37,7 @@ const ORD = n => `${n}ª`;
 const qtd = (q, um, varios) => `${q} ${q === 1 ? um : varios}`;
 
 // manchete da capa: o que o craque da rodada fez no jogo dele (t = lado dele no jogo x)
-export function manchete(base, j, n, x, t, r = Math.random) {
+export function manchete(base, j, n, x, t, r = rng('manchete' + j.id)) {
   const ev = x.sim.eventos.filter(e => e.tipo === 'gol');
   const gols = ev.filter(e => e.jogador === j.id).length, ass = ev.filter(e => e.assist === j.id).length;
   const meus = x.sim.gols[t], deles = x.sim.gols[1 - t], defesas = x.sim.stats?.[t]?.defesas || 0;
