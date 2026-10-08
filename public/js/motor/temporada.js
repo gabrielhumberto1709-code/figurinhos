@@ -1,7 +1,7 @@
 // Virada de temporada: histórico, acesso e rebaixamento (4 sobem, 4 caem), contratos que acabam, empréstimos que
 // voltam, pré-contratos que se cumprem, aposentadorias, garotos da base e a Copa do Brasil do ano novo.
 import { rng, pick, clamp, PERFIL } from './util.js';
-import { tabela, aplicarSave } from './mundo.js';
+import { tabela, aplicarSave, caixaInicial } from './mundo.js';
 import { FASES, novaCopa, campanha } from './copa.js';
 import { metaDiretoria, folhaDia, lancar, cotaTV, garantirFinancas, fairPlay, punirFPF, LIMITE_FPF, ANO_FPF, ANO_EQUILIBRIO } from './financas.js';
 import { garantirMercado, cumprirAcordos, fimDosEmprestimos } from './mercado.js';
@@ -133,6 +133,8 @@ export function virarTemporada(base, s) {
   const meus = jovens.filter(r => r[3] === ci);
   if (meus.length) add(`Subiram da base: ${meus.map(r => `${r[2]} (${r[4]}, ${r[5]} anos)`).join(', ')}.`);
 
+  // clubes da IA fecham o ano: metade do caixa fica, a outra metade volta para o nível do clube (receitas menos folha)
+  for (const [c, v] of Object.entries(s.caixaIA || {})) s.caixaIA[c] = Math.round((v + caixaInicial(base, +c)) / 2);
   // temporada zerada
   viradaDM(base, s);
   s.forma = {}; s.afast = {}; s.julgamentos = [];

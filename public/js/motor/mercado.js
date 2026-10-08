@@ -167,7 +167,12 @@ export function salarioPedido(base, s, j, anos = 3, destino = s.tecnico.clube, p
 // quanto de salário novo cabe (se ele já é seu, o salário atual sai da conta)
 export function folgaPara(base, s, j) { return orcamento(base, s).folga + (j.clube === s.tecnico.clube ? salarioDia(base, s, j) : 0); }
 
-export const caixaDe = (base, s, ci) => ci === s.tecnico.clube ? s.caixa : caixaInicial(base, ci);
+// caixa de verdade dos clubes da IA: começa no caixa inicial, mexe a cada compra e venda e se refaz em parte na virada
+export const caixaDe = (base, s, ci) => ci === s.tecnico.clube ? s.caixa : s.caixaIA?.[ci] ?? caixaInicial(base, ci);
+export function mexerCaixa(base, s, ci, v) {
+  if (ci == null || ci === s.tecnico.clube || base.clubes[ci].div === 'L' || !v) return;
+  (s.caixaIA ||= {})[ci] = Math.round(caixaDe(base, s, ci) + v);
+}
 
 // ---------- propostas do usuário ----------
 // tipos: compra (paga ao clube), livre (sem clube), pre (contrato no fim; chega na próxima temporada), emprestimo (até o fim da temporada)
@@ -296,6 +301,7 @@ function efetivar(base, s, j, e, valor, txt) {
     delete s.salarios[j.id];
     lancar(s, 'venda', `${txt}: ${j.curto} (${base.clubes[e.para].n})`, valor); s.fin.temporada.vendas += valor;
   }
+  mexerCaixa(base, s, e.para, -valor); mexerCaixa(base, s, e.de, valor);
   aplicarSave(base, s);
   s.historicoTransf.unshift({ rodada: s.rodada, jogador: j.id, nome: j.curto, de: e.de, para: e.para, valor, tipo: 'compra' });
 }
@@ -329,6 +335,7 @@ export function transferir(base, s, j, para, valor, { salario, anos } = {}) {
   garantirFinancas(base, s);
   if (para === meu && valor) { lancar(s, 'compra', `Compra de ${j.curto} (${base.clubes[de].n})`, -valor); s.fin.temporada.compras += valor; }
   if (de === meu && valor) { lancar(s, 'venda', `Venda de ${j.curto} (${base.clubes[para].n})`, valor); s.fin.temporada.vendas += valor; }
+  mexerCaixa(base, s, para, -valor); mexerCaixa(base, s, de, valor);
   const rv = de === meu && valor && s.revenda?.[j.id];
   if (rv) { lancar(s, 'revenda', `Revenda: ${rv.pct}% da venda de ${j.curto} ao ${base.clubes[rv.clube].n}`, -Math.round(valor * rv.pct / 100)); delete s.revenda[j.id]; }
   if (s.xi && (para === meu || de === meu)) s.xi = null; // escalação manual refeita com o elenco novo
@@ -342,6 +349,7 @@ export function emprestar(base, s, j, para, cl = null) {
   if (cl?.compra === 'opcao') s.emprestimos[j.id].opcao = cl.valorCompra;
   if (cl?.compra === 'obrigacao') s.emprestimos[j.id].obrig = { valor: cl.valorCompra, gatilho: cl.gatilho, jogos: cl.jogos };
   if (cl?.taxa && (para === meu || de === meu)) lancar(s, 'emprestimo', `Taxa de empréstimo de ${j.curto} (${base.clubes[para === meu ? de : para].n})`, para === meu ? -cl.taxa : cl.taxa);
+  if (cl?.taxa) { mexerCaixa(base, s, para, -cl.taxa); mexerCaixa(base, s, de, cl.taxa); }
   s.transf[j.id] = para; marcarChegada(s, j.id);
   tirarDasListas(s, j.id);
   aplicarSave(base, s);
@@ -574,6 +582,7 @@ function negociosIA(base, s, rd, r, add) {
   const meu = s.tecnico.clube, nome = ci => base.clubes[ci].n, mover = (j, para, valor) => {
     const de = j.clube;
     s.transf[j.id] = para; s.contratos[j.id] = s.ano + 2 + Math.floor(r() * 3); marcarChegada(s, j.id);
+    mexerCaixa(base, s, para, -valor); mexerCaixa(base, s, de, valor);
     aplicarSave(base, s);
     s.historicoTransf.unshift({ rodada: rd, jogador: j.id, nome: j.curto, de, para, valor, tipo: ehLivre(base, de) ? 'livre' : 'compra', ia: true });
     return de;
@@ -581,7 +590,7 @@ function negociosIA(base, s, rd, r, add) {
   for (const ci of base.clubes.map((c, i) => i).filter(i => BR.includes(base.clubes[i].div) && i !== meu)) {
     if (r() > 0.09 || base.elencos[ci].length >= 38) continue;
     const el = base.elencos[ci], f = base.forca(ci), melhorNa = p => el.filter(x => x.pos === p).reduce((m, x) => Math.max(m, x.ovr), 0);
-    const pos = POS_CHAVE.slice().sort((a, b) => melhorNa(a) - melhorNa(b))[0], min = melhorNa(pos) + 2, caixa = caixaInicial(base, ci) * 0.5;
+    const pos = POS_CHAVE.slice().sort((a, b) => melhorNa(a) - melhorNa(b))[0], min = melhorNa(pos) + 2, caixa = caixaDe(base, s, ci) * 0.5;
     const cands = [...base.jog.values()].filter(j => j.pos === pos && j.clube !== ci && j.ovr >= min && j.ovr <= f + 5 && !s.emprestimos[j.id] && !preContratoDe(s, j.id)
       && vendedorAguenta(base, s, j) && precoPedido(base, s, j) <= caixa && vontade(base, s, j, ci) >= 50 && (!rivais(base, j.clube, ci) || r() < 0.03));
     if (!cands.length) continue;

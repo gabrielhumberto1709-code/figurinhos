@@ -193,15 +193,18 @@ export function dicasFinanceiras(base, s) {
 // pune. Dívida com credor relevante (salário atrasado) pune na hora, em escada: plano de correção, multa, registro de
 // jogadores bloqueado, perda de pontos. De 2028 em diante a temporada também não pode fechar no vermelho.
 export const LIMITE_FPF = 0.7, ANO_FPF = 2029, ANO_EQUILIBRIO = 2028;
+const RECEITAS = ['bilheteria', 'tv', 'patrocinio', 'premio', 'venda', 'show', 'vaquinha', 'investidor', 'emprestimo', 'reembolso', 'minutagem', 'medo', 'revenda'];
 export function fairPlay(base, s) {
   garantirFinancas(base, s);
-  const ci = s.tecnico.clube, c = base.clubes[ci], bal = balanco(s), b = bilheteria(base, s, ci, ci, [], 10, s.fin.ingresso);
-  // receita do ano: TV, patrocínio, bilheteria, prêmio da liga pela posição de hoje, prêmios de copa e vendas
+  const ci = s.tecnico.clube, c = base.clubes[ci], bal = balanco(s);
   const pos = s.rodada ? tabela(base, s, c.div).findIndex(l => l.clube === ci) + 1 : base.clubes.map((x, i) => i).filter(i => base.clubes[i].div === c.div).sort((x, y) => base.forca(y) - base.forca(x)).indexOf(ci) + 1;
-  const premiosCopa = s.fin.extrato.filter(e => e.a === s.ano && e.tipo === 'premio' && !/Premiação da Série/.test(e.desc)).reduce((a, e) => a + e.valor, 0);
-  const receita = cotaTV(c) + patrocinio(c, ci).valor + b.renda * 19 + premioLiga(c.div, pos) + premiosCopa + Math.max(0, bal.venda || 0);
-  // custo do elenco: salários da temporada e compras amortizadas em 3 anos
-  const custo = folhaDia(base, s) * (diasEntre(s, 0, 37) + Math.round((dataRodada(s.ano, 0) - dataAmistoso(s.ano, 0)) / DIA) + 3) + (s.fin.temporada.compras || 0) / 3;
+  // receita = o que já entrou no extrato (bilheteria, TV, patrocínio, prêmios, vendas, eventos) + o que falta entrar até o fim;
+  // verba da diretoria e socorro não contam (são adiantamento e aporte, não receita do futebol)
+  const realizado = RECEITAS.reduce((a, k) => a + Math.max(0, bal[k] || 0), 0);
+  const premioPago = s.fin.extrato.some(e => e.a === s.ano && /Premiação da Série/.test(e.desc));
+  const receita = realizado + receitaPrevista(base, s) + (premioPago ? 0 : premioLiga(c.div, pos));
+  // custo do elenco: salários já pagos + os que faltam + compras amortizadas em 3 anos
+  const custo = -(bal.salarios || 0) + folhaDia(base, s) * (s.rodada >= 38 ? 0 : diasRestantes(s)) + (s.fin.temporada.compras || 0) / 3;
   const resultado = Object.values(bal).reduce((a, v) => a + v, 0);
   return { receita, custo, razao: custo / Math.max(1, receita), resultado, divida: (s.fin.atraso || 0) > 0 };
 }

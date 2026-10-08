@@ -171,7 +171,9 @@ export function aceitarOferta(base, s, novo) {
   const ult = s.carreira[s.carreira.length - 1]; if (ult) Object.assign(ult, { ateAno: s.ano, ateRodada: s.rodada, saida: s.demitido ? (s.demitido.pediu ? 'pediu demissão' : 'demitido') : 'aceitou proposta' });
   s.carreira.push({ clube: novo, ano: s.ano, rodada: s.rodada });
   s.tecnico.clube = novo; delete s.tecnicos[novo];
-  s.caixa = caixaInicial(base, novo, s.dificuldade);
+  // o caixa fica com o clube: o antigo passa a ser da IA, o novo vem com o que a IA tinha (ou o inicial)
+  (s.caixaIA ||= {})[velho] = s.caixa;
+  s.caixa = s.caixaIA[novo] ?? caixaInicial(base, novo, s.dificuldade); delete s.caixaIA[novo];
   s.fin = financasIniciais(base, s);
   Object.assign(s, { xi: null, banco: null, capitao: null, vice: null, cobrador: null, escSalvas: [], listas: { venda: [], emprestimo: [] }, recebidas: [], torcida: 55, ofertas: [] });
   s.propostas = (s.propostas || []).filter(p => !['aguardando', 'contraproposta'].includes(p.estado));
