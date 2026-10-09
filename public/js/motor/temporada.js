@@ -53,6 +53,7 @@ export function gerarJovens(base, s, r) {
 
 // elenco para quem sobe da Série D: 26 jogadores perto do nível de Série C (ids próprios, entram como "jovens" no save)
 function elencoDeAcesso(base, s, ci, r) {
+  if (base.elencos[ci].length >= 22) return []; // quem já tem elenco (caiu e voltou) não ganha outro por cima
   const rows = [], usados = new Set(base.elencos[ci].map(j => j.num)), POS = Object.entries(IDEAL).flatMap(([p, n]) => Array(n).fill(p));
   POS.forEach((pos, k) => {
     const idade = 19 + Math.floor(r() * 14), ovr = clamp(Math.round(49 + (r() + r() + r() - 1.5) * 6), 40, 60), pot = clamp(Math.round(ovr + (idade <= 22 ? 4 + r() * 10 : r() * 3)), ovr, 75);

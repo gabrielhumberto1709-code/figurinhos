@@ -642,21 +642,37 @@ function vendedorAguenta(base, s, j) {
   return j.clube !== s.tecnico.clube && el.length > 19 && !(j.pos === 'GOL' && el.filter(x => x.pos === 'GOL').length <= 2) && !travado(s, j.id) && !emAcordo(s, j.id);
 }
 // clubes da IA também compram: reforçam a posição mais fraca e o exterior leva destaques
+// contrato dos negócios da IA, como no Brasil de hoje (CBF 2026: média de 22 meses na A, 19 na B, 11 na C): o número
+// é quantas viradas ele fica além desta (0 = acaba em dezembro). Compra cara é longa; de fora, 2 a 4 anos.
+const anosIA = (div, idade, valor, r) => {
+  const x = r();
+  if (div === 'X') return 2 + Math.floor(x * 3);
+  if (valor >= 1e6) return 1 + Math.floor(x * 3);
+  if (idade >= 31) return x < 0.7 ? 0 : 1;
+  return div === 'A' ? (x < 0.2 ? 0 : x < 0.8 ? 1 : 2) : div === 'B' ? (x < 0.45 ? 0 : x < 0.95 ? 1 : 2) : (x < 0.85 ? 0 : 1);
+};
+// elenco alvo e mínimo por posição dos clubes da IA
+const ALVO = { A: 32, B: 30, C: 28 }, MIN_POS = { GOL: 3, ZAG: 4, LD: 2, LE: 2, VOL: 2, MC: 2, MEI: 1, PE: 1, PD: 1, CA: 2 };
 function negociosIA(base, s, rd, r, add) {
-  const meu = s.tecnico.clube, nome = ci => base.clubes[ci].n, mover = (j, para, valor) => {
+  // mexe direto nos elencos (sem refazer a base inteira a cada negócio); no fim, um aplicarSave acerta tudo
+  const meu = s.tecnico.clube, nome = ci => base.clubes[ci].n, mover = (j, para, valor, emp = null) => {
     const de = j.clube;
-    s.transf[j.id] = para; s.contratos[j.id] = s.ano + 2 + Math.floor(r() * 3); marcarChegada(s, j.id);
+    if (emp) s.emprestimos[j.id] = { de, para, ate: s.ano, cheio: salarioDia(base, s, j), jogos0: s.est?.[j.id]?.[0] || 0, ia: true };
+    else j.contrato = s.contratos[j.id] = s.ano + anosIA(base.clubes[para].div, j.idade, valor, r);
+    s.transf[j.id] = para; marcarChegada(s, j.id);
     mexerCaixa(base, s, para, -valor); mexerCaixa(base, s, de, valor);
-    aplicarSave(base, s);
-    s.historicoTransf.unshift({ rodada: rd, jogador: j.id, nome: j.curto, de, para, valor, tipo: ehLivre(base, de) ? 'livre' : 'compra', ia: true });
+    const a = base.elencos[de], i = a.indexOf(j); if (i >= 0) a.splice(i, 1);
+    base.elencos[para].push(j); j.clube = para; base._forca = null; base._tatica = null;
+    s.historicoTransf.unshift({ rodada: rd, jogador: j.id, nome: j.curto, de, para, valor, tipo: emp ? 'emprestimo' : ehLivre(base, de) ? 'livre' : 'compra', ia: true });
     return de;
   };
+  montarElencos(base, s, rd, r, add, mover);
   for (const ci of base.clubes.map((c, i) => i).filter(i => BR.includes(base.clubes[i].div) && i !== meu)) {
     if (r() > 0.09 || base.elencos[ci].length >= 38) continue;
     const el = base.elencos[ci], f = base.forca(ci), melhorNa = p => el.filter(x => x.pos === p).reduce((m, x) => Math.max(m, x.ovr), 0);
     const pos = POS_CHAVE.slice().sort((a, b) => melhorNa(a) - melhorNa(b))[0], min = melhorNa(pos) + 2, caixa = caixaDe(base, s, ci) * 0.5;
     const cands = [...base.jog.values()].filter(j => j.pos === pos && j.clube !== ci && j.ovr >= min && j.ovr <= f + 5 && !s.emprestimos[j.id] && !preContratoDe(s, j.id)
-      && vendedorAguenta(base, s, j) && precoPedido(base, s, j, ci) <= caixa && vontade(base, s, j, ci) >= 50 && (!rivais(base, j.clube, ci) || r() < 0.03));
+      && vendedorAguenta(base, s, j) && (ehLivre(base, j.clube) || base.elencos[j.clube].length > 28) && precoPedido(base, s, j, ci) <= caixa && vontade(base, s, j, ci) >= 50 && (!rivais(base, j.clube, ci) || r() < 0.03));
     if (!cands.length) continue;
     const j = pickW(r, cands, x => x.ovr - min + 1), valor = precoPedido(base, s, j, ci), de = mover(j, ci, valor);
     add(ehLivre(base, de) ? `Mercado: ${nome(ci)} contrata ${j.curto}, que estava sem clube.` : `${valor >= 5e6 ? 'HERE WE GO! ' : 'Mercado: '}${j.curto} deixa o ${nome(de)} e acerta com o ${nome(ci)} por ${fmt(valor)}.`, 'mercado', base.clubes[ci].div, { jogador: j.id });
@@ -708,6 +724,47 @@ function negociosIA(base, s, rd, r, add) {
     if (caixaDe(base, s, para) * 0.6 < valor) continue;
     const de = mover(j, para, valor);
     add(`${valor >= 5e6 ? 'HERE WE GO! ' : ''}De volta ao Brasil: ${j.curto} (${j.idade} anos) deixa o ${nome(de)} e acerta com o ${nome(para)} por ${fmt(valor)}.`, 'mercado', base.clubes[para].div, { jogador: j.id });
+  }
+  aplicarSave(base, s);
+}
+
+// Clubes da IA montam o elenco: abaixo do alvo (A 32, B 30, C 28) ou com posição abaixo do mínimo, vão ao mercado.
+// Na A, a compra vem primeiro; na B e na C, quase tudo é jogador livre ou emprestado por clube grande (garoto sem
+// espaço). Assim os elencos não esvaziam e a lista de livres não incha.
+function montarElencos(base, s, rd, r, add, mover) {
+  const meu = s.tecnico.clube, L = listasIA(base, s), livresIdx = base.clubes.findIndex(c => c.div === 'L'), nome = ci => base.clubes[ci].n;
+  const emprestaveis = [...L.emprestimo].map(id => base.jog.get(id)).filter(j => j && BR.includes(base.clubes[j.clube].div) && j.clube !== meu && !s.emprestimos[j.id] && !preContratoDe(s, j.id) && !emAcordo(s, j.id) && !travado(s, j.id));
+  for (const ci of shuffle(r, base.clubes.map((c, i) => i).filter(i => BR.includes(base.clubes[i].div) && i !== meu))) {
+    const c = base.clubes[ci], alvo = ALVO[c.div], el = base.elencos[ci];
+    const conta = p => el.filter(x => x.pos === p).length, falta = POS_CHAVE.filter(p => conta(p) < MIN_POS[p]);
+    let vagas = Math.min(3, falta.length + (el.length < alvo - 4 ? 3 : el.length < alvo - 1 ? 2 : el.length < alvo && r() < 0.5 ? 1 : 0));
+    for (; vagas > 0; vagas--) {
+      const f = base.forca(ci), caixa = caixaDe(base, s, ci), aperto = Math.max(0, alvo - el.length - 2); // elenco curto aceita jogador mais fraco
+      const pos = POS_CHAVE.filter(p => conta(p) < MIN_POS[p])[0] || POS_CHAVE.slice().sort((a, b) => conta(a) / MIN_POS[a] - conta(b) / MIN_POS[b] || r() - 0.5)[0];
+      const livre = () => base.elencos[livresIdx].filter(x => x.pos === pos && x.ovr >= f - 9 - aperto && x.ovr <= f + 3 && x.idade <= 34 && vontade(base, s, x, ci) >= 40).sort((a, b) => b.ovr - a.ovr)[0];
+      const emprestado = () => emprestaveis.filter(x => x.pos === pos && x.clube !== ci && !s.emprestimos[x.id] && base.forca(x.clube) >= f + 3 && x.ovr >= f - 9 && !rivais(base, x.clube, ci)).sort((a, b) => b.ovr - a.ovr)[0];
+      const comprado = () => {
+        const cands = (el.length >= 38 ? [] : [...base.jog.values()]).filter(x => x.pos === pos && x.clube !== ci && BR.includes(base.clubes[x.clube].div) && x.ovr >= f - 6 - aperto && x.ovr <= f + 4 && !s.emprestimos[x.id] && !preContratoDe(s, x.id)
+          && vendedorAguenta(base, s, x) && !rivais(base, x.clube, ci) && base.elencos[x.clube].length > (nivelDiv(base.clubes[x.clube]) > nivelDiv(c) ? 24 : ALVO[base.clubes[x.clube].div])); // vende quem tem sobra (para divisão de cima, quase sempre)
+        const j = cands.length ? pickW(r, cands, x => x.ovr - f + 5) : null;
+        return j && precoPedido(base, s, j, ci) <= caixa * 0.5 && vontade(base, s, j, ci) >= 50 ? j : null;
+      };
+      const ordem = c.div === 'A' ? (r() < 0.45 ? [comprado, livre, emprestado] : [livre, emprestado, comprado]) : r() < 0.12 ? [comprado, livre, emprestado] : [livre, emprestado];
+      for (const fonte of ordem) {
+        const j = fonte(); if (!j) continue;
+        if (fonte === emprestado) {
+          const de = mover(j, ci, 0, true);
+          add(`Empréstimo: ${j.curto} (${j.idade} anos), sem espaço no ${nome(de)}, vai jogar no ${nome(ci)} até o fim da temporada.`, 'mercado', c.div, { jogador: j.id });
+        } else if (fonte === livre) {
+          mover(j, ci, 0);
+          if (j.ovr >= 70) add(`Mercado: ${nome(ci)} contrata ${j.curto}, que estava sem clube.`, 'mercado', c.div, { jogador: j.id });
+        } else {
+          const valor = precoPedido(base, s, j, ci), de = mover(j, ci, valor);
+          add(`${valor >= 5e6 ? 'HERE WE GO! ' : 'Mercado: '}${j.curto} deixa o ${nome(de)} e acerta com o ${nome(ci)} por ${fmt(valor)}.`, 'mercado', c.div, { jogador: j.id });
+        }
+        break;
+      }
+    }
   }
 }
 

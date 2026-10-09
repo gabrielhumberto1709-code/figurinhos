@@ -1112,3 +1112,14 @@ test('exterior: garoto vale mais que veterano do mesmo valor, teto de € 45M, A
   const ci = n => base.clubes.findIndex(c => c.n === n), arr = [...base.jog.values()].find(x => x.curto === 'Arrascaeta');
   assert.ok(precoPedido(base, novoJogo(base, { ...cfg(3), clube: ci('Fluminense') }), arr) > arr.valor * 1000 * 2.5, 'o rival paga caro');
 });
+
+test('IA monta elenco: na temporada, livres, empréstimos e compras mantêm os elencos cheios e a lista de livres enxuta', () => {
+  const s = novoJogo(base, cfg(9)), div = ci => base.clubes[ci].div, vistos = [];
+  let ult = s.historicoTransf[0];
+  for (let k = 0; k < 4000 && !fimDeTemporada(s); k++) { avancar(base, s); for (const h of s.historicoTransf) { if (h === ult) break; vistos.push(h); } ult = s.historicoTransf[0]; }
+  const ia = vistos.filter(h => h.ia), A = base.clubes.map((c, i) => i).filter(i => div(i) === 'A' && i !== s.tecnico.clube).map(i => base.elencos[i].length);
+  assert.ok(ia.length >= 200, `${ia.length} negócios`);
+  assert.ok(ia.some(h => h.tipo === 'emprestimo') && ia.some(h => h.tipo === 'livre'));
+  assert.ok(A.reduce((a, b) => a + b, 0) / A.length >= 30 && Math.min(...A) >= 24, A.join(','));
+  assert.ok(base.elencos[base.clubes.findIndex(c => c.div === 'L')].length <= 150);
+});
