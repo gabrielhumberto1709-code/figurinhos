@@ -1,11 +1,11 @@
 // Aba Torneios: Brasileirão (tabela e artilharia), Copa do Brasil (chaveamento e prêmios), Libertadores,
 // Sul-Americana e Supercopa, Regionais (Nordeste, Sul-Sudeste e Verde), Agenda com todos os seus jogos e Histórico das temporadas.
-import { tabela, rodadasDe, dataRodada, dataLiga, feitas, tabelaQuad } from './motor/mundo.js';
+import { tabela, rodadasDe, dataRodada, dataLiga, feitas, tabelaQuad, dataSupDe } from './motor/mundo.js';
 import { FASES, PREMIOS, dataCopa, campanha, naCopa, mandoDe } from './motor/copa.js';
 import { fmtDinheiro } from './motor/util.js';
 import { REGIONAIS, ESTADUAIS, COPAS_REG, fasesReg, dataFaseReg, jogosDaFaseReg, tabelaReg, campanhaReg, vivoReg, regsDe } from './motor/regionais.js';
 import { dataAmistoso, dataLiga2, N_LIGA } from './motor/calendario.js';
-import { TORNEIOS, PREMIO_SUP, F_MATA, dataCont, dataSup, tabelaGrupo, campanhaCont, naCont, jogoDoClube, emQualCont, jogosDaFase, fasesDe } from './motor/continental.js';
+import { TORNEIOS, PREMIO_SUP, F_MATA, dataCont, tabelaGrupo, campanhaCont, naCont, jogoDoClube, emQualCont, jogosDaFase, fasesDe } from './motor/continental.js';
 
 let H; // { app, clube, esc, imgEscudo, render }
 export const configurar = h => { H = h; };
@@ -83,8 +83,8 @@ function continental() {
   if (k === 'SUP') {
     const x = s.cont.sup, j = x.jogo;
     return `${topo}<section class="cartao copa-topo"><div class="titulo-linha"><h3>Supercopa do Brasil ${s.cont.ano}</h3>${j ? `<span class="tag destaque">Campeão: ${H.esc(H.clube(j.campeao).n)}</span>` : ''}</div>
-      <p class="mudo" style="font-size:.95rem">Campeão da Série A × campeão da Copa do Brasil, em jogo único e campo neutro, em 1º de fevereiro (no meio dos estaduais). Empate vai para os pênaltis.</p>
-      <ol class="chave-copa">${placarCopa({ h: x.h, a: x.a, gols: j?.gols, pen: j?.pen, data: j ? null : dataSup(dataRodada, s.ano) }, ci)}</ol>
+      <p class="mudo" style="font-size:.95rem">Campeão da Série A × campeão da Copa do Brasil, em jogo único e campo neutro. Data de 2026: 1º de fevereiro; se um dos dois tiver estadual nesse dia, ela vai para a Quarta-feira de Cinzas (18/fev). Empate vai para os pênaltis.</p>
+      <ol class="chave-copa">${placarCopa({ h: x.h, a: x.a, gols: j?.gols, pen: j?.pen, data: j ? null : dataSupDe(B, s) }, ci)}</ol>
       <div class="chips"><span class="chip-info">Campeão ${fmtDinheiro(PREMIO_SUP.campeao)}</span><span class="chip-info">Vice ${fmtDinheiro(PREMIO_SUP.vice)}</span></div></section>`;
   }
   const T = s.cont[k], P = TORNEIOS[k].premio, camp = campanhaCont(s, k, ci), nome = c => H.esc(H.clube(c).n);
@@ -181,7 +181,7 @@ export function agenda() {
     }
   }
   const sup = s.cont?.sup;
-  if (sup && [sup.h, sup.a].includes(ci)) ev.push({ data: dataSup(dataRodada, s.ano), comp: 'Supercopa', copa: true, h: sup.h, a: sup.a, g: sup.jogo?.gols, pen: sup.jogo?.pen });
+  if (sup && [sup.h, sup.a].includes(ci)) ev.push({ data: dataSupDe(H.app.base, s), comp: 'Supercopa', copa: true, h: sup.h, a: sup.a, g: sup.jogo?.gols, pen: sup.jogo?.pen });
   ev.sort((x, y) => x.data - y.data);
   const prox = ev.find(e => !e.g && !e.futuro);
   return `<section class="cartao"><ol class="rodadas agenda">${ev.map(e => {

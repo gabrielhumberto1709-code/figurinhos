@@ -186,10 +186,14 @@ async function transacao(fn) {
     throw new Error('A liga está movimentada agora. Tente de novo.');
   });
 }
-// assumir um clube livre (técnico novo ou demitido sem proposta): leva o nome, o visual e a carreira
-const assumir = ci => transacao(L => {
-  const velha = L.mesas[L.eu], eu = L.membros.find(m => m.id === L.eu), W = L.W;
+// assumir um clube livre (técnico novo ou demitido sem proposta): leva o nome, o visual e a carreira. Com a série
+// ('A', 'B' ou 'C') no lugar do clube, é o sorteio: um dos livres dela, conferido no mundo mais novo. Devolve o clube.
+const assumir = alvo => transacao(L => {
+  const velha = L.mesas[L.eu], eu = L.membros.find(m => m.id === L.eu), W = L.W, B = H.app.base;
   if (velha && !velha.demitido) return 'Você já tem clube.';
+  const livres = typeof alvo === 'string' ? B.clubes.map((c, i) => i).filter(i => B.clubes[i].div === alvo && clubeLivre(B, W, i)) : [alvo];
+  if (!livres.length) return `Nenhum clube sem técnico na Série ${alvo}.`;
+  const ci = livres[Math.floor(Math.random() * livres.length)];
   const nova = novaMesa(H.app.base, W, ci, velha?.tecnico ? { ...velha.tecnico } : { nome: eu.apelido, rosto: H.rostoAleatorio(), nat: 'BRA' });
   if (!nova) return `O ${H.clube(ci).n} acabou de ser escolhido por outro técnico.`;
   if (velha) {
@@ -197,6 +201,7 @@ const assumir = ci => transacao(L => {
     nova.carreira = [...(velha.carreira || []), ...nova.carreira]; nova.historico = velha.historico;
   }
   L.mesas[L.eu] = nova; H.app.s = vistaDe(W, L.eu);
+  return ci;
 });
 // aceitar proposta (demitido ou não): confere no mundo mais novo se o clube ainda não tem técnico
 export const aceitarOferta = ci => transacao(() => aceitarOfertaMotor(H.app.base, H.app.s, ci) || null);
@@ -247,8 +252,10 @@ export function estadoTopo() {
 const online = m => m.id === Lg().eu || Date.now() - m.visto < ATIVO;
 export function tela() {
   const L = Lg(), { esc, clube, imgEscudo } = H, adm = L.eu === L.adminId, minha = L.mesas[L.eu], m = L.meta;
-  const membros = [...L.membros].sort((a, b) => (b.id === L.adminId) - (a.id === L.adminId) || a.id - b.id);
-  const dono = ci => L.membros.find(x => x.clube === ci);
+  // clube de cada técnico pela mesa baixada (a lista de membros do servidor só atualiza na próxima consulta)
+  const clubeDe = x => { const d = L.mesas[x.id]; return d ? (d.demitido ? null : d.tecnico?.clube ?? null) : x.clube; };
+  const membros = L.membros.map(x => ({ ...x, clube: clubeDe(x) })).sort((a, b) => (b.id === L.adminId) - (a.id === L.adminId) || a.id - b.id);
+  const dono = ci => membros.find(x => x.clube === ci);
   return `<div class="titulo-linha"><h2>${esc(L.nome)}</h2><button class="botao peq sec" type="button" data-acao="menu">Menu</button></div>
     <section class="cartao liga-cabeca">
       <p>Código do convite <b class="codigo-liga">${L.codigo}</b></p>
@@ -268,13 +275,17 @@ export function tela() {
     ${adm ? painelAdm(membros) : '<div class="linha-botoes" style="margin-top:16px"><button class="botao perigo" type="button" data-acao="liga-sair">Sair da liga</button></div>'}`;
 }
 function escolhaHtml(dono) {
-  const L = Lg(), { esc, clube, imgEscudo } = H, d = L.div || 'A';
-  const lista = H.app.base.clubes.map((c, i) => i).filter(i => clube(i).div === d).sort((a, b) => H.app.base.forca(b) - H.app.base.forca(a));
-  return `<section class="cartao"><h3>Escolha o seu clube</h3>
+  const L = Lg(), { esc, clube, imgEscudo } = H, d = L.div || 'A', sorteio = L.modoEscolha === 'sorteio';
+  const lista = H.app.base.clubes.map((c, i) => i).filter(i => clube(i).div === d).sort((a, b) => H.app.base.forca(b) - H.app.base.forca(a)), livres = lista.filter(ci => !dono(ci)).length;
+  return `<section class="cartao"><h3>${sorteio ? 'Sortear o seu clube' : 'Escolha o seu clube'}</h3>
+    <div class="chips" role="group" aria-label="Como escolher">${[['escolher', 'Escolher'], ['sorteio', 'Sorteio']].map(([k, t]) => `<button type="button" class="chip" data-acao="liga-modo" data-v="${k}" aria-pressed="${(L.modoEscolha || 'escolher') === k}">${t}</button>`).join('')}</div>
     <div class="chips" role="group" aria-label="Divisão">${['A', 'B', 'C'].map(x => `<button type="button" class="chip" data-acao="liga-div" data-div="${x}" aria-pressed="${d === x}">Série ${x}</button>`).join('')}</div>
+    ${sorteio ? `<p class="mudo">Você escolhe a série e o clube sai no sorteio, entre os ${livres} sem técnico. Não dá para sortear de novo: o clube é seu.</p>
+    <p class="erro" role="alert"></p>
+    <button class="botao grande" type="button" data-acao="liga-sortear" ${livres ? '' : 'disabled'}>Sortear um clube da Série ${d}</button></section>` : `
     <div class="clubes-lista">${lista.map(ci => { const x = dono(ci); return `<label class="opcao clube-op ${x ? 'ocupado' : ''}" ${x ? '' : `data-acao="liga-escolhe" data-c="${ci}"`}><input type="radio" name="liga-clube" ${L.escolha === ci ? 'checked' : ''} ${x ? 'disabled' : ''}>${imgEscudo(ci, 34, 37)}<span><strong style="font-size:1rem">${esc(clube(ci).n)}</strong><br>${x ? `<small>${esc(x.apelido)}</small>` : H.estrelas(ci)}</span></label>`; }).join('')}</div>
     <p class="erro" role="alert"></p>
-    <button class="botao grande" type="button" data-acao="liga-assumir" ${L.escolha == null ? 'disabled' : ''}>${L.escolha == null ? 'Escolha um clube' : `Assumir o ${esc(clube(L.escolha).n)}`}</button></section>`;
+    <button class="botao grande" type="button" data-acao="liga-assumir" ${L.escolha == null ? 'disabled' : ''}>${L.escolha == null ? 'Escolha um clube' : `Assumir o ${esc(clube(L.escolha).n)}`}</button></section>`}`;
 }
 // ---------- ADM: multa, dinheiro, transfer ban, expulsar, passar o posto, voltar horário, excluir ----------
 const banDe = (L, id) => { const b = L.mesas[id]?.banAdm; return b && b.ano === L.W.ano && L.W.rodada < b.ate ? b.ate : 0; };
@@ -388,6 +399,8 @@ export const acoes = {
   'liga-abrir': tenta(async el => { await abrir(el.dataset.c); H.ir(H.app.s ? '#/clube' : '#/liga'); }),
   'liga-div': el => { Lg().div = el.dataset.div; H.render(); },
   'liga-escolhe': el => { Lg().escolha = +el.dataset.c; H.render(); },
+  'liga-modo': el => { Lg().modoEscolha = el.dataset.v; H.render(); },
+  'liga-sortear': tenta(async () => { const ci = await assumir(Lg().div || 'A'); H.aviso(`Sorteio: você vai treinar o ${H.clube(ci).n}!`); H.ir('#/clube'); }),
   'liga-assumir': tenta(async () => { const ci = Lg().escolha; await assumir(ci); Lg().escolha = null; H.aviso(`Você vai treinar o ${H.clube(ci).n}!`); H.ir('#/clube'); }),
   'liga-convite': async () => {
     const url = `${location.origin}${location.pathname}#/liga/${Lg().codigo}`, txt = `Entra na minha liga do Figurinhos: ${Lg().nome}`;

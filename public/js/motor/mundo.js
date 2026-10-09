@@ -1,7 +1,7 @@
 // Estado do jogo: cria a carreira, avança rodadas e calcula tabelas.
 import { rng, pick, jogador } from './util.js';
 import { humanos, ehHumano, vistaDo, mundoDe } from './humanos.js';
-import { pontosCorridos, dataRodada, dataAmistoso as diaAmistoso, dataLiga, dataLiga2, N_LIGA, janelaNaData, doAno } from './calendario.js';
+import { pontosCorridos, dataRodada, dataAmistoso as diaAmistoso, dataLiga, dataLiga2, N_LIGA, janelaNaData, doAno, LIGA } from './calendario.js';
 import { simular, melhorTime, bancoAuto, posicoesDe, PERS, vagaPara, encaixe, fatorCond, forcaSetores } from './partida.js';
 import { fragilidade, indisponiveis, posJogo, TREINO_LES } from './dm.js';
 import { garantirCarreira, torcidaAposJogo, aposRodada, demissoesIA, tituloDeCopa } from './carreira.js';
@@ -12,12 +12,12 @@ import { correio, cartasDeInicio } from './correio.js';
 import { arbitroDo } from './arbitros.js';
 import { vestiarioAposRodada } from './vestiario.js';
 import { eventosAposRodada } from './eventos.js';
-import { TORNEIOS, PREMIO_SUP, FASES_CONT, F_MATA, F_PO, F_FIN, forcaCont, deFora, dataCont, dataSup, novaCont, contDevida, naCont, supDevida, jogosDaFase, decidirCont, avancarCont, timeFora, jogadorCont, agregadoCont, tabelaGrupo, fasesDe, compDe, fecharPre, FASES_PRE } from './continental.js';
+import { TORNEIOS, PREMIO_SUP, FASES_CONT, F_MATA, F_PO, F_FIN, forcaCont, deFora, dataCont, novaCont, contDevida, naCont, supDevida, jogosDaFase, decidirCont, avancarCont, timeFora, jogadorCont, agregadoCont, tabelaGrupo, fasesDe, compDe, fecharPre, FASES_PRE } from './continental.js';
 import { gerarNoticias } from './noticias.js';
 import { resolverMercado, garantirMercado, acompanharPromessas } from './mercado.js';
 import { dataFifa } from './selecao.js';
 import { registrarConfronto } from './confrontos.js';
-import { REGIONAIS, novaReg, fasesReg, dataFaseReg, jogosDaFaseReg, naReg, regDevida, decidirReg, avancarReg, agregadoReg, mataMataReg, finalReg, vivoReg } from './regionais.js';
+import { REGIONAIS, novaReg, fasesReg, dataFaseReg, jogosDaFaseReg, naReg, regDevida, decidirReg, avancarReg, agregadoReg, mataMataReg, finalReg, vivoReg, regsDe } from './regionais.js';
 import { contasDaRodada, financasIniciais, bilheteria, bilheteriaLiga, lancar, folhaDia, garantirFinancas, caixaReal, verbaIA } from './financas.js';
 import { FASES, PREMIOS, novaCopa, copaDevida, copaAtiva, naCopa, mandoDe, dataCopa, decidir, avancarFase, agregadoIda, penaltis } from './copa.js';
 
@@ -450,7 +450,7 @@ export function pendentes(base, s) {
     const T = s.reg[k], F = fasesReg(k)[T.fase], par = jogosDaFaseReg(T).find(tem);
     L.push({ tipo: 'reg', k, fase: T.fase, data: dataFaseReg(ano, k, T.fase), meu: !!par, h: par?.[0], a: par?.[1], titulo: `${REGIONAIS[k].nome} · ${F.nome}`, mataMata: mataMataReg(F), final: finalReg(k, F), neutro: !!REGIONAIS[k].mata[F.m]?.neutro });
   }
-  if (supDevida(s)) { const { h, a } = s.cont.sup; L.push({ tipo: 'sup', h, a, data: dataSup(dataRodada, ano), meu: tem([h, a]), titulo: 'Supercopa do Brasil · final', neutro: true }); }
+  if (supDevida(s)) { const { h, a } = s.cont.sup; L.push({ tipo: 'sup', h, a, data: dataSupDe(base, s), meu: tem([h, a]), titulo: 'Supercopa do Brasil · final', neutro: true }); }
   return L.sort((x, y) => x.data - y.data || PRIO[x.tipo] - PRIO[y.tipo]);
 }
 // próximo compromisso do seu clube
@@ -635,9 +635,18 @@ export function concluirCont(base, s, R, simMeu) {
   for (const sv of jogaram) correio(base, sv);
   return R.meu ? s.ultima : null;
 }
+// Supercopa: 1º/fev, como em 2026. Lá os estaduais remarcaram os jogos dos dois clubes; aqui não dá para adiar (vários
+// estaduais fecham a fase de grupos nesse domingo), então, se um dos dois tem estadual, copa regional ou liga no dia,
+// ela vai para a Quarta-feira de Cinzas (sem Série A) ou, se ainda bater, para 4/mar.
+const SUP_DATAS = ['2-1', '2-18', '3-4'];
+export function dataSupDe(base, s) {
+  const { h, a } = s.cont.sup, ano = s.ano;
+  const ocupado = (ci, t) => regsDe(s, ci).some(k => fasesReg(k).some((_, f) => +dataFaseReg(ano, k, f) === t)) || (LIGA[base.clubes[ci]?.div] || []).some(md => +doAno(ano, md) === t);
+  return doAno(ano, SUP_DATAS.find(md => ![h, a].some(ci => ocupado(ci, +doAno(ano, md)))) || SUP_DATAS[0]);
+}
 export function iniciarSup(base, s) {
   const { h, a } = s.cont.sup;
-  descansarAte(base, s, dataSup(dataRodada, s.ano));
+  descansarAte(base, s, dataSupDe(base, s));
   const x = jogoCopa(base, s, h, a, 'SUP', `${s.seed}-sup${s.ano}-${h}-${a}`, { mataMata: true, neutro: true, final: true });
   return { sup: true, jogos: x.jogo ? [x.jogo] : [], meu: x.meu || null, titulo: 'Supercopa do Brasil · final' };
 }
@@ -655,7 +664,7 @@ export function concluirSup(base, s, R, simMeu) {
     sv.ultima = { rodada: -1, copa: 'Supercopa do Brasil · final', div: 'SUP', casa: h, fora: a, ...sim, pen: dec.pen || null, xi: jg.xi }; if (jg.vivo) sv.ultimaVivo = jg.vivo; registrarConfronto(base, sv);
   }
   const N = [{ tipo: ehHumano(s, dec.vencedor) ? 'clube' : 'destaque', clube: ehHumano(s, dec.vencedor) ? dec.vencedor : undefined, texto: `Supercopa do Brasil: ${placar}. ${nome(dec.vencedor)} é campeão.` }];
-  s.noticias = [...dmN, ...N].map(n => ({ rodada: 0, div: divNot(base, s, n), copa: true, ...n })).concat(s.noticias).slice(0, 220);
+  s.noticias = [...dmN, ...N].map(n => ({ rodada: s.rodada, div: divNot(base, s, n), copa: true, ...n })).concat(s.noticias).slice(0, 220);
   for (const [, sv] of hs) correio(base, sv);
   return R.meu ? s.ultima : null;
 }

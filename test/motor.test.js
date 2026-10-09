@@ -1018,6 +1018,7 @@ test('teste espelho: estilo e formação mudam o jogo sem virar trapaça', async
 // calendário real de 2026 e vaga repassada pela tabela
 import { dataLiga as diaDiv, dataLiga2 as diaDiv2, dataCopa as diaCopa, dataCont as diaCont, janelaNaData } from '../public/js/motor/calendario.js';
 import { vagasBR } from '../public/js/motor/continental.js';
+import { dataSupDe } from '../public/js/motor/mundo.js';
 test('calendário 2026: datas da CBF/Conmebol e vaga da Libertadores repassada a quem vem na tabela', () => {
   const d = x => x.toISOString().slice(0, 10);
   assert.equal(d(diaDiv(2026, 'A', 0)), '2026-01-28'); assert.equal(d(diaDiv(2026, 'A', 17)), '2026-05-31'); assert.equal(d(diaDiv(2026, 'A', 18)), '2026-07-23'); assert.equal(d(diaDiv(2026, 'A', 37)), '2026-12-02');
@@ -1038,6 +1039,10 @@ test('calendário 2026: datas da CBF/Conmebol e vaga da Libertadores repassada a
   // campeão da Copa fora do G4 vai aos grupos e o vice (fora) vai à pré com o 5º
   const v2 = vagasBR(base, { classif: { A, copa: A[7], copaVice: A[8] } });
   assert.deepEqual([v2.LIB, v2.PRE, v2.repasses.length], [[...A.slice(0, 4), A[7]], [A[4], A[8]], 0]);
+  // Supercopa 2026: Flamengo × Corinthians; os dois têm estadual em 1º/fev, então ela vai para a Quarta de Cinzas
+  const sj = novoJogo(base, cfg(5)), { h: sh, a: sa } = sj.cont.sup, ds = dataSupDe(base, sj);
+  assert.deepEqual([base.clubes[sh].n, base.clubes[sa].n, d(ds)], ['Flamengo', 'Corinthians', '2026-02-18']);
+  assert.ok([sh, sa].every(c => regsDe(sj, c).every(k => fasesReg(k).every((_, f) => +dataFaseReg(2026, k, f) !== +ds))));
 });
 
 test('teto salarial da diretoria: recém-promovido ganha menos aporte, continental e copa sobem, proposta acima é barrada', () => {

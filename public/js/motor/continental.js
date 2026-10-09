@@ -9,7 +9,7 @@
 import { rng, shuffle, pick, clamp, ATT, PERFIL } from './util.js';
 import { melhorTime } from './partida.js';
 import { penaltis } from './copa.js';
-import { dataCont as diaCont, dataSup as diaSup } from './calendario.js';
+import { dataCont as diaCont } from './calendario.js';
 
 export const TORNEIOS = {
   LIB: { nome: 'Libertadores', br: 6, premio: { grupos: 2.5e6, vitoria: 3e5, oit: 1e6, qua: 1.5e6, sem: 2.5e6, fin: 4e6, vice: 0, campeao: 12e6 } },
@@ -31,7 +31,6 @@ export const fasesDe = k => k === 'PRE' ? FASES_PRE : FASES_CONT;
 export const compDe = k => k === 'PRE' ? 'LIB' : k;
 const deGrupo = (T, f) => T.k !== 'PRE' && f < F_MATA;
 export const dataCont = (_, ano, i, k) => diaCont(ano, i, k);
-export const dataSup = (_, ano) => diaSup(ano);
 // cada par se enfrenta em casa e fora
 const RODADAS_G = [[[0, 1], [2, 3]], [[2, 0], [3, 1]], [[0, 3], [1, 2]], [[1, 0], [3, 2]], [[0, 2], [1, 3]], [[3, 0], [2, 1]]];
 
@@ -158,7 +157,9 @@ export function novaCont(base, s) {
   const reais = s.ano === 2026 && !s.classif;
   const torneio = (k, clubes) => ({ k, ano: s.ano, grupos: comPre ? [] : (reais && gruposReais(base, k)) || sortear(base, s, k, clubes), espera: comPre ? clubes : null, fase: 0, jogos: [], chaves: [], art: {}, campeao: null, vice: null });
   const cl = s.classif, Aord = base.clubes.map((c, i) => i).filter(i => base.clubes[i].div === 'A').sort((a, b) => base.forca(b) - base.forca(a));
-  const campA = cl?.A?.[0] ?? Aord[0], campCopa = cl?.copa ?? Aord[1];
+  // 2026: Flamengo (campeão brasileiro de 2025) × Corinthians (campeão da Copa do Brasil de 2025)
+  const sup26 = reais ? ['Flamengo', 'Corinthians'].map(n => base.clubes.findIndex(c => c.n === n && c.div !== 'L')) : [];
+  const campA = cl?.A?.[0] ?? (sup26[0] >= 0 ? sup26[0] : Aord[0]), campCopa = cl?.copa ?? (sup26[1] >= 0 ? sup26[1] : Aord[1]);
   const libF = porCota(base, 'LIB', N_GRUPOS * 4 - libBR.length - nPre, fora);
   const preF = comPre ? porCota(base, 'PRE', 16 - br.PRE.length, fora.filter(c => !libF.includes(c))) : [];
   const sulF = porCota(base, 'SUL', N_GRUPOS * 4 - br.SUL.length - nPre, fora.filter(c => !libF.includes(c) && !preF.includes(c)));
