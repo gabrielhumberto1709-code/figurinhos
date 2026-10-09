@@ -177,7 +177,7 @@ const botaoTema = (classe = 'botao peq sec') => `<button class="${classe} tema" 
 
 function desenhaTopo() {
   const topo = $('#topo'), abas = $('#abas');
-  const emJogo = !!app.s && !['entrar', 'saves', 'novo', 'ao-vivo'].includes(app.aba);
+  const emJogo = !!app.s && !['entrar', 'inicio', 'ligas', 'manual', 'saves', 'novo', 'ao-vivo'].includes(app.aba);
   topo.hidden = abas.hidden = !emJogo;
   if (!emJogo) return;
   const s = app.s, ci = s.tecnico.clube;
@@ -195,16 +195,20 @@ function desenhaTopo() {
 // ---------- telas ----------
 const telas = {};
 
-// vitrine: os dois craques desenhados à mão + o melhor jogador da Série A
-const vitrine = () => {
-  const fixos = [248410, 844797].map(id => app.base.jog.get(id)).filter(Boolean);
-  const melhor = [...app.base.jog.values()].filter(j => clube(j.clube).div === 'A' && !fixos.includes(j)).sort((a, b) => b.ovr - a.ovr)[0];
-  return `<div class="vitrine" aria-hidden="true">${[fixos[0], melhor, fixos[1]].filter(Boolean).map(j => figurinha(j, '', true)).join('')}</div>`;
-};
+// álbum aberto: Brasil à esquerda, França à direita; Vini Jr., Neymar e Mbappé sendo colados (a animação roda uma vez por visita)
+const PAGINAS = [['BRA', 'Brasil', 12, [[1], [7, 371998, 'Vini Jr.'], [10, 68290], [9]]], ['FRA', 'França', 13, [[10, 342229, 'Mbappé'], [1], [7], [11]]]];
+const COLA = { 371998: '--d:.3s;--dx:-40px;--dy:130px;--r:-16deg', 68290: '--d:.85s;--dx:30px;--dy:150px;--r:12deg', 342229: '--d:1.4s;--dx:50px;--dy:120px;--r:-9deg' };
+function album() {
+  const anima = !app.albumVisto; app.albumVisto = true;
+  return `<div class="livro ${anima ? 'anima' : ''}" role="img" aria-label="Álbum aberto com as figurinhas de Vini Jr., Neymar e Mbappé">${PAGINAS.map(([nat, nome, pg, vagas], p) => `<div class="pagina ${p ? 'dir' : 'esq'}">
+    <header>${bandeira(nat, 18)}<span>${nome}</span></header>
+    <div class="vagas">${vagas.map(([n, id, curto]) => { const j = id && app.base.jog.get(id); return `<div class="vaga"><span class="cod">${nat} ${n}</span>${j ? `<div class="cola" style="${COLA[id]}">${figurinha(curto ? { ...j, curto } : j, '', true)}</div>` : ''}</div>`; }).join('')}</div>
+    <span class="pg num">${pg}</span></div>`).join('')}</div>`;
+}
 telas.entrar = () => {
-  return `<section class="entrada"><div style="display:flex;justify-content:flex-end">${botaoTema()}</div>
-    <div><h1 class="logo">Figurinhos</h1><p class="logo-sub">Manager de futebol de botão. Monte o álbum, escale o time, brigue pelo título.</p></div>
-    ${app.base ? vitrine() : ''}
+  return `<section class="entrada"><div class="tema-canto">${botaoTema()}</div>
+    ${app.base ? album() : ''}
+    <div class="marca"><h1 class="logo">Figurinhos</h1><p class="logo-sub">Manager de futebol de botão. Monte o álbum, escale o time, brigue pelo título.</p></div>
     <form class="cartao" data-form="entrar" novalidate>
       <label>Apelido <input type="text" name="apelido" autocomplete="username" minlength="3" maxlength="20" required value="${esc(app.ultimoApelido || '')}"></label>
       <label>PIN <input type="password" name="pin" inputmode="numeric" autocomplete="current-password" minlength="4" maxlength="8" pattern="[0-9]*" required></label>
@@ -215,20 +219,49 @@ telas.entrar = () => {
     </form></section>`;
 };
 
+// menu inicial (como o do Treineiros): minhas ligas, encontrar, criar, entrar com código e a carreira solo
+telas.inicio = async () => {
+  if (app.liga) { await descarregar(); Liga.fechar(); }
+  const ligas = await api('GET', '/ligas').catch(() => null);
+  return `<section class="inicio">${album()}
+    <div class="marca"><h1 class="logo">Figurinhos</h1><p class="logo-sub">Manager de futebol com o Brasileirão de verdade. Escale, contrate e brigue pelo título sozinho ou numa liga com os amigos.</p><a class="botao peq sec" href="#/manual">Como jogar</a></div>
+    ${Liga.minhasLigas(ligas)}
+    <a class="botao grande" href="#/ligas">Encontrar uma liga</a>
+    ${Liga.formsLiga()}
+    <a class="botao sec" href="#/saves">Carreira solo</a>
+    <div class="rodape-inicio"><span class="mudo">Olá, ${esc(app.conta.apelido)}</span>${botaoTema()}<button class="botao peq sec" data-acao="sair" type="button">Trocar conta</button></div></section>`;
+};
+telas.ligas = () => Liga.telaAbertas();
+telas.manual = () => `<div class="titulo-linha"><h2>Como jogar</h2><a href="#/inicio">Voltar</a></div>
+  <section class="cartao manual"><h3>Duas formas de jogar</h3>
+    <p><b>Carreira solo</b>: você contra o computador, no seu ritmo, com 3 espaços de carreira salvos na nuvem.</p>
+    <p><b>Liga online</b>: até 8 amigos no mesmo campeonato, cada um num clube das Séries A, B ou C. Quem cria a liga é o ADM e passa o código; os outros entram com ele ou pelo link do convite.</p></section>
+  <section class="cartao manual"><h3>O relógio da liga</h3><ul>
+    <li><b>Normal</b>: 3 jogos por dia, às 12h, 17h e 21h (Brasília). A temporada leva cerca de um mês.</li>
+    <li><b>Turbo</b>: 12 jogos por dia, das 8h às 22h40. A temporada leva cerca de uma semana.</li>
+    <li>Toda temporada começa com 3 amistosos de pré-temporada, com a janela aberta.</li>
+    <li>Na hora, os jogos rodam sozinhos com a escalação, a tática e os planos que você deixou. Depois dá para assistir na súmula.</li>
+    <li>O ADM começa a liga, pode pausar e pode adiantar o próximo horário.</li></ul></section>
+  <section class="cartao manual"><h3>No clube</h3><ul>
+    <li><b>Elenco</b>: escalação, formação, estilo e os planos para o jogo (o que fazer vencendo, empatando ou perdendo).</li>
+    <li><b>Mercado</b>: compras, empréstimos, base e propostas por jogadores de outros técnicos.</li>
+    <li><b>Finanças</b>: caixa, salários, bilheteria e o fair play financeiro da CBF.</li>
+    <li><b>Figurinhas</b>: a cor mostra o nível do jogador: Bagre, Comum, Craquinho e GOAT.</li></ul></section>
+  <a class="botao" href="#/inicio">Voltar ao menu</a>`;
+
 telas.saves = async () => {
   if (app.liga) { await descarregar(); Liga.fechar(); }
-  const [lista, ligas] = await Promise.all([api('GET', '/saves'), api('GET', '/ligas').catch(() => null)]);
+  const lista = await api('GET', '/saves');
   const porSlot = Object.fromEntries(lista.map(x => [x.slot, x]));
   const quando = t => new Date(t).toLocaleString('pt-BR', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
-  return `<div class="titulo-linha"><h2>Carreiras</h2><div class="linha-botoes" style="flex:0 0 auto">${botaoTema()}<button class="botao peq sec" data-acao="sair" type="button">Trocar conta</button></div></div>
-    <p class="mudo">Olá, ${esc(app.conta.apelido)}. Você tem 3 espaços de carreira.</p>
+  return `<div class="titulo-linha"><h2>Carreira solo</h2><a href="#/inicio">Menu</a></div>
+    <p class="mudo">Você contra o computador, no seu ritmo. São 3 espaços de carreira.</p>
     ${[1, 2, 3].map(n => { const x = porSlot[n]; return x ? `<article class="cartao slot">
       <span class="num" style="font-size:2.6rem;text-align:center">${n}</span>
       <div><h3 style="color:var(--texto)">${esc(x.nome)}</h3><p>${esc(x.resumo)}</p><p class="mudo" style="font-size:.9rem">Salvo em ${quando(x.atualizado)}</p></div>
       <div class="linha-botoes"><button class="botao" data-acao="continuar" data-slot="${n}" data-quando="${x.atualizado}" type="button">Continuar</button>
       <button class="botao perigo" data-acao="apagar" data-slot="${n}" type="button" style="flex:0 0 auto">Apagar</button></div></article>`
-      : `<article class="cartao slot-vazio"><p class="mudo">Espaço ${n} livre</p><button class="botao" data-acao="novo" data-slot="${n}" type="button">Novo jogo</button></article>`; }).join('')}
-    ${Liga.secaoSaves(ligas)}`;
+      : `<article class="cartao slot-vazio"><p class="mudo">Espaço ${n} livre</p><button class="botao" data-acao="novo" data-slot="${n}" type="button">Novo jogo</button></article>`; }).join('')}`;
 };
 
 // ----- novo jogo -----
@@ -609,14 +642,14 @@ async function comecarJogo() {
 
 // ---------- navegação ----------
 async function render() {
-  const rota = location.hash.replace(/^#\/?/, '') || (app.conta ? 'saves' : 'entrar');
+  const rota = location.hash.replace(/^#\/?/, '') || (app.conta ? 'inicio' : 'entrar');
   if (rota !== 'coletiva') app.colPre = false;
   // saiu da tela do jogo (voltar do celular, por exemplo): pergunta antes; confirmando, o resto é simulado na hora
   const convite = rota.match(/^liga\/([A-Za-z0-9]{4,8})$/);
   if (convite) {
     const c = convite[1].toUpperCase();
     if (!app.conta) { app.convite = c; location.hash = '#/entrar'; return; }
-    history.replaceState(null, '', '#/saves');
+    history.replaceState(null, '', '#/inicio');
     $('#tela').innerHTML = '<p class="mudo">Entrando na liga…</p>';
     return Liga.entrar(c).catch(e => { aviso(e.message); render(); });
   }
@@ -627,18 +660,18 @@ async function render() {
   }
   // saiu da sala de leilão no meio: conta como desistência (pergunta antes)
   if (app.aba === 'leilao' && rota !== 'leilao' && !Leilao.podeSair()) { history.replaceState(null, '', '#/leilao'); return; }
-  if (rota === 'ao-vivo' && !app.vivo) { location.hash = app.s ? '#/clube' : '#/saves'; return; }
+  if (rota === 'ao-vivo' && !app.vivo) { location.hash = app.s ? '#/clube' : '#/inicio'; return; }
   if (rota === 'tabela') { location.hash = '#/torneios'; return; }
   if (rota === 'base' || rota === 'treino' || rota === 'dm') { app.abaElenco = rota; location.hash = '#/elenco'; return; }
   if (app.s?.demitido && ['elenco', 'mercado', 'financas', 'partida', 'calendario', 'coletiva'].includes(rota)) { location.hash = '#/clube'; return; } // sem clube: só propostas, tabelas e notícias
   const precisaJogo = ['clube', 'elenco', 'torneios', 'calendario', 'partida', 'noticias', 'mercado', 'financas', 'carreira', 'coletiva', 'mensagens', 'gala', 'leilao'].includes(rota);
   if (!app.conta && rota !== 'entrar') { location.hash = '#/entrar'; return; }
-  if (precisaJogo && !app.s) { location.hash = app.liga ? '#/liga' : '#/saves'; return; }
-  if (rota === 'liga' && !app.liga) { location.hash = '#/saves'; return; }
+  if (precisaJogo && !app.s) { location.hash = app.liga ? '#/liga' : '#/inicio'; return; }
+  if (rota === 'liga' && !app.liga) { location.hash = '#/inicio'; return; }
   // leilão por jogador que você quer: a sala abre sozinha, por cima do que estiver fazendo (menos no meio do jogo e da coletiva)
   if (precisaJogo && rota !== 'leilao' && rota !== 'coletiva' && app.s.leilaoAtivo && !app.s.leilaoAtivo.fim && !app.s.demitido) { location.hash = '#/leilao'; return; }
   if (rota === 'novo' && !app.novo) { location.hash = '#/saves'; return; }
-  if (!telas[rota]) { location.hash = app.s ? '#/clube' : '#/saves'; return; }
+  if (!telas[rota]) { location.hash = app.s ? '#/clube' : '#/inicio'; return; }
   if (app.aba !== rota) { app.vaga = null; if ($('#ficha').open) $('#ficha').close(); }
   app.aba = rota;
   const main = $('#tela');
@@ -660,7 +693,7 @@ async function render() {
 const acoes = {
   recarregar: () => render(),
   sair: async () => { await api('POST', '/sair').catch(() => { }); sairDaConta(); },
-  menu: async () => { await descarregar(); Liga.fechar(); app.s = null; app.salvando = ''; ir('#/saves'); },
+  menu: async () => { const solo = !app.liga; await descarregar(); Liga.fechar(); app.s = null; app.salvando = ''; ir(solo ? '#/saves' : '#/inicio'); },
   salvar: () => { if (app.liga) { if (app.salvando === 'falhou') { app.liga.sujo = true; descarregar(); } else ir('#/liga'); return; } if (app.salvando === 'conflito') resolverConflito().catch(e => aviso(e.message)); else if (app.salvando === 'falhou') { fila.sujo = true; descarregar(); } },
   ficha: el => abrirFicha(el.dataset.id),
 
@@ -801,7 +834,7 @@ document.addEventListener('submit', async e => {
     const r = await api('POST', modo === 'cadastro' ? '/cadastro' : '/entrar', { apelido, pin });
     app.conta = { token: r.token, apelido: r.apelido };
     guardado.gravar('fig.conta', app.conta);
-    ir(app.convite ? `#/liga/${app.convite}` : '#/saves'); app.convite = null;
+    ir(app.convite ? `#/liga/${app.convite}` : '#/inicio'); app.convite = null;
   } catch (err) {
     erro.textContent = err.message;
     for (const b of f.querySelectorAll('button')) b.disabled = false;
@@ -848,5 +881,5 @@ document.addEventListener('change', e => {
 window.addEventListener('hashchange', render);
 render();
 // a vitrine entra sem redesenhar a tela, para não apagar o que a pessoa já digitou
-if (!app.conta) carregarBase().then(() => { const topo = $('.entrada > div'); if (topo && !$('.vitrine')) topo.insertAdjacentHTML('afterend', vitrine()); }).catch(() => { });
+if (!app.conta) carregarBase().then(() => { const marca = $('.entrada .marca'); if (marca && !$('.livro')) marca.insertAdjacentHTML('beforebegin', album()); }).catch(() => { });
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(() => { });

@@ -44,7 +44,7 @@ const codigoNovo = () => [...crypto.getRandomValues(new Uint8Array(6))].map(b =>
 // relógio da liga: ritmo, início, quanto o ADM adiantou e pausa
 function metaValida(m) {
   if (!m || typeof m !== 'object' || !['normal', 'turbo'].includes(m.ritmo)) return null;
-  const n = v => v == null ? null : Number.isFinite(+v) ? +v : NaN, out = { ritmo: m.ritmo, inicio: n(m.inicio), desloc: n(m.desloc) || 0, pausa: !!m.pausa, slot0: Math.max(0, Math.floor(n(m.slot0) || 0)) };
+  const n = v => v == null ? null : Number.isFinite(+v) ? +v : NaN, out = { ritmo: m.ritmo, inicio: n(m.inicio), desloc: n(m.desloc) || 0, pausa: !!m.pausa, publica: !!m.publica, slot0: Math.max(0, Math.floor(n(m.slot0) || 0)) };
   return Number.isNaN(out.inicio) || Number.isNaN(out.desloc) || Number.isNaN(out.slot0) ? null : out;
 }
 
@@ -167,6 +167,15 @@ const rotas = {
     const { results } = await env.DB.prepare(`SELECT l.codigo, l.nome, l.meta, l.admin_id = ?1 AS adm, m.clube, (SELECT COUNT(*) FROM mesas x WHERE x.codigo = l.codigo) AS n
       FROM mesas m JOIN ligas l ON l.codigo = m.codigo WHERE m.usuario_id = ?1 ORDER BY l.atualizado DESC`).bind(u.id).all();
     return json(results.map(r => ({ ...r, meta: JSON.parse(r.meta), adm: !!r.adm })));
+  },
+
+  // ligas abertas com vaga (Encontrar uma liga)
+  async 'GET /api/ligas/abertas'(req, env, u) {
+    const { results } = await env.DB.prepare(`SELECT l.codigo, l.nome, l.meta, (SELECT COUNT(*) FROM mesas x WHERE x.codigo = l.codigo) AS n,
+      (SELECT apelido FROM mesas x WHERE x.codigo = l.codigo AND x.usuario_id = l.admin_id) AS adm
+      FROM ligas l WHERE json_extract(l.meta, '$.publica') = 1 AND NOT EXISTS (SELECT 1 FROM mesas x WHERE x.codigo = l.codigo AND x.usuario_id = ?)
+      ORDER BY l.atualizado DESC LIMIT 40`).bind(u.id).all();
+    return json(results.filter(r => r.n < MAX_MESAS).map(r => ({ ...r, meta: JSON.parse(r.meta) })));
   },
 
   async 'POST /api/ligas/:c/entrar'(req, env, u, c) {

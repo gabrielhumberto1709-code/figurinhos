@@ -111,7 +111,7 @@ async function vigiar() {
     else if (H.app.aba === 'liga') atualizarTela();
     for (const el of document.querySelectorAll('[data-relogio]')) el.textContent = falta(+el.dataset.relogio);
   } catch (e) {
-    if (Lg() === L && (e.status === 403 || e.status === 404)) { H.aviso(e.message); fechar(); H.ir('#/saves'); return; }
+    if (Lg() === L && (e.status === 403 || e.status === 404)) { H.aviso(e.message); fechar(); H.ir('#/inicio'); return; }
   } finally { L.vigiando = false; }
   if (Lg() === L) L.tv = setTimeout(vigiar, intervalo());
 }
@@ -158,10 +158,10 @@ export async function entrar(codigo) {
   await abrir(codigo);
   H.ir('#/liga');
 }
-async function criar(nome, ritmo) {
+async function criar(nome, ritmo, publica) {
   await H.carregarBase();
   const W = novoMundo(H.app.base, crypto.getRandomValues(new Uint32Array(1))[0] % 1e9);
-  const { codigo } = await H.api('POST', '/ligas', { nome, meta: { ritmo }, mundo: await H.compacta(mundoParaGravar(W)) });
+  const { codigo } = await H.api('POST', '/ligas', { nome, meta: { ritmo, publica }, mundo: await H.compacta(mundoParaGravar(W)) });
   await abrir(codigo);
   H.ir('#/liga');
 }
@@ -233,11 +233,12 @@ export function tela() {
   const L = Lg(), { esc, clube, imgEscudo } = H, adm = L.eu === L.adminId, minha = L.mesas[L.eu], m = L.meta;
   const membros = [...L.membros].sort((a, b) => (b.id === L.adminId) - (a.id === L.adminId) || a.id - b.id);
   const dono = ci => L.membros.find(x => x.clube === ci);
-  return `<div class="titulo-linha"><h2>${esc(L.nome)}</h2><button class="botao peq sec" type="button" data-acao="menu">Carreiras</button></div>
+  return `<div class="titulo-linha"><h2>${esc(L.nome)}</h2><button class="botao peq sec" type="button" data-acao="menu">Menu</button></div>
     <section class="cartao liga-cabeca">
       <p>Código do convite <b class="codigo-liga">${L.codigo}</b></p>
       <p class="mudo">${L.membros.length} de ${MAX_TECNICOS} técnicos · Ritmo ${RITMOS[m.ritmo].nome}: ${RITMOS[m.ritmo].txt}.</p>
-      <div class="linha-botoes"><button class="botao sec" type="button" data-acao="liga-convite">Convidar</button></div></section>
+      <p class="mudo">${m.publica ? 'Liga aberta: aparece em Encontrar uma liga.' : 'Liga fechada: só entra quem tem o código.'}</p>
+      <div class="linha-botoes"><button class="botao sec" type="button" data-acao="liga-convite">Convidar</button>${adm ? `<button class="botao sec" type="button" data-acao="liga-publica">${m.publica ? 'Fechar a liga' : 'Abrir a liga'}</button>` : ''}</div></section>
     <section class="cartao"><h3>Relógio</h3>
       ${m.inicio ? relogio('Próximo horário:') : `<p class="relogio-liga">A liga ainda não começou. ${adm ? 'Quando todos tiverem clube, comece: o primeiro horário é pelo menos 10 minutos depois.' : 'O ADM começa quando todos tiverem clube.'}</p>`}
       ${adm ? `<div class="linha-botoes">${!m.inicio ? '<button class="botao grande" type="button" data-acao="liga-comecar">Começar a liga</button>' : m.pausa ? '' : '<button class="botao sec" type="button" data-acao="liga-pausar">Pausar</button>'}</div>` : ''}
@@ -258,20 +259,31 @@ function escolhaHtml(dono) {
     <p class="erro" role="alert"></p>
     <button class="botao grande" type="button" data-acao="liga-assumir" ${L.escolha == null ? 'disabled' : ''}>${L.escolha == null ? 'Escolha um clube' : `Assumir o ${esc(clube(L.escolha).n)}`}</button></section>`;
 }
-// seção das carreiras: minhas ligas, criar e entrar com código
-export function secaoSaves(ligas) {
-  const { esc, clube } = H;
-  return `<section class="cartao liga-saves"><h3>Liga online</h3>
-    <p class="mudo">Até ${MAX_TECNICOS} amigos no mesmo campeonato, cada um no seu clube. Os jogos acontecem em horários fixos; você deixa o time escalado e assiste depois.</p>
-    ${ligas == null ? '<p class="erro">Não consegui ver as suas ligas agora.</p>' : ligas.map(l => `<article class="liga-item"><div><b>${esc(l.nome)}</b>${l.adm ? ' <small class="tag-adm">ADM</small>' : ''}<br><small class="mudo">${l.clube != null ? esc(clube(l.clube).n) : 'sem clube'} · ${l.n}/${MAX_TECNICOS} técnicos · ${RITMOS[l.meta.ritmo]?.nome || ''}</small></div>
-      <button class="botao" type="button" data-acao="liga-abrir" data-c="${l.codigo}">Abrir</button></article>`).join('')}
-    <details><summary>Criar uma liga</summary><form data-form="liga-criar" novalidate>
-      <label>Nome da liga <input type="text" name="nome" maxlength="30" required placeholder="Ex.: Liga da firma"></label>
-      <div class="opcoes">${Object.entries(RITMOS).map(([k, r], i) => `<label class="opcao"><input type="radio" name="ritmo" value="${k}" ${i ? '' : 'checked'}><strong>${r.nome}</strong><small>${r.txt}.</small></label>`).join('')}</div>
-      <p class="erro" role="alert"></p><button class="botao">Criar liga</button></form></details>
-    <details><summary>Entrar com código</summary><form data-form="liga-entrar" novalidate>
-      <label>Código do convite <input type="text" name="codigo" maxlength="8" autocapitalize="characters" autocomplete="off" required></label>
-      <p class="erro" role="alert"></p><button class="botao">Entrar na liga</button></form></details></section>`;
+// menu inicial: minhas ligas, criar e entrar com código
+export function minhasLigas(ligas) {
+  const { esc, clube, imgEscudo } = H;
+  if (ligas == null) return '<p class="erro">Não consegui ver as suas ligas agora.</p>';
+  if (!ligas.length) return '';
+  return `<section class="cartao minhas-ligas"><h3>Minhas ligas</h3><ul>${ligas.map(l => `<li><button type="button" class="minha-liga" data-acao="liga-abrir" data-c="${l.codigo}">
+    ${l.clube != null ? imgEscudo(l.clube, 30, 32) : '<span class="sem-clube" aria-hidden="true"></span>'}
+    <span><b>${esc(l.nome)}</b><small>${RITMOS[l.meta.ritmo]?.nome || ''} · código ${l.codigo}${l.adm ? ' · ADM' : ''} · ${l.clube != null ? esc(clube(l.clube).n) : 'sem clube'}</small></span>
+    <span class="seta" aria-hidden="true">›</span></button></li>`).join('')}</ul></section>`;
+}
+export const formsLiga = () => `<details class="dobra"><summary class="botao sec">Criar nova liga</summary><form class="cartao" data-form="liga-criar" novalidate>
+    <label>Nome da liga <input type="text" name="nome" maxlength="30" required placeholder="Ex.: Liga da firma"></label>
+    <div class="opcoes">${Object.entries(RITMOS).map(([k, r], i) => `<label class="opcao"><input type="radio" name="ritmo" value="${k}" ${i ? '' : 'checked'}><strong>${r.nome}</strong><small>${r.txt}.</small></label>`).join('')}</div>
+    <label class="check"><input type="checkbox" name="publica" checked> Liga aberta: aparece em Encontrar uma liga para quem quiser entrar</label>
+    <p class="erro" role="alert"></p><button class="botao">Criar liga</button></form></details>
+  <details class="dobra"><summary class="botao sec">Entrar com código</summary><form class="cartao" data-form="liga-entrar" novalidate>
+    <label>Código do convite <input type="text" name="codigo" maxlength="8" autocapitalize="characters" autocomplete="off" required placeholder="Ex.: Y5RGPZ"></label>
+    <p class="erro" role="alert"></p><button class="botao">Entrar na liga</button></form></details>`;
+// Encontrar uma liga: abertas e com vaga
+export async function telaAbertas() {
+  const { esc } = H, L = await H.api('GET', '/ligas/abertas');
+  return `<div class="titulo-linha"><h2>Encontrar uma liga</h2><a href="#/inicio">Voltar</a></div>
+    ${L.length ? `<ul class="ligas-abertas">${L.map(l => `<li class="cartao"><div><b>${esc(l.nome)}</b><small>${RITMOS[l.meta.ritmo]?.nome || ''} · ${l.n} de ${MAX_TECNICOS} técnicos · ADM ${esc(l.adm || '?')} · ${l.meta.inicio ? 'em andamento' : 'ainda não começou'}</small></div>
+      <button class="botao" type="button" data-acao="liga-entrar-aberta" data-c="${l.codigo}">Entrar</button></li>`).join('')}</ul>`
+    : `<section class="cartao vazio"><p>Nenhuma liga aberta com vaga agora.</p><p class="mudo">Crie a sua e chame os amigos pelo código.</p><a class="botao" href="#/inicio">Criar uma liga</a></section>`}`;
 }
 export async function enviarForm(f) {
   const erro = f.querySelector('.erro'), bt = f.querySelector('button');
@@ -281,7 +293,7 @@ export async function enviarForm(f) {
       const nome = f.nome.value.trim();
       if (!nome) throw new Error('Dê um nome para a liga.');
       bt.textContent = 'Criando o mundo…'; await quadro();
-      await criar(nome, f.ritmo.value);
+      await criar(nome, f.ritmo.value, f.publica.checked);
     } else {
       const c = f.codigo.value.trim().toUpperCase();
       if (!/^[A-Z0-9]{4,8}$/.test(c)) throw new Error('O código tem 6 letras e números.');
@@ -303,10 +315,12 @@ export const acoes = {
   },
   'liga-comecar': tenta(async () => { await mudarMeta((m, W) => ({ ...m, inicio: Date.now(), desloc: 0, pausa: false, slot0: W.slot || 0 })); H.render(); }),
   'liga-retomar': tenta(async () => { await mudarMeta((m, W) => ({ ...m, inicio: Date.now(), desloc: 0, pausa: false, slot0: W.slot || 0 })); H.render(); }),
+  'liga-entrar-aberta': tenta(el => entrar(el.dataset.c)),
+  'liga-publica': tenta(async () => { await mudarMeta(m => ({ ...m, publica: !m.publica })); H.render(); }),
   'liga-pausar': tenta(async () => { await mudarMeta(m => ({ ...m, pausa: true })); H.render(); }),
   'liga-agora': tenta(async () => { await mudarMeta((m, W) => adiantar(m, W)); H.aviso('O próximo horário começa agora.'); vigiar(); }),
   'liga-sair': async el => {
     if (el.dataset.confirma !== '1') { el.dataset.confirma = '1'; el.textContent = 'Sair mesmo? Seu clube volta para a IA'; return; }
-    await tenta(async () => { await sairDaLiga(); H.ir('#/saves'); })(el);
+    await tenta(async () => { await sairDaLiga(); H.ir('#/inicio'); })(el);
   },
 };
