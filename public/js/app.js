@@ -15,6 +15,8 @@ import * as Elenco from './elenco.js';
 import * as Jornal from './jornal.js';
 import * as Coletiva from './coletiva.js';
 import * as Leilao from './leilao.js';
+import * as Liga from './liga.js';
+import { daFoto } from './motor/mundo.js';
 import { encerrarPendente } from './motor/leilao.js';
 import { confronto, textoConfronto } from './motor/confrontos.js';
 import * as Gala from './gala.js';
@@ -48,7 +50,7 @@ async function api(metodo, rota, corpo) {
 
 // save comprimido: gzip + base64
 async function compacta(obj) {
-  const buf = await new Response(new Blob([JSON.stringify(obj)]).stream().pipeThrough(new CompressionStream('gzip'))).arrayBuffer();
+  const buf = await new Response(new Blob([typeof obj === 'string' ? obj : JSON.stringify(obj)]).stream().pipeThrough(new CompressionStream('gzip'))).arrayBuffer();
   const bytes = new Uint8Array(buf); let bin = '';
   for (let i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
   return 'gz:' + btoa(bin);
@@ -63,8 +65,9 @@ async function descompacta(txt) {
 // Versão do save = 'atualizado' que o servidor devolveu (app.ver). Se outro aparelho salvou depois, o servidor responde 409.
 // A cópia local guarda a versão em que se baseou e se ainda falta subir (sujo), para o Continuar decidir sem olhar relógio.
 const fila = { t: 0, sujo: false, rodando: null };
-function salvar() { if (!app.s) return; fila.sujo = true; clearTimeout(fila.t); fila.t = setTimeout(descarregar, 2000); }
+function salvar() { if (app.liga) return Liga.salvar(); if (!app.s) return; fila.sujo = true; clearTimeout(fila.t); fila.t = setTimeout(descarregar, 2000); }
 async function descarregar() {
+  if (app.liga) return Liga.descarregar();
   clearTimeout(fila.t);
   while (fila.rodando) await fila.rodando;
   if (!fila.sujo || !app.s) return;
@@ -99,7 +102,7 @@ async function resolverConflito() {
   ir('#/clube'); render();
 }
 // jogo ao vivo em andamento vai no save (semente, minuto e mexidas) para retomar se o celular fechar a aba
-function guardarVivo() { if (app.vivo && !app.vivo.fim && app.s) { app.s.vivo = AoVivo.estado(app.vivo); salvar(); } }
+function guardarVivo() { if (app.vivo && !app.vivo.fim && !app.vivo.R.replay && app.s) { app.s.vivo = AoVivo.estado(app.vivo); salvar(); } }
 addEventListener('pagehide', () => { guardarVivo(); descarregar(); });
 document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') { guardarVivo(); descarregar(); } });
 
@@ -111,7 +114,7 @@ async function carregarBase() {
 }
 
 const ir = rota => { if (location.hash === rota) render(); else location.hash = rota; };
-async function sairDaConta() { await descarregar().catch(() => { }); app.conta = null; app.s = null; guardado.tirar('fig.conta'); ir('#/entrar'); }
+async function sairDaConta() { await descarregar().catch(() => { }); Liga.fechar(); app.conta = null; app.s = null; guardado.tirar('fig.conta'); ir('#/entrar'); }
 
 function aviso(msg) {
   const el = $('#aviso'); el.textContent = msg; el.classList.add('on');
@@ -178,10 +181,10 @@ function desenhaTopo() {
   topo.hidden = abas.hidden = !emJogo;
   if (!emJogo) return;
   const s = app.s, ci = s.tecnico.clube;
-  const estado = { salvando: 'Salvando…', salvo: 'Salvo', falhou: 'Não salvou · tentar', conflito: 'Conflito · resolver' }[app.salvando] || '';
+  const estado = app.liga ? Liga.estadoTopo() : { salvando: 'Salvando…', salvo: 'Salvo', falhou: 'Não salvou · tentar', conflito: 'Conflito · resolver' }[app.salvando] || '';
   topo.innerHTML = `<div class="topo-in">${imgEscudo(ci, 36, 39)}
     <div class="info"><div class="clube-nome">${esc(clube(ci).n)}</div><small>${(d => { const k = feitas(s, d); return `Série ${d} · ${k ? `Rodada ${Math.min(k + 1, { C: 19 }[d] || 38)} · ${posicaoNaTabela(ci)}º` : proximoEvento(app.base, s)?.tipo === 'liga' ? 'Rodada 1' : 'Pré-temporada'}`; })(clube(ci).div)}</small></div>
-    <button class="estado ${app.salvando}" data-acao="salvar" type="button" ${['falhou', 'conflito'].includes(app.salvando) ? '' : 'tabindex="-1"'} style="background:none;border:0;cursor:pointer">${estado}</button>
+    <button class="estado ${app.salvando} ${app.liga ? 'liga' : ''}" data-acao="salvar" type="button" ${app.liga || ['falhou', 'conflito'].includes(app.salvando) ? '' : 'tabindex="-1"'} style="background:none;border:0;cursor:pointer">${estado}</button>
     ${botaoTema('botao peq')}<button class="botao peq" data-acao="menu" type="button">Sair</button></div>`;
   const pend = (s.recebidas || []).length + (s.propostas || []).filter(p => p.estado === 'contraproposta').length;
   const ativa = { calendario: 'clube', partida: 'clube', financas: 'clube', carreira: 'clube' }[app.aba] || app.aba;
@@ -213,7 +216,8 @@ telas.entrar = () => {
 };
 
 telas.saves = async () => {
-  const lista = await api('GET', '/saves');
+  if (app.liga) { await descarregar(); Liga.fechar(); }
+  const [lista, ligas] = await Promise.all([api('GET', '/saves'), api('GET', '/ligas').catch(() => null)]);
   const porSlot = Object.fromEntries(lista.map(x => [x.slot, x]));
   const quando = t => new Date(t).toLocaleString('pt-BR', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
   return `<div class="titulo-linha"><h2>Carreiras</h2><div class="linha-botoes" style="flex:0 0 auto">${botaoTema()}<button class="botao peq sec" data-acao="sair" type="button">Trocar conta</button></div></div>
@@ -223,7 +227,8 @@ telas.saves = async () => {
       <div><h3 style="color:var(--texto)">${esc(x.nome)}</h3><p>${esc(x.resumo)}</p><p class="mudo" style="font-size:.9rem">Salvo em ${quando(x.atualizado)}</p></div>
       <div class="linha-botoes"><button class="botao" data-acao="continuar" data-slot="${n}" data-quando="${x.atualizado}" type="button">Continuar</button>
       <button class="botao perigo" data-acao="apagar" data-slot="${n}" type="button" style="flex:0 0 auto">Apagar</button></div></article>`
-      : `<article class="cartao slot-vazio"><p class="mudo">Espaço ${n} livre</p><button class="botao" data-acao="novo" data-slot="${n}" type="button">Novo jogo</button></article>`; }).join('')}`;
+      : `<article class="cartao slot-vazio"><p class="mudo">Espaço ${n} livre</p><button class="botao" data-acao="novo" data-slot="${n}" type="button">Novo jogo</button></article>`; }).join('')}
+    ${Liga.secaoSaves(ligas)}`;
 };
 
 // ----- novo jogo -----
@@ -359,10 +364,10 @@ telas.clube = () => {
   const acabando = s.rodada >= 19 ? app.base.elencos[ci].filter(j => j.contrato <= s.ano && !s.preContratos?.some(p => p.jogador === j.id) && !s.emprestimos?.[j.id]) : [];
   const lado = ci2 => { const p = posicaoNoJogo(ev, ci2); return `<div class="lado">${imgEscudo(ci2, 64, 69)}<span>${esc(clube(ci2).n)}</span>${p ? `<small>${p}º</small>` : ''}</div>`; };
   return `<div class="status-clube"><span title="Dinheiro em caixa"><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">${ICONES.moeda}</svg>${fmtDinheiro(s.caixa ?? 0)}</span>
-      <span>${feitas(s, d) ? `${pos + 1}º na Série ${d}` : `Série ${d}`}</span><span class="${janela ? 'aberta' : ''}">${janela ? 'Janela aberta' : 'Janela fechada'}</span>${cargoChip()}</div>
+      <span>${feitas(s, d) ? `${pos + 1}º na Série ${d}` : `Série ${d}`}</span><span class="${janela ? 'aberta' : ''}">${janela ? 'Janela aberta' : 'Janela fechada'}</span>${cargoChip()}${app.liga ? `<a class="liga" href="#/liga"><span>${esc(Liga.estadoTopo())}</span></a>` : ''}</div>
     ${s.demitido ? demitidoHtml() : espera ? esperaHtml(espera) : fim ? `<section class="cartao escuro fim-temporada"><h2>Fim da temporada ${s.ano}</h2>${(Q => { const p = Q.cl[d].indexOf(ci) + 1, subiu = Q.sobe.B.includes(ci) || Q.sobe.C.includes(ci), caiu = [...Q.cai.A, ...Q.cai.B, ...Q.cai.C].includes(ci); return `<p>${esc(c.n)} terminou em <b>${p}º</b> na Série ${d}${subiu ? ' e <b>subiu</b>' : caiu ? ' e <b>caiu</b>' : ''}. Campeão: <b>${esc(clube(d === 'C' ? (s.f2?.C?.campeao ?? Q.cl.C[0]) : tab[0].clube).n)}</b>.${s.copa?.campeao != null ? ` Copa do Brasil: <b>${esc(clube(s.copa.campeao).n)}</b>.` : ''}</p>`; })(acessoEQueda(app.base, s))}
       ${acabando.length ? `<p style="color:var(--placar)">Saem por fim de contrato: ${acabando.map(j => esc(j.curto)).join(', ')}. Ainda dá para renovar na ficha de cada um.</p>` : ''}
-      <div class="linha-botoes"><a class="botao sec" href="#/gala">Premiação de gala</a><button class="botao grande" type="button" data-acao="virar">Começar a temporada ${s.ano + 1}</button></div></section>`
+      <div class="linha-botoes"><a class="botao sec" href="#/gala">Premiação de gala</a>${app.liga ? '' : `<button class="botao grande" type="button" data-acao="virar">Começar a temporada ${s.ano + 1}</button>`}</div>${app.liga ? Liga.relogio(`A temporada ${s.ano + 1} começa`) : ''}</section>`
     : `<section class="ingresso ${ev.tipo !== 'liga' ? 'copa' : ''}" style="--cc:${c.c[0]};--cc2:${c.c[1] || '#fff'}">
       <div class="ingresso-data"><span class="dia">${String(dt.getUTCDate()).padStart(2, '0')}</span><span class="mes">${MESES[dt.getUTCMonth()]}</span><span class="sem">${SEMANA[dt.getUTCDay()]}</span><span class="ano">${dt.getUTCFullYear()}</span></div>
       <div class="ingresso-corpo"><span class="ingresso-tag">${esc(ev.titulo)} · ${ev.neutro ? 'campo neutro' : jogo[0] === ci ? 'em casa' : 'fora'}</span>
@@ -370,7 +375,7 @@ telas.clube = () => {
         <span class="ingresso-local">${ev.neutro ? 'Estádio neutro' : esc(clube(jogo[0]).est[0])}</span>
         ${(p => `<span class="previa" title="Chance pelo que os elencos rendem hoje"><b>V ${p.vitoria}%</b><b>E ${p.empate}%</b><b>D ${p.derrota}%</b></span>`)(previa(app.base, s, ev))}
         ${ev.tipo === 'amistoso' ? '' : `<span class="retro-ingresso">${esc(textoConfronto(confronto(s, ci, jogo[0] === ci ? jogo[1] : jogo[0])))}</span>`}
-        <button class="botao grande" data-acao="jogar" type="button">${s.vivo ? `Retomar o jogo (${s.vivo.min}')` : 'Jogar'}</button></div></section>`}
+        ${app.liga ? Liga.relogio('Bola rola', ev) : `<button class="botao grande" data-acao="jogar" type="button">${s.vivo ? `Retomar o jogo (${s.vivo.min}')` : 'Jogar'}</button>`}</div></section>`}
     ${s.demitido || fim || espera ? '' : prelecaoHtml()}${s.demitido || espera ? '' : desfalques(ci, fim)}${ofertasHtml()}${recados()}
     ${acabando.length && !fim ? `<a class="cartao aviso-contratos" href="#/elenco"><b>${acabando.length} ${acabando.length > 1 ? 'contratos acabam' : 'contrato acaba'} no fim da temporada</b><span>${acabando.slice(0, 5).map(j => esc(j.curto)).join(', ')}${acabando.length > 5 ? '…' : ''}. Quem não renovar sai de graça, e outro clube pode assinar pré-contrato.</span></a>` : ''}
     <nav class="atalhos" aria-label="Atalhos do clube">${ATALHOS.map(([ic, t, href, cor]) => {
@@ -391,7 +396,7 @@ function esperaHtml(x) {
   const dt = new Date(+x.data), dia = `${dt.getUTCDate()} de ${MESES[dt.getUTCMonth()].toLowerCase()}`;
   return `<section class="cartao escuro fim-temporada"><h2>Sem jogos do ${esc(clube(app.s.tecnico.clube).n)} por agora</h2>
     <p>O calendário segue sem o seu clube. Próxima data: <b>${dia}</b> · ${esc(x.titulo)}.${janelaAberta(app.s.ano, app.s.rodada) ? ' A janela de transferências está aberta.' : ''}</p>
-    <div class="linha-botoes"><button class="botao sec" type="button" data-acao="avancar-data">Avançar até ${dia}</button><button class="botao grande" type="button" data-acao="avancar-fim">Até o fim da temporada</button></div></section>`;
+    ${app.liga ? Liga.relogio('O calendário anda sozinho. Próximo horário da liga:') : `<div class="linha-botoes"><button class="botao sec" type="button" data-acao="avancar-data">Avançar até ${dia}</button><button class="botao grande" type="button" data-acao="avancar-fim">Até o fim da temporada</button></div>`}</section>`;
 }
 
 // ----- finanças -----
@@ -545,7 +550,7 @@ telas.partida = () => {
       ${linha('Posse', st[0].posse, st[1].posse, v => v + '%')}${linha('Finalizações', st[0].chutes, st[1].chutes)}${linha('No alvo', st[0].noAlvo, st[1].noAlvo)}
       ${linha('Gols esperados', st[0].xg, st[1].xg, v => v.toFixed(1).replace('.', ','))}${linha('Escanteios', st[0].escanteios, st[1].escanteios)}${linha('Faltas', st[0].faltas, st[1].faltas)}</section>
     <section class="cartao"><h3>Notas</h3><div class="notas">${[0, 1].map(t => `<div><p style="font-weight:700;margin-bottom:4px">${esc(clube(t ? u.fora : u.casa).n)}</p><ol>${notasTime(t).map(([id, n]) => `<li><span>${nome(id)}</span><span class="nota ${id === u.craque ? 'craque' : classe(n)}">${n.toFixed(1).replace('.', ',')}</span></li>`).join('')}</ol></div>`).join('')}</div></section>
-    <div class="linha-botoes"><a class="botao" href="#/clube">Voltar ao clube</a></div>`;
+    <div class="linha-botoes">${app.s.ultimaVivo ? '<button class="botao sec" type="button" data-acao="assistir">Assistir ao jogo</button>' : ''}<a class="botao" href="#/clube">Voltar ao clube</a></div>`;
 };
 
 // ----- jornal da bola -----
@@ -553,6 +558,7 @@ telas.noticias = () => Jornal.tela();
 telas.coletiva = () => Coletiva.tela();
 telas.gala = () => Gala.tela();
 telas.leilao = () => Leilao.tela();
+telas.liga = () => Liga.tela();
 
 // saves antigos ganham os campos novos; a base recebe as transferências deste save
 function migrar(s) {
@@ -586,6 +592,7 @@ function concluirAoVivo() {
 // os jogos dos outros (rodada inteira, regionais atrasados) podem levar um tempo: a tela avisa antes de calcular
 const umQuadro = () => new Promise(r => requestAnimationFrame(() => setTimeout(r, 0)));
 async function comecarJogo() {
+  if (app.liga) return ir('#/clube'); // na liga o jogo acontece no horário
   const bt = $('[data-acao=jogar]'); if (bt) { bt.disabled = true; bt.textContent = 'Simulando os outros jogos…'; }
   await umQuadro();
   const b = app.base, s = app.s, antes = proximoEvento(b, s);
@@ -605,6 +612,15 @@ async function render() {
   const rota = location.hash.replace(/^#\/?/, '') || (app.conta ? 'saves' : 'entrar');
   if (rota !== 'coletiva') app.colPre = false;
   // saiu da tela do jogo (voltar do celular, por exemplo): pergunta antes; confirmando, o resto é simulado na hora
+  const convite = rota.match(/^liga\/([A-Za-z0-9]{4,8})$/);
+  if (convite) {
+    const c = convite[1].toUpperCase();
+    if (!app.conta) { app.convite = c; location.hash = '#/entrar'; return; }
+    history.replaceState(null, '', '#/saves');
+    $('#tela').innerHTML = '<p class="mudo">Entrando na liga…</p>';
+    return Liga.entrar(c).catch(e => { aviso(e.message); render(); });
+  }
+  if (app.vivo?.R.replay && rota !== 'ao-vivo') app.vivo = null;
   if (app.vivo && rota !== 'ao-vivo') {
     if (!app.vivo.fim && !confirm('Sair agora encerra o jogo: o resto é simulado na hora. Sair mesmo?')) { history.replaceState(null, '', '#/ao-vivo'); return; }
     concluirAoVivo();
@@ -617,7 +633,8 @@ async function render() {
   if (app.s?.demitido && ['elenco', 'mercado', 'financas', 'partida', 'calendario', 'coletiva'].includes(rota)) { location.hash = '#/clube'; return; } // sem clube: só propostas, tabelas e notícias
   const precisaJogo = ['clube', 'elenco', 'torneios', 'calendario', 'partida', 'noticias', 'mercado', 'financas', 'carreira', 'coletiva', 'mensagens', 'gala', 'leilao'].includes(rota);
   if (!app.conta && rota !== 'entrar') { location.hash = '#/entrar'; return; }
-  if (precisaJogo && !app.s) { location.hash = '#/saves'; return; }
+  if (precisaJogo && !app.s) { location.hash = app.liga ? '#/liga' : '#/saves'; return; }
+  if (rota === 'liga' && !app.liga) { location.hash = '#/saves'; return; }
   // leilão por jogador que você quer: a sala abre sozinha, por cima do que estiver fazendo (menos no meio do jogo e da coletiva)
   if (precisaJogo && rota !== 'leilao' && rota !== 'coletiva' && app.s.leilaoAtivo && !app.s.leilaoAtivo.fim && !app.s.demitido) { location.hash = '#/leilao'; return; }
   if (rota === 'novo' && !app.novo) { location.hash = '#/saves'; return; }
@@ -643,8 +660,8 @@ async function render() {
 const acoes = {
   recarregar: () => render(),
   sair: async () => { await api('POST', '/sair').catch(() => { }); sairDaConta(); },
-  menu: async () => { await descarregar(); app.s = null; app.salvando = ''; ir('#/saves'); },
-  salvar: () => { if (app.salvando === 'conflito') resolverConflito().catch(e => aviso(e.message)); else if (app.salvando === 'falhou') { fila.sujo = true; descarregar(); } },
+  menu: async () => { await descarregar(); Liga.fechar(); app.s = null; app.salvando = ''; ir('#/saves'); },
+  salvar: () => { if (app.liga) { if (app.salvando === 'falhou') { app.liga.sujo = true; descarregar(); } else ir('#/liga'); return; } if (app.salvando === 'conflito') resolverConflito().catch(e => aviso(e.message)); else if (app.salvando === 'falhou') { fila.sujo = true; descarregar(); } },
   ficha: el => abrirFicha(el.dataset.id),
 
   novo: el => { app.slot = +el.dataset.slot; app.novo = { passo: 1, tecnico: { nome: '', rosto: rostoAleatorio(), nat: 'BRA', reputacao: 1 }, dificuldade: 'normal', modo: 'escolher', abaDiv: 'A', clube: null }; ir('#/novo'); },
@@ -701,7 +718,7 @@ const acoes = {
     comecarJogo();
   },
   // Continuar: depois do jogo oficial vem a coletiva pós-jogo
-  'vivo-fim': () => { concluirAoVivo(); const u = app.s.ultima; if (u && u.div !== 'AMI') { app.colPre = false; ir('#/coletiva'); } else ir('#/partida'); },
+  'vivo-fim': () => { if (app.vivo?.R.replay) { app.vivo = null; return ir('#/partida'); } concluirAoVivo(); const u = app.s.ultima; if (u && u.div !== 'AMI') { app.colPre = false; ir('#/coletiva'); } else ir('#/partida'); },
   'em-breve': el => aviso(`${el.dataset.t} chega numa próxima atualização.`),
   'avancar-data': async el => { el.disabled = true; el.textContent = 'Simulando…'; await umQuadro(); const x = pendentes(app.base, app.s)[0]; if (x) mundoAte(app.base, app.s, x.data); render(); salvar(); },
   'avancar-fim': async el => { el.disabled = true; el.textContent = 'Simulando o resto da temporada…'; await umQuadro(); for (let x; !proximoEvento(app.base, app.s) && (x = pendentes(app.base, app.s)[0]);) mundoAte(app.base, app.s, x.data); render(); salvar(); },
@@ -730,8 +747,14 @@ const acoes = {
   'aceitar-oferta': el => { const m = aceitarOferta(app.base, app.s, +el.dataset.c); if (m) return aviso(m); aviso(`Bem-vindo ao ${clube(app.s.tecnico.clube).n}!`); salvar(); location.hash === '#/clube' ? render() : ir('#/clube'); },
   'recusar-oferta': el => { recusarOferta(app.s, +el.dataset.c); render(); salvar(); },
   'pedir-demissao': el => { if (el.dataset.confirma !== '1') { el.dataset.confirma = '1'; el.textContent = 'Tem certeza? Toque de novo'; return; } pedirDemissao(app.base, app.s); salvar(); ir('#/clube'); },
-  virar: async el => { el.disabled = true; el.textContent = 'Fechando a temporada…'; await umQuadro(); const h = virarTemporada(app.base, app.s); if (h) aviso(`Bem-vindo a ${app.s.ano}!`); render(); salvar(); },
+  assistir: () => {
+    const s = app.s, u = s.ultima, F = daFoto(s.ultimaVivo);
+    app.vivo = AoVivo.novaPartidaAoVivo({ replay: true, pen: u.pen, titulo: u.copa || `Série ${u.div} · ${u.rodada + 1}ª rodada`, meu: { ...F, h: u.casa, a: u.fora, d: u.div, humano: u.casa === s.tecnico.clube ? 0 : 1 } });
+    ir('#/ao-vivo');
+  },
+  virar: async el => { if (app.liga) return; el.disabled = true; el.textContent = 'Fechando a temporada…'; await umQuadro(); const h = virarTemporada(app.base, app.s); if (h) aviso(`Bem-vindo a ${app.s.ano}!`); render(); salvar(); },
   ...Torneios.acoes,
+  ...Liga.acoes,
 };
 
 document.addEventListener('click', e => {
@@ -765,6 +788,7 @@ document.addEventListener('input', e => {
 document.addEventListener('submit', async e => {
   if (['proposta', 'renovar'].includes(e.target.dataset.form)) { e.preventDefault(); Mercado.enviar(e.target); return; }
   if (e.target.dataset.form === 'lance') { e.preventDefault(); Leilao.darLance(e.target); return; }
+  if (e.target.dataset.form?.startsWith('liga-')) { e.preventDefault(); Liga.enviarForm(e.target); return; }
   if (e.target.dataset.form !== 'entrar') return;
   e.preventDefault();
   const f = e.target, modo = e.submitter?.value || 'entrar', erro = f.querySelector('.erro');
@@ -777,7 +801,7 @@ document.addEventListener('submit', async e => {
     const r = await api('POST', modo === 'cadastro' ? '/cadastro' : '/entrar', { apelido, pin });
     app.conta = { token: r.token, apelido: r.apelido };
     guardado.gravar('fig.conta', app.conta);
-    ir('#/saves');
+    ir(app.convite ? `#/liga/${app.convite}` : '#/saves'); app.convite = null;
   } catch (err) {
     erro.textContent = err.message;
     for (const b of f.querySelectorAll('button')) b.disabled = false;
@@ -788,6 +812,8 @@ AoVivo.configurar({ app, clube, esc, imgEscudo, $, guardar: guardarVivo });
 Torneios.configurar({ app, clube, esc, imgEscudo, render: () => render() });
 Coletiva.configurar({ app, clube, esc, render: () => render(), salvar: () => salvar(), jogar: () => comecarJogo() });
 Gala.configurar({ app, clube, esc, imgEscudo, render: () => render() });
+Liga.configurar({ app, api, compacta, descompacta, carregarBase, esc, clube, imgEscudo, aviso, ir, render: () => render(), desenhaTopo, rostoAleatorio,
+  estrelas: ci => `<span class="estrelas" aria-label="Força ${forcaEstrelas(ci)} de 5">${estrelasTxt(forcaEstrelas(ci))}</span>` });
 Leilao.configurar({ app, clube, esc, imgEscudo, aviso, render: () => render(), salvar: () => salvar() });
 Jornal.configurar({ app, clube, esc, imgEscudo, render: () => render() });
 Mercado.configurar({ app, clube, esc, imgEscudo, $, aviso, render: () => render(), salvar: () => salvar() });

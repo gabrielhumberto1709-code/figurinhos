@@ -2,6 +2,7 @@
 // infiltração, suspensões por cartão separadas por competição (L = liga, CB = Copa do Brasil).
 import { rng, pickW, clamp } from './util.js';
 import { naSelecao } from './selecao.js';
+import { ehHumano } from './humanos.js';
 
 // cat: mus muscular, art articulação/ligamento, oss óssea, cab cabeça, con contusão
 // min/max em jogos fora; inf: aceita infiltração; risco: chance base de agravar jogando infiltrado
@@ -80,10 +81,10 @@ export function infiltrar(s, id, sim = true) {
 // depois de cada jogo: cumpre desfalques, registra lesões e cartões. Devolve notícias do jogo.
 export function posJogo(base, s, h, a, sim, comp) {
   garantir(s);
-  const N = [], ci = s.tecnico.clube, J = id => base.jog.get(+id), nome = c => base.clubes[c].n;
+  const N = [], J = id => base.jog.get(+id), nome = c => base.clubes[c].n;
   const jogou = new Set([...Object.keys(sim.notas[0]), ...Object.keys(sim.notas[1])].map(Number));
   const lesNoJogo = new Set(sim.eventos.filter(e => e.tipo === 'lesao').map(e => e.jogador));
-  const meu = c => c === ci, noticia = (c, texto, extra = {}) => N.push({ tipo: meu(c) ? 'clube' : 'lesao', clube: c, texto, ...extra });
+  const meu = c => ehHumano(s, c), noticia = (c, texto, extra = {}) => N.push({ tipo: meu(c) ? 'clube' : 'lesao', clube: c, texto, ...extra });
   // 1) quem estava fora cumpre um jogo
   for (const c of [h, a]) for (const j of base.elencos[c]) {
     const l = s.dm[j.id];

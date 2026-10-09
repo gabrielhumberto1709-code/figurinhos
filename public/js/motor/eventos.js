@@ -1,6 +1,7 @@
 // Eventos do dia a dia: indisciplina, briga, doping, apostas, dinheiro que entra e sai, histórias curiosas.
 // No seu clube mexem em moral, caixa, diretoria e torcida (e podem afastar jogador); nos outros viram notícia.
 import { rng, pick, pickW, clamp, fmtDinheiro } from './util.js';
+import { sufixo } from './humanos.js';
 import { lancar, folhaDia } from './financas.js';
 import { temperamento } from './vestiario.js';
 import { faseDe } from './forma.js';
@@ -37,7 +38,7 @@ const EVENTOS = {
 };
 
 export function eventosAposRodada(base, s) {
-  const ci = s.tecnico.clube, r = rng(`evento${s.seed}${s.ano}${s.rodada}`), N = [];
+  const ci = s.tecnico.clube, r = rng(`evento${s.seed}${s.ano}${s.rodada}${sufixo(s, ci)}`), N = [];
   if (s.demitido) return N;
   // julgamentos marcados (doping)
   for (const jl of (s.julgamentos || []).filter(x => x.ano === s.ano && x.rodada <= s.rodada)) {

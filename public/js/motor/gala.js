@@ -3,6 +3,7 @@
 import { SETOR } from './util.js';
 import { tabela } from './mundo.js';
 import { tecnicoDe } from './carreira.js';
+import { humanos, vistaDo } from './humanos.js';
 
 export const PREMIOS = [
   ['bola', 'Bola de Ouro', 'Melhor jogador da temporada'],
@@ -35,7 +36,7 @@ export function gala(base, s) {
     // técnico: posição final contra o tamanho do elenco (o campeão ganha bônus)
     const ranking = tab.map(l => l.clube).sort((a, b) => base.forca(b) - base.forca(a)), pts = x => x.esp - x.pos + (x.pos === 1 ? 4 : 0);
     P.prancheta = tab.map((l, i) => ({ ci: l.clube, pos: i + 1, esp: ranking.indexOf(l.clube) + 1 })).sort((a, b) => pts(b) - pts(a)).slice(0, 3)
-      .map(x => { const eu = x.ci === s.tecnico.clube && !s.demitido; return { n: eu ? s.tecnico.nome : tecnicoDe(s, x.ci), c: x.ci, v: `${x.pos}º lugar com o ${x.esp}º elenco`, eu }; });
+      .map(x => { const v = vistaDo(s, x.ci), eu = !!v && !v.demitido; return { n: eu ? v.tecnico.nome : tecnicoDe(s, x.ci), c: x.ci, v: `${x.pos}º lugar com o ${x.esp}º elenco`, eu }; });
     // seleção da temporada (4-3-3) pela nota média
     const vagas = { GOL: 1, DEF: 4, MEI: 3, ATA: 3 }, selecao = [];
     for (const [j, e] of por(regular, ([, e]) => media(e))) { const st = SETOR[j.pos]; if (vagas[st]) { vagas[st]--; selecao.push({ id: j.id, n: j.curto, c: j.clube, st, nota: Math.round(media(e) * 100) / 100 }); } }
@@ -55,21 +56,22 @@ export function premiado(s, id) {
 // arquiva a gala na virada: moral para os premiados do seu clube e notícias
 export function arquivarGala(base, s, G) {
   s.galas = [G, ...(s.galas || [])].slice(0, 30);
-  const ci = s.tecnico.clube, N = [], nomeP = Object.fromEntries(PREMIOS.map(([k, n]) => [k, n]));
+  const N = [], nomeP = Object.fromEntries(PREMIOS.map(([k, n]) => [k, n]));
   for (const [d, x] of Object.entries(G.divs)) {
     const b = x.premios.bola[0];
     if (b) N.push({ tipo: 'destaque', div: d, jogador: b.id, texto: `Premiação de gala: ${b.n} (${base.clubes[b.c].n}) leva a Bola de Ouro da Série ${d}.` });
     for (const [k, l] of Object.entries(x.premios)) {
-      const w = l[0]; if (!w || (k === 'prancheta' ? !w.eu : w.c !== ci)) continue;
-      if (k === 'prancheta') { s.torcida = Math.min(100, (s.torcida ?? 55) + 3); s.fin.diretoria = Math.min(100, s.fin.diretoria + 3); }
-      else if (k !== 'bola') N.push({ tipo: 'clube', div: d, jogador: w.id, texto: `${w.n} ganha o prêmio ${nomeP[k]} da Série ${d}.` });
-      if (k === 'prancheta') N.push({ tipo: 'clube', div: d, texto: `${s.tecnico.nome} ganha a Prancheta de Ouro da Série ${d}.` });
+      const w = l[0], v = w && vistaDo(s, w.c); if (!v || (k === 'prancheta' && !w.eu)) continue;
+      if (k === 'prancheta') { v.torcida = Math.min(100, (v.torcida ?? 55) + 3); v.fin.diretoria = Math.min(100, v.fin.diretoria + 3); }
+      else if (k !== 'bola') N.push({ tipo: 'clube', clube: w.c, div: d, jogador: w.id, texto: `${w.n} ganha o prêmio ${nomeP[k]} da Série ${d}.` });
+      if (k === 'prancheta') N.push({ tipo: 'clube', clube: w.c, div: d, texto: `${v.tecnico.nome} ganha a Prancheta de Ouro da Série ${d}.` });
     }
   }
   return N;
 }
 // depois de zerar a moral da temporada nova: premiado do seu clube começa mais animado
 export function moralDosPremiados(base, s) {
-  const ci = s.tecnico.clube, g = s.galas?.[0]; if (!g) return;
-  for (const x of Object.values(g.divs)) for (const [k, l] of Object.entries(x.premios)) if (k !== 'prancheta' && l[0] && base.jog.get(l[0].id)?.clube === ci) s.mor[l[0].id] = Math.max(s.mor[l[0].id] ?? 62, 74);
+  const g = s.galas?.[0]; if (!g) return;
+  const meus = new Set(humanos(s).map(([ci]) => ci));
+  for (const x of Object.values(g.divs)) for (const [k, l] of Object.entries(x.premios)) if (k !== 'prancheta' && l[0] && meus.has(base.jog.get(l[0].id)?.clube)) s.mor[l[0].id] = Math.max(s.mor[l[0].id] ?? 62, 74);
 }

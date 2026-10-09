@@ -2,6 +2,7 @@
 // ultimato de 3 jogos, segunda chance se o grupo fechar com você, demissão. Técnicos da IA caem por má fase
 // e abrem vagas; quem vai bem recebe propostas. Trocar de clube leva o técnico, não o caixa.
 import { rng, pick, clamp } from './util.js';
+import { humanos, ehHumano } from './humanos.js';
 import { caixaInicial } from './mundo.js';
 import { metaDiretoria, financasIniciais } from './financas.js';
 import { cartasDeInicio } from './correio.js';
@@ -63,7 +64,6 @@ export function aposRodada(base, s, tabs) {
   const add = (texto, extra = {}) => N.push({ tipo: 'clube', clube: ci, texto, ...extra });
   s.ofertas = s.ofertas.filter(o => o.tipo === 'demitido' || (o.ano === s.ano && o.ate > s.rodada));
   if (!s.demitido) cargo(base, s, tabs, add);
-  demissoesIA(base, s, tabs, N);
   return N;
 }
 
@@ -132,22 +132,27 @@ export function pedirDemissao(base, s) {
 function ofertasPraQuemSai(base, s, de) {
   const r = rng(`ofertas${s.seed}${s.ano}${s.rodada}${de}`), d = base.clubes[de].div, f = base.forca(de);
   const divs = d === 'A' ? ['A', 'B'] : d === 'B' ? ['B', 'C'] : ['C', 'B'];
-  const lista = base.clubes.map((c, i) => i).filter(i => i !== de && divs.includes(base.clubes[i].div) && base.forca(i) <= f + (d === 'C' ? 2 : 0));
+  const lista = base.clubes.map((c, i) => i).filter(i => i !== de && !ehHumano(s, i) && divs.includes(base.clubes[i].div) && base.forca(i) <= f + (d === 'C' ? 2 : 0));
   const out = [];
   while (out.length < 3 && lista.length) out.push(lista.splice(Math.floor(r() * lista.length), 1)[0]);
   return out.length ? out : [base.clubes.findIndex(c => c.div === 'C' && c !== base.clubes[de])];
 }
 
-// técnicos da IA: 6 jogos ruins com o time na metade de baixo (ou bem abaixo do esperado) podem custar o cargo
-function demissoesIA(base, s, tabs, N) {
-  const ci = s.tecnico.clube, P = s.demitido ? null : pilares(base, s), meuTab = tabs[base.clubes[ci].div], minha = meuTab.findIndex(x => x.clube === ci) + 1;
-  const vouBem = P && minha <= metaDiretoria(base, s).pos && !s.cargo.ult;
+// técnicos da IA: 6 jogos ruins com o time na metade de baixo (ou bem abaixo do esperado) podem custar o cargo.
+// A vaga aberta num clube maior pode virar proposta para o técnico que está bem no cargo.
+export function demissoesIA(base, s, tabs) {
+  const N = [], hs = humanos(s).map(([ci, sv]) => {
+    garantirCarreira(base, sv);
+    const minha = tabs[base.clubes[ci].div].findIndex(x => x.clube === ci) + 1;
+    return { ci, sv, bem: !sv.demitido && minha <= metaDiretoria(base, sv).pos && !sv.cargo.ult };
+  });
+  s.tecnicos ||= {};
   for (const d of DIVS) {
     const tab = tabs[d], ordem = tab.map(x => x.clube).sort((a, b) => base.forca(b) - base.forca(a));
     const cand = [];
     tab.forEach((l, i) => {
       const c = l.clube, t = s.tecnicos[c], pos = i + 1;
-      if (c === ci || l.j < 7 || (t && t.ano === s.ano && s.rodada - t.rodada < 10)) return;
+      if (ehHumano(s, c) || l.j < 7 || (t && t.ano === s.ano && s.rodada - t.rodada < 10)) return;
       const v = l.ultimos.filter(x => x === 'V').length, p = l.ultimos.filter(x => x === 'D').length;
       if (v > 1 || p < 3 || (pos <= tab.length / 2 && pos < ordem.indexOf(c) + 5)) return;
       cand.push({ c, chance: Math.min(0.8, 0.19 + (v === 0 ? 0.17 : 0) + (p >= 4 ? 0.14 : 0) + (pos > tab.length - 4 ? 0.12 : 0)), peso: p * 3 - v * 2 + pos / 4 });
@@ -158,14 +163,17 @@ function demissoesIA(base, s, tabs, N) {
       s.tecnicos[c] = { nome: novo, ano: s.ano, rodada: s.rodada };
       N.push({ tipo: 'tecnico', clube: c, evento: true, texto: `${base.clubes[c].n} demite ${velho} após má fase. ${novo} é o novo técnico.` });
       // vaga num clube maior: quem está bem no cargo pode ser chamado
-      const ordemDiv = DIVS.indexOf(d) - DIVS.indexOf(base.clubes[ci].div);
-      if (vouBem && ordemDiv <= 0 && base.forca(c) >= base.forca(ci) + 1.5 && !s.ofertas.some(o => o.clube === c) && rng(`oferta${s.seed}${s.ano}${s.rodada}${c}`)() < 0.6) {
-        s.ofertas.push({ clube: c, tipo: 'vaga', ano: s.ano, ate: s.rodada + 3 });
-        N.push({ tipo: 'clube', clube: c, texto: `Proposta: o ${base.clubes[c].n} (Série ${d}) quer ${s.tecnico.nome} para o lugar de ${velho}. A resposta vale até a ${s.rodada + 3}ª rodada.` });
+      for (const { ci, sv, bem } of hs) {
+        const ordemDiv = DIVS.indexOf(d) - DIVS.indexOf(base.clubes[ci].div);
+        if (bem && ordemDiv <= 0 && base.forca(c) >= base.forca(ci) + 1.5 && !sv.ofertas.some(o => o.clube === c) && rng(`oferta${s.seed}${s.ano}${s.rodada}${c}${hs.length > 1 ? ci : ''}`)() < 0.6) {
+          sv.ofertas.push({ clube: c, tipo: 'vaga', ano: s.ano, ate: s.rodada + 3 });
+          N.push({ tipo: 'clube', clube: ci, texto: `Proposta: o ${base.clubes[c].n} (Série ${d}) quer ${sv.tecnico.nome} para o lugar de ${velho}. A resposta vale até a ${s.rodada + 3}ª rodada.` });
+        }
       }
       break; // no máximo uma demissão por divisão a cada rodada
     }
   }
+  return N;
 }
 
 export function recusarOferta(s, c) { s.ofertas = s.ofertas.filter(o => o.clube !== c || o.tipo === 'demitido'); }

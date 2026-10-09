@@ -386,6 +386,7 @@ html:has(.vivo), body:has(.vivo) { overscroll-behavior-y: contain; }
 .status-clube span { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border: 2px solid var(--linha); border-radius: 999px; background: var(--cartao-bg); font-weight: 700; font-size: .95rem; }
 .status-clube span svg { color: #C9A227; }
 .status-clube .aberta { background: var(--gramado); color: #fff; }
+.status-clube a.liga span { background: var(--primario-bg); color: var(--primario-txt); }
 /* o próximo jogo é um ingresso: canhoto com a data, picote e o jogo */
 .ingresso { display: grid; grid-template-columns: 92px 1fr; border: 2px solid var(--linha); border-radius: 10px; box-shadow: 4px 4px 0 var(--linha); overflow: hidden; background: var(--cartao-bg); }
 .ingresso-data { position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; padding: 12px 6px; color: #fff; text-shadow: 2px 2px 0 rgb(0 0 0 / .35);
@@ -838,3 +839,19 @@ b.pos { color: var(--gramado); } b.neg { color: var(--cartao); }
 .proposta label.check-promessa, .check-promessa { display: flex; flex-direction: row; gap: 8px; align-items: flex-start; font-size: .95rem; padding: 8px 10px; border: 2px dashed var(--linha); border-radius: var(--raio); }
 .check-promessa input { width: 20px; height: 20px; margin-top: 2px; flex: none; }
 .proposta:has([name=tipo][value=pre]:checked) .nao-pre, .proposta:has(input[type=hidden][name=tipo][value=pre]) .nao-pre { display: none; }
+
+/* liga online */
+.liga-saves details { border-top: 2px dashed var(--linha-fraca); padding-top: 10px; margin-top: 10px; }
+.liga-saves summary { font-weight: 700; cursor: pointer; min-height: 40px; display: flex; align-items: center; }
+.liga-saves form { display: grid; gap: 10px; margin-top: 8px; }
+.liga-item { display: flex; gap: 10px; align-items: center; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid var(--linha-fraca); }
+.liga-item .botao { flex: 0 0 auto; }
+.tag-adm { font-family: var(--f-pixel); font-size: .7rem; padding: 1px 5px; border-radius: 3px; background: var(--placar); color: #1B1F2A; vertical-align: middle; }
+.codigo-liga { font-family: var(--f-placar); font-size: 2rem; letter-spacing: .12em; vertical-align: middle; user-select: all; }
+.relogio-liga { margin: 6px 0; } .relogio-liga b { white-space: nowrap; }
+.ingresso .relogio-liga { font-size: 1.05rem; }
+.tecnicos-liga { list-style: none; margin: 0; padding: 0; }
+.tecnicos-liga li { display: grid; grid-template-columns: 28px 1fr auto; gap: 10px; align-items: center; padding: 8px 0; border-bottom: 1px solid var(--linha-fraca); line-height: 1.15; }
+.tecnicos-liga li > small { color: var(--texto-2); } .tecnicos-liga li > small.on { color: var(--gramado); font-weight: 700; }
+.tecnicos-liga .sem-clube { width: 28px; height: 30px; border: 2px dashed var(--linha-fraca); border-radius: 4px; }
+.clube-op.ocupado { opacity: .5; cursor: not-allowed; }

@@ -11,6 +11,7 @@ import { faseDe } from './forma.js';
 import { janelaAberta, naoJogaA } from './mundo.js';
 import { orcamento } from './financas.js';
 import { interessados } from './noticias.js';
+import { ehHumano } from './humanos.js';
 import { caixaDe, precoPedido, vontade, transferir, querIr, clausula } from './mercado.js';
 
 export const RELOGIO = 30, UMA = 10, DUAS = 5;
@@ -102,7 +103,7 @@ export function terminarSemHumanos(L) {
 
 // ---------- no jogo ----------
 const nome = (base, ci) => base.clubes[ci].n;
-const noticia = (base, s, texto, jogador) => s.noticias.unshift({ rodada: s.rodada, tipo: 'clube', mercado: true, div: base.clubes[s.tecnico.clube].div, texto, jogador });
+const noticia = (base, s, texto, jogador) => s.noticias.unshift({ rodada: s.rodada, tipo: 'clube', clube: s.tecnico.clube, mercado: true, div: base.clubes[s.tecnico.clube].div, texto, jogador });
 
 // quem também quer o jogador: clube com nível para ele, vaga na posição, dinheiro e um jogador topando ir.
 // A chance de ter concorrência sobe com o overall, a fase e a juventude (de ~10% num 64 a ~65% num craque em fase
@@ -113,7 +114,7 @@ export function concorrentes(base, s, j, valor, sal = '') {
   const chance = 0.5, piso = Math.max(ped, minimo({ valor, reserva: 0 }));
   const out = [];
   base.clubes.forEach((c, ci) => {
-    if (ci === meu || ci === j.clube || !['A', 'B', 'C', 'X'].includes(c.div) || rivais(base, ci, j.clube)) return;
+    if (ci === meu || ci === j.clube || ehHumano(s, ci) || !['A', 'B', 'C', 'X'].includes(c.div) || rivais(base, ci, j.clube)) return;
     if ((c.div === 'X' && (j.idade > 29 || c.tier < 2)) || naoJogaA(base, s, j.id, ci)) return;
     const el = base.elencos[ci];
     if (el.length >= 38 || j.ovr < base.forca(ci) - 4 || el.filter(x => x.pos === j.pos && x.ovr >= j.ovr).length >= 2) return;
@@ -130,6 +131,7 @@ export function abrirLeilaoCompra(base, s, pid, tarde = false) {
   const p = s.propostas.find(x => x.id === pid && x.estado === 'aguardando');
   if (!p || (p.tipo || 'compra') !== 'compra' || p.troca || p.leilao || s.leilaoAtivo || !janelaAberta(s.ano, s.rodada)) return null;
   const j = base.jog.get(p.jogador), cid = clausula(base, s, j);
+  if (ehHumano(s, j.clube)) return null;                  // jogador de outro técnico: quem decide é ele
   if (cid && p.valor >= cid.nac) return null;              // multa paga: o vendedor não escolhe comprador
   if (tarde && p.valor < precoPedido(base, s, j) * 0.85) return null; // proposta baixa o vendedor só recusa
   const rv = concorrentes(base, s, j, p.valor, tarde ? `-tarde-${s.semanaBloco?.n || 0}` : '');
@@ -146,10 +148,11 @@ export function abrirLeilaoVenda(base, s, id) {
   const x = s.recebidas.find(y => y.id === id && y.tipo !== 'emprestimo');
   if (!x) return 'Proposta não existe mais.';
   if (x.contraFeita || x.leilao) return 'Essa negociação já teve contraproposta ou leilão.';
+  if (x.humano) return 'Proposta de outro técnico não vai a leilão.';
   if (s.leilaoAtivo) return 'Já tem um leilão aberto.';
   const j = base.jog.get(x.jogador), meu = s.tecnico.clube, r = rng(`leilaoV${s.seed}-${x.id}`), teto = Math.max(x.valor, j.valor * 1000 * 1.9);
   const fol = ci => Math.min(teto, caixaDe(base, s, ci) * (base.clubes[ci].div === 'X' ? 3 : 0.6)) * (0.55 + r() * 0.45);
-  const outros = shuffle(r, interessados(base, j, s).filter(ci => ci !== x.de && ci !== meu && !rivais(base, ci, meu) && base.elencos[ci].length < 38))
+  const outros = shuffle(r, interessados(base, j, s).filter(ci => ci !== x.de && !ehHumano(s, ci) && !rivais(base, ci, meu) && base.elencos[ci].length < 38))
     .map(ci => ({ ci, max: r10(fol(ci)) })).filter(o => o.max >= minimo({ valor: x.valor })).slice(0, 3);
   x.leilao = 'vivo';
   s.leilaoAtivo = novoLeilao({ id, modo: 'venda', jogador: j.id, vendedor: meu, valor: x.valor, lider: x.de, participantes: [{ ci: x.de, max: r10(Math.max(x.valor, fol(x.de))) }, ...outros], seed: `${s.seed}-${id}` });

@@ -1,6 +1,7 @@
 // Vestiário: temperamento de cada jogador, preleção antes do jogo, conversa individual, pedido de aumento,
 // reserva que reclama em público, motim liderado pelo capitão e faixas de protesto depois de derrotas seguidas.
 import { rng, clamp } from './util.js';
+import { sufixo, ehHumano } from './humanos.js';
 import { proximoEvento, previa, escalacao, capitaoDe } from './mundo.js';
 import { salarioDia, salarioBase, passaDoTeto } from './financas.js';
 import { faseDe } from './forma.js';
@@ -116,12 +117,13 @@ export function responderJogador(base, s, msgId, r) {
 
 // ---------- depois de cada rodada ----------
 export function vestiarioAposRodada(base, s, tabs) {
-  const ci = s.tecnico.clube, el = base.elencos[ci], r = rng(`vest${s.seed}${s.ano}${s.rodada}`), N = [], add = (texto, extra = {}) => N.push({ tipo: 'clube', clube: ci, imprensa: true, texto, ...extra });
+  const ci = s.tecnico.clube, el = base.elencos[ci], r = rng(`vest${s.seed}${s.ano}${s.rodada}${sufixo(s, ci)}`), N = [], add = (texto, extra = {}) => N.push({ tipo: 'clube', clube: ci, imprensa: true, texto, ...extra });
   if (s.demitido) return N;
   // promessa de minutos não cumprida
   for (const [id, p] of Object.entries(s.promessas || {})) {
     const j = base.jog.get(+id);
-    if (!j || j.clube !== ci || p.ano !== s.ano) { delete s.promessas[id]; continue; }
+    if (!j || !ehHumano(s, j.clube) || p.ano !== s.ano) { delete s.promessas[id]; continue; }
+    if (j.clube !== ci) continue;                                          // promessa de outro técnico
     if (!s.semJogar?.[id]) { delete s.promessas[id]; continue; }            // jogou: promessa cumprida
     if (s.rodada - p.rodada >= 3) { mexe(s, id, -10); tratar(s, id, -3); delete s.promessas[id]; add(`${j.curto} reclama: "O professor prometeu que eu ia jogar. Não jogou ninguém aqui."`, { jogador: j.id }); }
   }

@@ -14,6 +14,7 @@ import { gala, arquivarGala, moralDosPremiados } from './gala.js';
 import { revisarPotencial } from './potencial.js';
 import { enviar, cartasDeInicio } from './correio.js';
 import { estrelas } from './util.js';
+import { humanos, ehHumano } from './humanos.js';
 
 const DIVS = ['A', 'B', 'C'];
 // a temporada acaba com tudo jogado: Série A (relógio), B e C com a segunda fase, Copa do Brasil e as continentais
@@ -35,7 +36,7 @@ export function gerarJovens(base, s, r) {
   const rows = [];
   base.clubes.forEach((c, ci) => {
     if (!DIVS.includes(c.div)) return;
-    const el = base.elencos[ci], n = Math.min(9, Math.max(18 - el.length, ci === s.tecnico.clube || el.length < 22 ? 3 : el.length < 28 ? 2 : 1));
+    const el = base.elencos[ci], n = Math.min(9, Math.max(18 - el.length, ehHumano(s, ci) || el.length < 22 ? 3 : el.length < 28 ? 2 : 1));
     const conta = {}; for (const j of el) conta[j.pos] = (conta[j.pos] || 0) + 1;
     const usados = new Set(el.map(j => j.num)), f = base.forca(ci);
     for (let k = 0; k < n; k++) {
@@ -65,18 +66,22 @@ function elencoDeAcesso(base, s, ci, r) {
 }
 
 // ---------- virada ----------
+// O mundo vira uma vez (gala, acesso e queda, empréstimos, pré-contratos, contratos, idade, base, competições novas);
+// cada técnico fecha o ano dele (meta, fair play, histórico, quem chega e quem sai, cartas da temporada nova).
 export function virarTemporada(base, s) {
   if (!fimDeTemporada(s)) return null;
-  garantirMercado(s); garantirFinancas(base, s);
-  const ci = s.tecnico.clube, div = base.clubes[ci].div, nome = c => base.clubes[c].n, N = [];
-  const add = (texto, tipo = 'clube') => N.push({ rodada: 0, tipo, div: base.clubes[ci].div, texto });
+  garantirMercado(s);
+  const hs = humanos(s), nome = c => base.clubes[c].n, N = [];
+  for (const [, sv] of hs) { garantirMercado(sv); garantirFinancas(base, sv); }
+  const addW = (texto, tipo = 'clube', div = base.clubes[s.tecnico.clube]?.div ?? 'A') => N.push({ rodada: 0, tipo, div, texto });
+  const addDo = ci => (texto, tipo = 'clube') => N.push({ rodada: 0, tipo, div: base.clubes[ci].div, clube: ci, texto });
   const tabs = Object.fromEntries(DIVS.map(d => [d, tabela(base, s, d)])), AQ = acessoEQueda(base, s);
-  const pos = AQ.cl[div].indexOf(ci) + 1, meta = metaDiretoria(base, s);
+  const eles = hs.map(([ci, sv]) => { const div = base.clubes[ci].div; return { ci, sv, div, add: addDo(ci), pos: AQ.cl[div].indexOf(ci) + 1, meta: metaDiretoria(base, sv) }; });
   // fair play financeiro fecha o ano (custo do elenco, dívida de curto prazo e equilíbrio de três anos)
   s.puni = {}; // pontos perdidos valem só na temporada da punição (a tabela deste ano já foi fechada acima)
-  const fpN = fecharFPF(base, s);
+  for (const x of eles) x.fpN = fecharFPF(base, x.sv);
   const premiacao = arquivarGala(base, s, gala(base, s)); // antes de acesso, transferências e da estatística zerada
-  const revisao = revisarPotencial(base, s), meusPot = revisao.filter(([j]) => j.clube === ci);
+  const revisao = revisarPotencial(base, s);
   // histórico de cada jogador no jogo: [ano, clube, jogos, gols, assistências, nota média × 10]
   s.histJog ||= {};
   for (const [id, e] of Object.entries(s.est || {})) { const j = base.jog.get(+id); if (j && e[0]) (s.histJog[id] ||= []).push([s.ano, j.clube, e[0], e[1], e[2], Math.round(e[3] / e[0])]); }
@@ -84,18 +89,21 @@ export function virarTemporada(base, s) {
   const { sobe, cai } = AQ;
   // Série D: os 2 últimos da C saem do jogo (viram clube de estadual) e sobem os 2 clubes de estadual mais fortes
   const doD = base.clubes.map((c, i) => i).filter(i => base.clubes[i].div === 'R').sort((a, b) => (base.clubes[b].lvl || 0) - (base.clubes[a].lvl || 0) || a - b).slice(0, cai.C.length);
-  s.historico ||= [];
-  s.historico.unshift({
-    ano: s.ano, clube: ci, div, pos, pts: tabs[div].find(l => l.clube === ci)?.p ?? 0, meta: meta.txt, bateuMeta: pos <= meta.pos,
+  const doAno = {
     campeoes: { A: tabs.A[0].clube, B: tabs.B[0].clube, C: s.f2?.C?.campeao ?? AQ.cl.C[0] }, art: Object.fromEntries(DIVS.map(d => [d, artilheiro(d)])),
-    copa: s.copa ? { campeao: s.copa.campeao, vice: s.copa.vice, meu: campanha(s, ci) } : null,
-    cont: s.cont ? { LIB: s.cont.LIB.campeao, SUL: s.cont.SUL.campeao, sup: s.cont.sup.jogo?.campeao ?? null, meu: ['LIB', 'SUL'].map(k => campanhaCont(s, k, ci) && `${k === 'LIB' ? 'Libertadores' : 'Sul-Americana'}: ${campanhaCont(s, k, ci).toLowerCase()}`).find(Boolean) || null } : null,
-    reg: s.reg?.v === 2 && s.reg.ano === s.ano && !s.reg.pulado ? { campeoes: Object.fromEntries(Object.keys(REGIONAIS).map(k => [k, s.reg[k].campeao])), titulos: Object.values(s.reg).flatMap(T => Object.entries(T?.titulos || {})), meu: regsDe(s, ci).map(k => `${REGIONAIS[k].nome}: ${campanhaReg(s, k, ci).toLowerCase()}`) } : null,
     sobem: { A: sobe.B, B: sobe.C, C: doD }, caem: { B: cai.A, C: cai.B, D: cai.C }, repasses: s.repasses || [],
-  });
-  const f = s.fin;
-  f.diretoria = clamp(f.diretoria + (pos <= meta.pos ? 10 : -12) + (s.copa?.campeao === ci ? 8 : 0), 0, 100);
-  add(pos <= meta.pos ? `A diretoria comemora: meta da temporada cumprida (${meta.txt}).` : `A diretoria cobra: a meta era ${meta.txt} e o time terminou em ${pos}º.`);
+  };
+  for (const { ci, sv, div, pos, meta, add } of eles) {
+    (sv.historico ||= []).unshift({
+      ano: s.ano, clube: ci, div, pos, pts: tabs[div].find(l => l.clube === ci)?.p ?? 0, meta: meta.txt, bateuMeta: pos <= meta.pos, campeoes: doAno.campeoes, art: doAno.art,
+      copa: s.copa ? { campeao: s.copa.campeao, vice: s.copa.vice, meu: campanha(s, ci) } : null,
+      cont: s.cont ? { LIB: s.cont.LIB.campeao, SUL: s.cont.SUL.campeao, sup: s.cont.sup.jogo?.campeao ?? null, meu: ['LIB', 'SUL'].map(k => campanhaCont(s, k, ci) && `${k === 'LIB' ? 'Libertadores' : 'Sul-Americana'}: ${campanhaCont(s, k, ci).toLowerCase()}`).find(Boolean) || null } : null,
+      reg: s.reg?.v === 2 && s.reg.ano === s.ano && !s.reg.pulado ? { campeoes: Object.fromEntries(Object.keys(REGIONAIS).map(k => [k, s.reg[k].campeao])), titulos: Object.values(s.reg).flatMap(T => Object.entries(T?.titulos || {})), meu: regsDe(s, ci).map(k => `${REGIONAIS[k].nome}: ${campanhaReg(s, k, ci).toLowerCase()}`) } : null,
+      sobem: doAno.sobem, caem: doAno.caem, repasses: doAno.repasses,
+    });
+    sv.fin.diretoria = clamp(sv.fin.diretoria + (pos <= meta.pos ? 10 : -12) + (s.copa?.campeao === ci ? 8 : 0), 0, 100);
+    add(pos <= meta.pos ? `A diretoria comemora: meta da temporada cumprida (${meta.txt}).` : `A diretoria cobra: a meta era ${meta.txt} e o time terminou em ${pos}º.`);
+  }
 
   // vagas da próxima temporada: tabela final da Série A, campeão e vice da Copa do Brasil e campeões continentais
   // (quem já está classificado repassa a vaga ao próximo da tabela: continental.js vagasBR)
@@ -103,89 +111,97 @@ export function virarTemporada(base, s) {
   // acesso e rebaixamento
   s.divs ||= {};
   for (const [lista, d] of [[cai.A, 'B'], [sobe.B, 'A'], [cai.B, 'C'], [sobe.C, 'B'], [cai.C, 'R'], [doD, 'C']]) for (const c of lista) { if (base.clubes[c].divOrig === d) delete s.divs[c]; else s.divs[c] = d; }
-  if (sobe.B.includes(ci) || sobe.C.includes(ci)) add(`ACESSO! O ${nome(ci)} vai disputar a Série ${sobe.B.includes(ci) ? 'A' : 'B'} em ${s.ano + 1}.`, 'destaque');
-  if (cai.A.includes(ci) || cai.B.includes(ci)) add(`Rebaixado. O ${nome(ci)} cai para a Série ${cai.A.includes(ci) ? 'B' : 'C'}.`, 'crise');
-  const caiuParaD = cai.C.includes(ci);
+  for (const { ci, add } of eles) {
+    if (sobe.B.includes(ci) || sobe.C.includes(ci)) add(`ACESSO! O ${nome(ci)} vai disputar a Série ${sobe.B.includes(ci) ? 'A' : 'B'} em ${s.ano + 1}.`, 'destaque');
+    if (cai.A.includes(ci) || cai.B.includes(ci)) add(`Rebaixado. O ${nome(ci)} cai para a Série ${cai.A.includes(ci) ? 'B' : 'C'}.`, 'crise');
+  }
+  const addDe = ci => (eles.find(x => x.ci === ci)?.add) || addW;
 
   // empréstimos voltam (antes, as cláusulas de fim de temporada) e pré-contratos se cumprem
-  fimDosEmprestimos(base, s, [...cai.A, ...cai.B], t => add(t));
+  fimDosEmprestimos(base, s, [...cai.A, ...cai.B], (t, ci) => addDe(ci)(t));
   for (const [id, e] of Object.entries(s.emprestimos)) {
     const j = base.jog.get(+id); if (!j) continue;
     if (e.de === j.clubeOrig) delete s.transf[id]; else s.transf[id] = e.de;
-    if (e.para === ci) delete s.salarios[id];
-    if (e.de === ci) add(`${j.curto} volta de empréstimo do ${nome(e.para)}.`);
+    if (ehHumano(s, e.para)) delete s.salarios[id];
+    if (ehHumano(s, e.de)) addDe(e.de)(`${j.curto} volta de empréstimo do ${nome(e.para)}.`);
   }
   s.emprestimos = {};
   for (const p of s.preContratos) {
     const j = base.jog.get(p.jogador); if (!j) continue;
     s.transf[j.id] = p.para; s.contratos[j.id] = s.ano + (p.anos || 3); (s.chegou ||= {})[j.id] = (s.ano + 1) * 40;
-    if (p.para === ci) { s.salarios[j.id] = p.salario; add(`Chegou: ${j.curto}, do pré-contrato com o ${nome(p.de)}.`); } else delete s.salarios[j.id];
-    s.historicoTransf.unshift({ rodada: 37, jogador: j.id, nome: j.curto, de: p.de, para: p.para, valor: 0, tipo: 'pre', ia: p.para !== ci && p.de !== ci });
+    if (ehHumano(s, p.para)) { s.salarios[j.id] = p.salario; addDe(p.para)(`Chegou: ${j.curto}, do pré-contrato com o ${nome(p.de)}.`); } else delete s.salarios[j.id];
+    s.historicoTransf.unshift({ rodada: 37, jogador: j.id, nome: j.curto, de: p.de, para: p.para, valor: 0, tipo: 'pre', ia: !ehHumano(s, p.para) && !ehHumano(s, p.de) });
   }
-  if (s.acordos?.length) cumprirAcordos(base, s, t => add(t));
+  for (const { sv, add } of eles) if (sv.acordos?.length) cumprirAcordos(base, sv, t => add(t));
   // clubes da IA: quem não renovou (sem nível ou quis sair) fica livre
   const livresIA = base.clubes.findIndex(c => c.div === 'L');
   for (const [id, x] of Object.entries(s.renovIA || {})) {
     if (x.ano !== s.ano || !['sai', 'dispensa'].includes(x.d)) continue;
-    const j = base.jog.get(+id); if (!j || j.clube === ci || base.clubes[j.clube].div === 'L' || j.contrato > s.ano || s.preContratos.some(p => p.jogador === j.id)) continue;
+    const j = base.jog.get(+id); if (!j || ehHumano(s, j.clube) || base.clubes[j.clube].div === 'L' || j.contrato > s.ano || s.preContratos.some(p => p.jogador === j.id)) continue;
     s.transf[j.id] = livresIA; delete s.contratos[j.id];
-    if (j.ovr >= 74) add(`${j.curto} deixa o ${nome(j.clube)} sem renovar e está no mercado como jogador livre.`, 'mercado');
+    if (j.ovr >= 74) addW(`${j.curto} deixa o ${nome(j.clube)} sem renovar e está no mercado como jogador livre.`, 'mercado');
   }
   aplicarSave(base, s);
   // contrato acabou e não renovou: vira jogador livre
   const livres = base.clubes.findIndex(c => c.div === 'L');
-  for (const j of base.elencos[ci].slice()) if (j.contrato <= s.ano) {
+  for (const { ci, add } of eles) for (const j of base.elencos[ci].slice()) if (j.contrato <= s.ano) {
     s.transf[j.id] = livres; delete s.salarios[j.id]; delete s.contratos[j.id];
     s.historicoTransf.unshift({ rodada: 37, jogador: j.id, nome: j.curto, de: ci, para: livres, valor: 0, tipo: 'fim' });
     add(`${j.curto} terminou o contrato e deixou o clube.`);
   }
 
   // ano novo: todo mundo um ano mais velho, uns evoluem, outros penduram as chuteiras
-  const antes = new Map(base.elencos[ci].map(j => [j.id, j.ovr])), craques = [...base.jog.values()].filter(j => j.ovr >= 80 && !j.fora).map(j => j.id);
+  for (const x of eles) x.antes = new Map(base.elencos[x.ci].map(j => [j.id, j.ovr]));
+  const craques = [...base.jog.values()].filter(j => j.ovr >= 80 && !j.fora).map(j => j.id);
   s.ano++;
   aplicarSave(base, s);
-  for (const [id, o] of antes) { const j = base.jog.get(id); if (j.fora) add(`${j.curto} se aposentou aos ${j.idade} anos.`); else if (j.ovr >= o + 4) add(`${j.curto} evoluiu na pré-temporada: agora tem ${j.ovr} de overall.`); }
-  for (const id of craques) { const j = base.jog.get(id); if (j.fora && !antes.has(id)) add(`${j.curto} anuncia a aposentadoria.`, 'destaque'); }
+  for (const { antes, add } of eles) for (const [id, o] of antes) { const j = base.jog.get(id); if (j.fora) add(`${j.curto} se aposentou aos ${j.idade} anos.`); else if (j.ovr >= o + 4) add(`${j.curto} evoluiu na pré-temporada: agora tem ${j.ovr} de overall.`); }
+  for (const id of craques) { const j = base.jog.get(id); if (j.fora && !eles.some(x => x.antes.has(id))) addW(`${j.curto} anuncia a aposentadoria.`, 'destaque'); }
   const jovens = gerarJovens(base, s, rng(`base${s.seed}-${s.ano}`));
   // quem sobe da Série D chega com elenco montado (no jogo eles só tinham o time gerado dos estaduais)
   const doDRows = doD.flatMap(c => elencoDeAcesso(base, s, c, rng(`acesso${s.seed}-${s.ano}-${c}`)));
   s.jovens = [...(s.jovens || []), ...jovens, ...doDRows];
   aplicarSave(base, s);
-  const meus = jovens.filter(r => r[3] === ci);
-  if (meus.length) add(`Subiram da base: ${meus.map(r => `${r[2]} (${r[4]}, ${r[5]} anos)`).join(', ')}.`);
+  for (const { ci, add } of eles) { const meus = jovens.filter(r => r[3] === ci); if (meus.length) add(`Subiram da base: ${meus.map(r => `${r[2]} (${r[4]}, ${r[5]} anos)`).join(', ')}.`); }
 
   // clubes da IA fecham o ano: o orçamento novo é 70% o do tamanho do clube e 30% o que sobrou, entre 0,3x e 2x o normal
   for (const [c, v] of Object.entries(s.caixaIA || {})) { const ini = caixaInicial(base, +c); s.caixaIA[c] = Math.round(clamp(0.7 * ini + 0.3 * v, 0.3 * ini, 2 * ini)); }
   // temporada zerada
   viradaDM(base, s);
-  s.forma = {}; s.afast = {}; s.julgamentos = [];
+  s.forma = {}; s.afast = {};
   for (const id in s.trato || {}) s.trato[id] = Math.trunc(s.trato[id] / 2); // a mágoa diminui com o tempo
-  Object.assign(s, { rodada: 0, feitas: { ano: s.ano, B: 0, C: 0 }, f2: {}, res: { A: {}, B: {}, C: {} }, cart: {}, est: {}, ultima: null, lider: {}, rumores: {}, destaques: {}, ultimaData: null, recuperado: null, cond: {}, mor: {}, semJogar: {}, xi: null, banco: null, recebidas: [], preContratos: [], querSair: {}, quedaIA: {}, jogosA: {}, passagens: {} });
-  for (const t of pedidosDeQueda(base, s, [...cai.A, ...cai.B])) add(t, 'mercado'); // os melhores de quem caiu pedem para sair
+  Object.assign(s, { rodada: 0, feitas: { ano: s.ano, B: 0, C: 0 }, f2: {}, res: { A: {}, B: {}, C: {} }, cart: {}, est: {}, lider: {}, rumores: {}, destaques: {}, ultimaData: null, recuperado: null, cond: {}, mor: {}, semJogar: {}, preContratos: [], querSair: {}, quedaIA: {}, jogosA: {}, passagens: {} });
+  for (const [, sv] of hs) Object.assign(sv, { ultima: null, ultimaVivo: null, xi: null, banco: null, recebidas: [], julgamentos: [] });
+  for (const t of pedidosDeQueda(base, s, [...cai.A, ...cai.B])) addW(t, 'mercado'); // os melhores de quem caiu pedem para sair
   delete s._cal;
-  s.propostas = s.propostas.filter(p => !['aguardando', 'contraproposta'].includes(p.estado)).slice(0, 30);
-  s.listas = { venda: s.listas.venda.filter(id => base.jog.get(id)?.clube === ci), emprestimo: s.listas.emprestimo.filter(id => base.jog.get(id)?.clube === ci) };
-  if (f.socorro) { lancar(s, 'socorro', 'Desconto dos adiantamentos da TV', -cotaTV(base.clubes[ci]) / 8 * f.socorro, 0); f.socorro = 0; }
-  Object.assign(f, { temporada: { ano: s.ano, compras: 0, vendas: 0, folha0: folhaDia(base, s) }, tvPagas: [], ultimaVerba: -99, verbasRecentes: [], atraso: 0, salarioBudget: null });
+  for (const { ci, sv } of eles) {
+    const f = sv.fin;
+    sv.propostas = sv.propostas.filter(p => !['aguardando', 'contraproposta'].includes(p.estado)).slice(0, 30);
+    sv.listas = { venda: sv.listas.venda.filter(id => base.jog.get(id)?.clube === ci), emprestimo: sv.listas.emprestimo.filter(id => base.jog.get(id)?.clube === ci) };
+    if (f.socorro) { lancar(sv, 'socorro', 'Desconto dos adiantamentos da TV', -cotaTV(base.clubes[ci]) / 8 * f.socorro, 0); f.socorro = 0; }
+    Object.assign(f, { temporada: { ano: s.ano, compras: 0, vendas: 0, folha0: folhaDia(base, sv) }, tvPagas: [], ultimaVerba: -99, verbasRecentes: [], atraso: 0, salarioBudget: null });
+  }
   novaCopa(base, s);
   novaCont(base, s);
   novaReg(base, s);
   moralDosPremiados(base, s);
-  for (const t of fpN) add(t, 'crise');
-  if (meusPot.length) {
-    const linha = ([j, d]) => `${j.curto} ${d > 0 ? 'sobe' : 'cai'} ${Math.abs(d)} (agora ${'★'.repeat(estrelas(j.pot))}${'☆'.repeat(5 - estrelas(j.pot))})`;
-    const sobe = meusPot.filter(x => x[1] > 0), cai = meusPot.filter(x => x[1] < 0);
-    enviar(s, 'olheiro', `pot-${s.ano}`, 'Revisão de potencial', `Fechei a revisão depois da temporada. ${sobe.length ? `Em alta: ${sobe.map(linha).join(', ')}.` : ''} ${cai.length ? `Em baixa: ${cai.map(linha).join(', ')}.` : ''} Quem joga bem cresce mais; quem não rende, trava.`.replace(/\s+/g, ' ').trim(), { link: '#/elenco' });
-    add(`Revisão de potencial no ${nome(ci)}: ${sobe.length} em alta, ${cai.length} em baixa.`);
+  for (const { ci, sv, fpN, add } of eles) {
+    for (const t of fpN) add(t, 'crise');
+    const meusPot = revisao.filter(([j]) => j.clube === ci);
+    if (meusPot.length) {
+      const linha = ([j, d]) => `${j.curto} ${d > 0 ? 'sobe' : 'cai'} ${Math.abs(d)} (agora ${'★'.repeat(estrelas(j.pot))}${'☆'.repeat(5 - estrelas(j.pot))})`;
+      const sobe = meusPot.filter(x => x[1] > 0), cai = meusPot.filter(x => x[1] < 0);
+      enviar(sv, 'olheiro', `pot-${s.ano}`, 'Revisão de potencial', `Fechei a revisão depois da temporada. ${sobe.length ? `Em alta: ${sobe.map(linha).join(', ')}.` : ''} ${cai.length ? `Em baixa: ${cai.map(linha).join(', ')}.` : ''} Quem joga bem cresce mais; quem não rende, trava.`.replace(/\s+/g, ' ').trim(), { link: '#/elenco' });
+      add(`Revisão de potencial no ${nome(ci)}: ${sobe.length} em alta, ${cai.length} em baixa.`);
+    }
   }
-  const joias = revisao.filter(([j, d]) => d >= 3 && j.idade <= 21 && j.clube !== ci).sort((a, b) => b[0].pot - a[0].pot).slice(0, 2);
-  for (const [j] of joias) add(`Joia em alta: ${j.curto} (${nome(j.clube)}) fez grande temporada e virou alvo dos grandes.`, 'destaque');
+  const joias = revisao.filter(([j, d]) => d >= 3 && j.idade <= 21 && !ehHumano(s, j.clube)).sort((a, b) => b[0].pot - a[0].pot).slice(0, 2);
+  for (const [j] of joias) addW(`Joia em alta: ${j.curto} (${nome(j.clube)}) fez grande temporada e virou alvo dos grandes.`, 'destaque');
   for (const n of premiacao) N.push({ rodada: 0, ...n });
-  const h = s.historico[0];
-  add(`Começa a temporada ${s.ano}. Sobem para a Série A: ${h.sobem.A.map(nome).join(', ')}. Caem para a B: ${h.caem.B.map(nome).join(', ')}.`, 'resultado');
-  for (const r of s.repasses || []) add(`Vaga repassada: o ${nome(r.de)} já estava na Libertadores pela tabela e a vaga de ${r.por} ficou com o ${nome(r.clube)} (${r.pos}º da Série A).`, 'resultado');
-  if (caiuParaD) saidaPorQueda(base, s);
-  cartasDeInicio(base, s);
+  addW(`Começa a temporada ${s.ano}. Sobem para a Série A: ${doAno.sobem.A.map(nome).join(', ')}. Caem para a B: ${doAno.caem.B.map(nome).join(', ')}.`, 'resultado');
+  for (const r of s.repasses || []) addW(`Vaga repassada: o ${nome(r.de)} já estava na Libertadores pela tabela e a vaga de ${r.por} ficou com o ${nome(r.clube)} (${r.pos}º da Série A).`, 'resultado');
+  for (const { ci, sv } of eles) if (cai.C.includes(ci)) saidaPorQueda(base, sv);
+  for (const { sv } of eles) cartasDeInicio(base, sv);
   s.noticias = [...N, ...s.noticias].slice(0, 220);
-  return h;
+  return eles[0]?.sv.historico[0] ?? doAno;
 }

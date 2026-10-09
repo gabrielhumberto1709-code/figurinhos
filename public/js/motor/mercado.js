@@ -16,6 +16,7 @@ import { orcamento, lancar, garantirFinancas, salarioDia, salarioBase, diasResta
 import { naSelecao } from './selecao.js';
 import { enviar } from './correio.js';
 import { abrirLeilaoCompra, encerrarPendente } from './leilao.js';
+import { humanos, ehHumano, vistaDo, sufixo } from './humanos.js';
 
 const arred = v => Math.max(50000, Math.round(v / 10000) * 10000);
 const arredSal = v => Math.max(10, Math.round(v / 10) * 10);
@@ -48,9 +49,9 @@ const emAcordo = (s, id) => s.acordos?.some(a => a.jogador === id || a.troca ===
 export function listasIA(base, s) {
   const k = `${s.seed}-${s.ano}-${base._versao}`;
   if (base._listas?.k === k) return base._listas;
-  const venda = new Set(), emprestimo = new Set(), meu = s.tecnico.clube;
+  const venda = new Set(), emprestimo = new Set();
   base.clubes.forEach((c, ci) => {
-    if (ci === meu || c.div === 'L') return;
+    if (ehHumano(s, ci) || c.div === 'L') return;
     const grande = c.div === 'A' || (c.div === 'X' && c.tier >= 3);
     const f = base.forca(ci);
     base.elencos[ci].slice().sort((a, b) => b.ovr - a.ovr).forEach((j, rank) => {
@@ -68,11 +69,11 @@ export const contratoNoFim = (s, j) => j.contrato <= s.ano;
 export const vaiAposentar = (s, j) => !j.fora && j.idade >= 33 && evolucao(j, s.ano + 1 - j.anoBase).fora;
 export const preContratoDe = (s, id) => s.preContratos.find(p => p.jogador === id);
 export function situacao(base, s, j) {
-  const L = listasIA(base, s), meu = j.clube === s.tecnico.clube, t = [];
+  const L = listasIA(base, s), dono = vistaDo(s, j.clube), t = [];
   if (ehLivre(base, j.clube)) return ['livre'];
   if (s.emprestimos[j.id]) t.push('emprestado');
-  if (meu ? s.listas.venda.includes(j.id) : L.venda.has(j.id)) t.push('venda');
-  if (meu ? s.listas.emprestimo.includes(j.id) : L.emprestimo.has(j.id)) t.push('emprestimo');
+  if (dono ? dono.listas?.venda.includes(j.id) : L.venda.has(j.id)) t.push('venda');
+  if (dono ? dono.listas?.emprestimo.includes(j.id) : L.emprestimo.has(j.id)) t.push('emprestimo');
   if (contratoNoFim(s, j)) t.push('fim');
   if (preContratoDe(s, j.id)) t.push('pre');
   if (s.rodada >= ABRE_PRE && vaiAposentar(s, j)) t.push('aposenta');
@@ -115,7 +116,8 @@ export function acompanharPromessas(base, s, sim, t) {
   const ci = s.tecnico.clube, entrou = new Set(sim.eventos.filter(e => e.tipo === 'sub' && e.time === t).map(e => e.jogador)), nome = base.clubes[ci].n;
   for (const [id, p] of Object.entries(P)) {
     const j = base.jog.get(+id);
-    if (!j || j.clube !== ci) { delete P[id]; continue; }
+    if (!j || !ehHumano(s, j.clube)) { delete P[id]; continue; }
+    if (j.clube !== ci) continue;                                          // promessa de outro técnico
     const jogou = sim.notas[t][id] != null, titular = jogou && !entrou.has(+id);
     const fora = (s.dm?.[id] && !s.dm[id].inf) || Object.values(s.susp?.[id] || {}).some(n => n > 0) || s.afast?.[id]?.n > 0 || naSelecao(s, +id);
     if (!jogou && fora) continue;                                        // lesionado, suspenso ou convocado: o jogo não conta
@@ -177,11 +179,11 @@ export function salarioPedido(base, s, j, anos = 3, destino = s.tecnico.clube, p
 export function folgaPara(base, s, j) { return orcamento(base, s).folga + (j.clube === s.tecnico.clube ? salarioDia(base, s, j) : 0); }
 
 // caixa de verdade dos clubes da IA: começa no caixa inicial, mexe a cada compra e venda e se refaz em parte na virada
-export const caixaDe = (base, s, ci) => ci === s.tecnico.clube ? s.caixa : s.caixaIA?.[ci] ?? caixaInicial(base, ci);
+export const caixaDe = (base, s, ci) => { const v = vistaDo(s, ci); return v ? v.caixa : s.caixaIA?.[ci] ?? caixaInicial(base, ci); };
 // dinheiro que entra num clube da IA: só 40% fica para contratar (o resto vai para folha, dívida e impostos, como
 // nos clubes de verdade); o que sai, sai inteiro
 export function mexerCaixa(base, s, ci, v) {
-  if (ci == null || ci === s.tecnico.clube || base.clubes[ci].div === 'L' || !v) return;
+  if (ci == null || ehHumano(s, ci) || base.clubes[ci].div === 'L' || !v) return; // técnico: o dinheiro entra pelo extrato
   (s.caixaIA ||= {})[ci] = Math.round(caixaDe(base, s, ci) + (v > 0 ? v * 0.4 : v));
 }
 
@@ -304,70 +306,71 @@ export function resumoCl(cl, jogou = null) {
 export const jogosNoEmprestimo = (s, id) => { const e = s.emprestimos[id]; return e ? (s.est?.[id]?.[0] || 0) - (e.jogos0 || 0) : 0; };
 // compra definitiva de quem está emprestado (opção exercida ou obrigação cumprida), nos dois sentidos
 function efetivar(base, s, j, e, valor, txt) {
-  const meu = s.tecnico.clube;
+  const vp = vistaDo(s, e.para), vd = vistaDo(s, e.de);
   delete s.emprestimos[j.id];
   s.contratos[j.id] = s.ano + 3;
-  if (e.para === meu) {
+  if (vp) {
     s.salarios[j.id] = e.cheio || s.salarios[j.id];
-    lancar(s, 'compra', `${txt}: ${j.curto} (${base.clubes[e.de].n})`, -valor); s.fin.temporada.compras += valor;
+    lancar(vp, 'compra', `${txt}: ${j.curto} (${base.clubes[e.de].n})`, -valor); vp.fin.temporada.compras += valor;
     if (e.revenda) (s.revenda ||= {})[j.id] = { clube: e.de, pct: e.revenda };
-  } else if (e.de === meu) {
-    delete s.salarios[j.id];
-    lancar(s, 'venda', `${txt}: ${j.curto} (${base.clubes[e.para].n})`, valor); s.fin.temporada.vendas += valor;
-  }
+  } else delete s.salarios[j.id];
+  if (vd) { lancar(vd, 'venda', `${txt}: ${j.curto} (${base.clubes[e.para].n})`, valor); vd.fin.temporada.vendas += valor; }
   mexerCaixa(base, s, e.para, -valor); mexerCaixa(base, s, e.de, valor);
   aplicarSave(base, s);
   s.historicoTransf.unshift({ rodada: s.rodada, jogador: j.id, nome: j.curto, de: e.de, para: e.para, valor, tipo: 'compra' });
 }
 // fim da temporada: multa de minutagem, obrigações por permanência/fim e a IA decidindo a opção pelo que ele jogou
 export function fimDosEmprestimos(base, s, caem, add) {
-  const meu = s.tecnico.clube, nome = c => base.clubes[c].n;
+  const nome = c => base.clubes[c].n;
   for (const [id, e] of Object.entries(s.emprestimos)) {
-    const j = base.jog.get(+id); if (!j || (e.para !== meu && e.de !== meu)) continue;
+    const j = base.jog.get(+id), vp = vistaDo(s, e.para), vd = vistaDo(s, e.de); if (!j || (!vp && !vd)) continue;
     const jogou = jogosNoEmprestimo(s, id);
     if (e.minimo && jogou < e.minimo) {
       const v = arred(j.valor * 1000 * 0.1);
-      lancar(s, 'minutagem', `Multa de minutagem: ${j.curto}`, e.para === meu ? -v : v);
-      add(`Multa de minutagem: ${j.curto} jogou ${jogou} dos ${e.minimo} jogos combinados e o ${nome(e.para)} paga ${fmt(v)} ao ${nome(e.de)}.`);
+      if (vp) lancar(vp, 'minutagem', `Multa de minutagem: ${j.curto}`, -v);
+      if (vd) lancar(vd, 'minutagem', `Multa de minutagem: ${j.curto}`, v);
+      add(`Multa de minutagem: ${j.curto} jogou ${jogou} dos ${e.minimo} jogos combinados e o ${nome(e.para)} paga ${fmt(v)} ao ${nome(e.de)}.`, vp ? e.para : e.de);
     }
     const ob = e.obrig;
-    if (ob && (ob.gatilho === 'fim' || (ob.gatilho === 'permanencia' && !caem.includes(e.para)))) { efetivar(base, s, j, e, ob.valor, 'Obrigação de compra'); add(`Obrigação de compra: ${j.curto} fica em definitivo no ${nome(e.para)} por ${fmt(ob.valor)}.`); continue; }
-    if (e.de === meu && e.opcao && jogou >= 8 && media(s.est?.[id]) >= 6.6) { efetivar(base, s, j, e, e.opcao, 'Opção de compra'); add(`O ${nome(e.para)} exerce a opção e compra ${j.curto} por ${fmt(e.opcao)}.`); }
+    if (ob && (ob.gatilho === 'fim' || (ob.gatilho === 'permanencia' && !caem.includes(e.para)))) { efetivar(base, s, j, e, ob.valor, 'Obrigação de compra'); add(`Obrigação de compra: ${j.curto} fica em definitivo no ${nome(e.para)} por ${fmt(ob.valor)}.`, vp ? e.para : e.de); continue; }
+    if (vd && !vp && e.opcao && jogou >= 8 && media(s.est?.[id]) >= 6.6) { efetivar(base, s, j, e, e.opcao, 'Opção de compra'); add(`O ${nome(e.para)} exerce a opção e compra ${j.curto} por ${fmt(e.opcao)}.`, e.de); }
   }
 }
 export function desistir(s, id) { const p = s.propostas.find(x => x.id === id); if (p) p.estado = 'cancelada'; }
 
 // ---------- movimentos ----------
 const tirarDasListas = (s, id) => { s.listas.venda = s.listas.venda.filter(x => x !== id); s.listas.emprestimo = s.listas.emprestimo.filter(x => x !== id); };
+// quem compra e quem vende pode ser técnico (o dinheiro vai pelo extrato dele) ou IA (caixa da IA)
 export function transferir(base, s, j, para, valor, { salario, anos } = {}) {
-  const de = j.clube, meu = s.tecnico.clube;
+  const de = j.clube, vp = vistaDo(s, para), vd = vistaDo(s, de);
   s.transf[j.id] = para; marcarChegada(s, j.id);
-  if (para === meu) { if (salario) s.salarios[j.id] = salario; s.contratos[j.id] = s.ano + (anos || 3); }
+  if (vp) { if (salario) s.salarios[j.id] = salario; s.contratos[j.id] = s.ano + (anos || 3); }
   else { delete s.salarios[j.id]; s.contratos[j.id] = s.ano + (anos || 3); }
-  tirarDasListas(s, j.id);
+  if (vd) tirarDasListas(vd, j.id);
   aplicarSave(base, s);
-  garantirFinancas(base, s);
-  if (para === meu && valor) { lancar(s, 'compra', `Compra de ${j.curto} (${base.clubes[de].n})`, -valor); s.fin.temporada.compras += valor; }
-  if (de === meu && valor) { lancar(s, 'venda', `Venda de ${j.curto} (${base.clubes[para].n})`, valor); s.fin.temporada.vendas += valor; }
+  for (const v of [vp, vd]) if (v) garantirFinancas(base, v);
+  if (vp && valor) { lancar(vp, 'compra', `Compra de ${j.curto} (${base.clubes[de].n})`, -valor); vp.fin.temporada.compras += valor; }
+  if (vd && valor) { lancar(vd, 'venda', `Venda de ${j.curto} (${base.clubes[para].n})`, valor); vd.fin.temporada.vendas += valor; }
   mexerCaixa(base, s, para, -valor); mexerCaixa(base, s, de, valor);
-  const rv = de === meu && valor && s.revenda?.[j.id];
-  if (rv) { lancar(s, 'revenda', `Revenda: ${rv.pct}% da venda de ${j.curto} ao ${base.clubes[rv.clube].n}`, -Math.round(valor * rv.pct / 100)); delete s.revenda[j.id]; }
-  if (s.xi && (para === meu || de === meu)) s.xi = null; // escalação manual refeita com o elenco novo
+  const rv = vd && valor && s.revenda?.[j.id];
+  if (rv) { lancar(vd, 'revenda', `Revenda: ${rv.pct}% da venda de ${j.curto} ao ${base.clubes[rv.clube].n}`, -Math.round(valor * rv.pct / 100)); delete s.revenda[j.id]; }
+  for (const v of [vp, vd]) if (v?.xi) v.xi = null; // escalação manual refeita com o elenco novo
   s.historicoTransf.unshift({ rodada: s.rodada, jogador: j.id, nome: j.curto, de, para, valor, tipo: ehLivre(base, de) ? 'livre' : 'compra' });
 }
 // empréstimo até o fim da temporada; o salário continua o mesmo e quem está com ele paga
 export function emprestar(base, s, j, para, cl = null) {
-  const de = j.clube, meu = s.tecnico.clube, cheio = salarioDia(base, s, j);
-  if (para === meu) s.salarios[j.id] = Math.round(cheio * (cl?.pct ?? 100) / 100);
+  const de = j.clube, vp = vistaDo(s, para), vd = vistaDo(s, de), cheio = salarioDia(base, s, j);
+  if (vp) s.salarios[j.id] = Math.round(cheio * (cl?.pct ?? 100) / 100);
   s.emprestimos[j.id] = { de, para, ate: s.ano, cheio, jogos0: s.est?.[j.id]?.[0] || 0, ...(cl ? { taxa: cl.taxa, pct: cl.pct, minimo: cl.minimo, medo: cl.medo, revenda: cl.revenda } : {}) };
   if (cl?.compra === 'opcao') s.emprestimos[j.id].opcao = cl.valorCompra;
   if (cl?.compra === 'obrigacao') s.emprestimos[j.id].obrig = { valor: cl.valorCompra, gatilho: cl.gatilho, jogos: cl.jogos };
-  if (cl?.taxa && (para === meu || de === meu)) lancar(s, 'emprestimo', `Taxa de empréstimo de ${j.curto} (${base.clubes[para === meu ? de : para].n})`, para === meu ? -cl.taxa : cl.taxa);
+  if (cl?.taxa && vp) lancar(vp, 'emprestimo', `Taxa de empréstimo de ${j.curto} (${base.clubes[de].n})`, -cl.taxa);
+  if (cl?.taxa && vd) lancar(vd, 'emprestimo', `Taxa de empréstimo de ${j.curto} (${base.clubes[para].n})`, cl.taxa);
   if (cl?.taxa) { mexerCaixa(base, s, para, -cl.taxa); mexerCaixa(base, s, de, cl.taxa); }
   s.transf[j.id] = para; marcarChegada(s, j.id);
-  tirarDasListas(s, j.id);
+  if (vd) tirarDasListas(vd, j.id);
   aplicarSave(base, s);
-  if (s.xi) s.xi = null;
+  for (const v of [vp, vd]) if (v?.xi) v.xi = null;
   s.historicoTransf.unshift({ rodada: s.rodada, jogador: j.id, nome: j.curto, de, para, valor: 0, tipo: 'emprestimo' });
 }
 
@@ -383,10 +386,47 @@ function elencoAguenta(base, s, j) {
   if (j.pos === 'GOL' && base.elencos[meu].filter(x => x.pos === 'GOL').length <= 2) return 'Você ficaria com menos de dois goleiros.';
   return null;
 }
+// ---------- entre técnicos (liga online) ----------
+// a proposta para o jogador de outro técnico vai para as ofertas recebidas dele: ele aceita, recusa ou pede mais
+// (a contraproposta volta para quem propôs; aceita, o negócio fecha). Sem resposta em 2 rodadas, a proposta cai.
+function propostaEntreTecnicos(base, s, dono, p, j, rd, add) {
+  const id = `h${p.id}`, nome = c => base.clubes[c].n;
+  if (j.clube !== p.de) { p.estado = 'cancelada'; p.motivo = 'ele já trocou de clube'; return; }
+  garantirMercado(dono);
+  const x = { id, tipo: p.tipo, jogador: j.id, de: s.tecnico.clube, valor: p.valor, salario: p.salario, anos: p.anos, troca: p.troca || 0, cl: p.cl || null, promessa: !!p.promessa, rodada: rd, humano: true, proposta: p.id };
+  if (p.clubeOk) { const e = fecharEntreTecnicos(base, dono, x); if (e) { p.estado = 'recusada'; p.motivo = e; } return; } // contraproposta dele aceita
+  if (p.enviada) { if (!dono.recebidas.some(y => y.id === id)) { p.estado = 'recusada'; p.motivo = `o técnico do ${nome(p.de)} não respondeu`; } return; }
+  dono.recebidas = dono.recebidas.filter(y => y.id !== id); dono.recebidas.push(x); p.enviada = true;
+  add(`Proposta enviada ao técnico do ${nome(p.de)} por ${j.curto}. Ele tem 2 rodadas para responder.`);
+  const oferta = p.tipo === 'emprestimo' ? 'empréstimo' : `${fmt(p.valor)}${p.troca ? ` e ${base.jog.get(p.troca)?.curto} na troca` : ''}`;
+  enviar(dono, 'diretor', `h-${id}`, `${s.tecnico.nome} quer ${j.curto}`, `O ${nome(s.tecnico.clube)}, de ${s.tecnico.nome}, propõe ${oferta} por ${j.curto}. Responda em Mercado › Propostas (vale por 2 rodadas).`, { jogador: j.id });
+}
+// fecha o negócio entre dois técnicos (quem vende é a vista vB); devolve o erro ou null
+function fecharEntreTecnicos(base, vB, x) {
+  const vA = vistaDo(vB, x.de), j = base.jog.get(x.jogador), pA = vA?.propostas?.find(q => q.id === x.proposta), nome = c => base.clubes[c].n;
+  const cai = motivo => { if (pA) Object.assign(pA, { estado: 'recusada', motivo }); return motivo; };
+  if (!vA) return 'o outro técnico não está mais na liga';
+  if (j.clube !== vB.tecnico.clube) return cai('ele já trocou de clube');
+  if (x.tipo !== 'emprestimo' && x.valor > vA.caixa) return cai(`o ${nome(x.de)} não tem mais esse dinheiro em caixa`);
+  if (vontade(base, vB, j, x.de, x.promessa) < 35) return cai(`${j.curto} não quis ir para o ${nome(x.de)}`);
+  const t = x.troca && base.jog.get(x.troca), de = j.clube;
+  if (x.tipo === 'emprestimo') emprestar(base, vB, j, x.de, x.cl);
+  else {
+    if (t && t.clube === x.de) { transferir(base, vB, t, de, 0); vB.historicoTransf[0].tipo = 'troca'; }
+    transferir(base, vB, j, x.de, x.valor, { salario: x.salario, anos: x.anos });
+  }
+  if (x.promessa) prometerTitular(base, vA, j);
+  if (pA) Object.assign(pA, { estado: 'concluida', motivo: null });
+  vB.recebidas = (vB.recebidas || []).filter(y => y.jogador !== j.id);
+  vB.noticias.unshift({ rodada: vB.rodada, tipo: 'mercado', mercado: true, jogador: j.id, para: x.de, clube: x.de, div: base.clubes[x.de].div, texto: x.tipo === 'emprestimo' ? `Entre técnicos: ${j.curto} vai emprestado do ${nome(de)} para o ${nome(x.de)}.` : `HERE WE GO! Entre técnicos: ${j.curto} sai do ${nome(de)} para o ${nome(x.de)} (${fmt(x.valor)}${t ? ` + ${t.curto}` : ''}).` });
+  enviar(vA, 'diretor', `h-ok-${x.id}`, `${j.curto} é seu`, `O técnico do ${nome(de)} aceitou: ${j.curto} chega${x.tipo === 'emprestimo' ? ' emprestado até o fim da temporada' : ` por ${fmt(x.valor)}`}.`, { jogador: j.id });
+  return null;
+}
 export function aceitarRecebida(base, s, id) {
   const p = s.recebidas.find(x => x.id === id); if (!p) return 'Proposta não existe mais.';
   const j = base.jog.get(p.jogador), erro = podeSair(base, s, j);
   if (erro) return erro;
+  if (p.humano) { const e = fecharEntreTecnicos(base, s, p); s.recebidas = s.recebidas.filter(x => x !== p); return e ? `O negócio caiu: ${e}.` : null; }
   if (p.vontade != null && p.vontade < 35) { s.recebidas = s.recebidas.filter(x => x !== p); return `${j.curto} não aceita ir para o ${base.clubes[p.de].n}: prefere seguir aqui. A proposta caiu.`; }
   if (p.tipo === 'emprestimo') emprestar(base, s, j, p.de, p.cl);
   else transferir(base, s, j, p.de, p.valor, { anos: 3 });
@@ -397,6 +437,13 @@ export function aceitarRecebida(base, s, id) {
 export function recusarRecebida(base, s, id) {
   const p = s.recebidas.find(x => x.id === id); if (!p) return null;
   const j = base.jog.get(p.jogador);
+  if (p.humano) {
+    const vA = vistaDo(s, p.de), pA = vA?.propostas?.find(q => q.id === p.proposta);
+    s.recebidas = s.recebidas.filter(x => x !== p);
+    if (pA) Object.assign(pA, { estado: 'recusada', motivo: `o técnico do ${base.clubes[s.tecnico.clube].n} recusou` });
+    if (vA) enviar(vA, 'diretor', `h-nao-${p.id}`, `Recusado: ${j?.curto}`, `O técnico do ${base.clubes[s.tecnico.clube].n} recusou a sua proposta por ${j?.curto}.`, { jogador: p.jogador });
+    return null;
+  }
   if (p.tipo !== 'emprestimo' && j && p.quer && pagouClausula(base, s, j, p.de, p.valor)) return `O ${base.clubes[p.de].n} pagou a multa rescisória e ${j.curto} quer ir: o clube não pode segurar.`;
   s.recebidas = s.recebidas.filter(x => x.id !== id);
   return p.quer ? barrarSaida(base, s, p) : null;
@@ -424,11 +471,21 @@ const recebida = (s, id) => s.recebidas.find(x => x.id === id && x.tipo !== 'emp
 export function pedirMais(base, s, id, fator) {
   const x = recebida(s, id); if (!x) return 'Proposta não existe mais.';
   if (x.contraFeita || x.leilao) return 'Essa negociação já teve contraproposta ou leilão.';
+  if (x.humano) { // contraproposta para o outro técnico: aceitando, o negócio fecha
+    const vA = vistaDo(s, x.de), pA = vA?.propostas?.find(q => q.id === x.proposta), j = base.jog.get(x.jogador);
+    if (!pA) return 'A proposta dele não existe mais.';
+    const pedido = arred(Math.max(x.valor, 50000) * clamp(+fator || 1.15, 1.05, 2));
+    Object.assign(pA, { estado: 'contraproposta', contra: pedido, enviada: false });
+    s.recebidas = s.recebidas.filter(y => y !== x);
+    enviar(vA, 'diretor', `h-contra-${x.id}`, `Contraproposta por ${j.curto}`, `O técnico do ${base.clubes[s.tecnico.clube].n} pede ${fmt(pedido)} por ${j.curto}. Aceitando em Mercado › Propostas, o negócio fecha.`, { jogador: j.id });
+    return null;
+  }
   Object.assign(x, { pedido: arred(x.valor * clamp(+fator || 1.15, 1.05, 2)), contraFeita: true, rodada: s.rodada });
   return null;
 }
 export function abrirLeilao(base, s, id) {
   const x = recebida(s, id); if (!x) return 'Proposta não existe mais.';
+  if (x.humano) return 'Proposta de outro técnico não vai a leilão.';
   if (x.contraFeita || x.leilao) return 'Essa negociação já teve contraproposta ou leilão.';
   Object.assign(x, { leilao: 'aberto', rodada: s.rodada });
   return null;
@@ -599,7 +656,7 @@ function trabalhoDoOlheiro(base, s, rd, r) {
 // janela fechar, saem pagando uma multa de 40% a 60% do valor de mercado. Nos clubes da IA que caíram, eles vão à
 // venda mais baratos (preço pedido -30%) e quem sobrar rescinde do mesmo jeito.
 export function pedidosDeQueda(base, s, caidos) {
-  const meu = s.tecnico.clube, r = rng(`queda${s.seed}-${s.ano}`), N = [];
+  const r = rng(`queda${s.seed}-${s.ano}`), N = [];
   const nivel = d => { const cs = base.clubes.map((c, i) => i).filter(i => base.clubes[i].div === d); return cs.reduce((a, ci) => a + base.forca(ci), 0) / Math.max(1, cs.length); };
   for (const ci of caidos) {
     const div = base.clubes[ci].div, acima = nivel(div) + 5;
@@ -608,7 +665,7 @@ export function pedidosDeQueda(base, s, caidos) {
       .slice(0, r() < 0.5 ? 2 : 3);
     for (const j of quem) {
       const multa = arred(j.valor * 1000 * (0.4 + r() * 0.2));
-      if (ci === meu) {
+      if (ehHumano(s, ci)) {
         (s.querSair ||= {})[j.id] = { de: null, rodada: s.rodada, motivo: `não quer jogar a Série ${div}`, queda: { ano: s.ano, multa, div } };
         s.mor[j.id] = Math.min(s.mor[j.id] ?? 62, 45);
         N.push(`${j.curto} não quer jogar a Série ${div}: pede para ser negociado e ameaça rescindir se não sair nesta janela.`);
@@ -632,13 +689,13 @@ function rescisaoDaQueda(base, s, j, multa, add) {
 }
 // clubes da IA rebaixados: interessados levam pelo preço de liquidação; fechada a janela, quem sobrou rescinde
 function rebaixadosIA(base, s, rd, r, aberta, add) {
-  const meu = s.tecnico.clube, livres = base.clubes.findIndex(c => c.div === 'L');
+  const livres = base.clubes.findIndex(c => c.div === 'L');
   for (const [id, q] of Object.entries(s.quedaIA || {})) {
     const j = base.jog.get(+id);
     if (!j || q.ano !== s.ano || j.clube !== q.de) { delete s.quedaIA[id]; continue; }
     if (aberta) {
       if (r() > 0.2) continue;
-      const ops = interessados(base, j, s).filter(ci => ci !== meu && base.elencos[ci].length < 38 && vontade(base, s, j, ci) >= 45);
+      const ops = interessados(base, j, s).filter(ci => !ehHumano(s, ci) && base.elencos[ci].length < 38 && vontade(base, s, j, ci) >= 45);
       const para = ops.length ? pickW(r, ops, ci => base.clubes[ci].fan) : null, valor = para == null ? 0 : precoPedido(base, s, j, para);
       if (para == null || caixaDe(base, s, para) * (base.clubes[para].div === 'X' ? 3 : 0.6) < valor) continue;
       transferir(base, s, j, para, valor); s.historicoTransf[0].ia = true; delete s.quedaIA[id];
@@ -670,7 +727,7 @@ const POS_CHAVE = ['GOL', 'ZAG', 'LD', 'LE', 'VOL', 'MC', 'MEI', 'PE', 'PD', 'CA
 function vendedorAguenta(base, s, j) {
   if (ehLivre(base, j.clube)) return true;
   const el = base.elencos[j.clube];
-  return j.clube !== s.tecnico.clube && el.length > 19 && !(j.pos === 'GOL' && el.filter(x => x.pos === 'GOL').length <= 2) && !recente(s, j.id) && !emAcordo(s, j.id);
+  return !ehHumano(s, j.clube) && el.length > 19 && !(j.pos === 'GOL' && el.filter(x => x.pos === 'GOL').length <= 2) && !recente(s, j.id) && !emAcordo(s, j.id);
 }
 // clubes da IA também compram: reforçam a posição mais fraca e o exterior leva destaques
 // contrato dos negócios da IA, como no Brasil de hoje (CBF 2026: média de 22 meses na A, 19 na B, 11 na C): o número
@@ -686,7 +743,7 @@ const anosIA = (div, idade, valor, r) => {
 const ALVO = { A: 32, B: 30, C: 28 }, MIN_POS = { GOL: 3, ZAG: 4, LD: 2, LE: 2, VOL: 2, MC: 2, MEI: 1, PE: 1, PD: 1, CA: 2 };
 function negociosIA(base, s, rd, r, add) {
   // mexe direto nos elencos (sem refazer a base inteira a cada negócio); no fim, um aplicarSave acerta tudo
-  const meu = s.tecnico.clube, nome = ci => base.clubes[ci].n, mover = (j, para, valor, emp = null) => {
+  const nome = ci => base.clubes[ci].n, ia = ci => !ehHumano(s, ci), mover = (j, para, valor, emp = null) => {
     const de = j.clube;
     if (emp) s.emprestimos[j.id] = { de, para, ate: s.ano, cheio: salarioDia(base, s, j), jogos0: s.est?.[j.id]?.[0] || 0, ia: true };
     else j.contrato = s.contratos[j.id] = s.ano + anosIA(base.clubes[para].div, j.idade, valor, r);
@@ -698,7 +755,7 @@ function negociosIA(base, s, rd, r, add) {
     return de;
   };
   montarElencos(base, s, rd, r, add, mover);
-  for (const ci of base.clubes.map((c, i) => i).filter(i => BR.includes(base.clubes[i].div) && i !== meu)) {
+  for (const ci of base.clubes.map((c, i) => i).filter(i => BR.includes(base.clubes[i].div) && !ehHumano(s, i))) {
     if (r() > 0.09 || base.elencos[ci].length >= 38) continue;
     const el = base.elencos[ci], f = base.forca(ci), melhorNa = p => el.filter(x => x.pos === p).reduce((m, x) => Math.max(m, x.ovr), 0);
     const pos = POS_CHAVE.slice().sort((a, b) => melhorNa(a) - melhorNa(b))[0], min = melhorNa(pos) + 2, caixa = caixaDe(base, s, ci) * 0.5;
@@ -710,10 +767,10 @@ function negociosIA(base, s, rd, r, add) {
   }
   // quem está em fase boa num clube menor é disputado pelos maiores
   let quentes = 0;
-  for (const j of shuffle(r, [...base.jog.values()].filter(j => BR.includes(base.clubes[j.clube].div) && j.clube !== meu && faseDe(s, j.id).d > 0 && vendedorAguenta(base, s, j) && !preContratoDe(s, j.id) && !s.emprestimos[j.id]))) {
+  for (const j of shuffle(r, [...base.jog.values()].filter(j => BR.includes(base.clubes[j.clube].div) && ia(j.clube) && faseDe(s, j.id).d > 0 && vendedorAguenta(base, s, j) && !preContratoDe(s, j.id) && !s.emprestimos[j.id]))) {
     if (quentes >= 2) break;
     if (r() > (faseDe(s, j.id).k === 'excelente' ? 0.12 : 0.05)) continue;
-    const ops = interessados(base, j, s).filter(ci => ci !== meu && base.elencos[ci].length < 38 && vontade(base, s, j, ci) >= 45);
+    const ops = interessados(base, j, s).filter(ci => ia(ci) && base.elencos[ci].length < 38 && vontade(base, s, j, ci) >= 45);
     if (!ops.length) continue;
     const para = pickW(r, ops, ci => base.clubes[ci].fan), valor = base.clubes[para].div === 'X' ? precoExterior(base, s, j, r, para) : arred(precoPedido(base, s, j, para) * (1 + r() * 0.2));
     if (caixaDe(base, s, para) * (base.clubes[para].div === 'X' ? 3 : 0.6) < valor) continue;
@@ -725,7 +782,7 @@ function negociosIA(base, s, rd, r, add) {
   // Veterano de nível (27+, 76+) às vezes vai para a Arábia. Quem vendeu repõe com um livre da posição, se houver.
   const fora = base.clubes.map((c, i) => i).filter(i => base.clubes[i].div === 'X'), livres = base.elencos[base.clubes.findIndex(c => c.div === 'L')] || [];
   const pesoIdade = i => i <= 20 ? 4 : i <= 23 ? 2.5 : i <= 26 ? 1.2 : 0.4;
-  for (const ci of base.clubes.map((c, i) => i).filter(i => BR.includes(base.clubes[i].div) && i !== meu)) {
+  for (const ci of base.clubes.map((c, i) => i).filter(i => BR.includes(base.clubes[i].div) && !ehHumano(s, i))) {
     if (r() > { A: 0.16, B: 0.06, C: 0.015 }[base.clubes[ci].div] || base.elencos[ci].length <= 24) continue;
     const cands = base.elencos[ci].filter(j => j.idade <= 31 && j.pot >= 66 && !s.emprestimos[j.id] && !preContratoDe(s, j.id) && vendedorAguenta(base, s, j));
     if (!cands.length) continue;
@@ -748,7 +805,7 @@ function negociosIA(base, s, rd, r, add) {
     if (r() > 0.4) continue;
     const volta = [...base.jog.values()].filter(j => j.nat === 'BRA' && base.clubes[j.clube].div === 'X' && j.idade >= 27 && j.idade <= 34 && j.ovr >= 68 && !s.emprestimos[j.id] && !preContratoDe(s, j.id) && !recente(s, j.id));
     const j = volta.length ? pickW(r, volta, x => x.idade - 25) : null;
-    const ops = j ? base.clubes.map((c, i) => i).filter(ci => ['A', 'B'].includes(base.clubes[ci].div) && ci !== meu && base.elencos[ci].length < 36
+    const ops = j ? base.clubes.map((c, i) => i).filter(ci => ['A', 'B'].includes(base.clubes[ci].div) && ia(ci) && base.elencos[ci].length < 36
       && j.ovr >= base.forca(ci) - 2 && j.ovr <= base.forca(ci) + 10 && base.elencos[ci].filter(x => x.pos === j.pos && x.ovr >= j.ovr).length < 2) : [];
     if (!ops.length) continue;
     const para = pickW(r, ops, ci => base.clubes[ci].fan), valor = arred(j.valor * 1000 * (j.idade >= 29 ? 0.75 : 1) * fatorContrato(mesesDeContrato(s, j)) * (0.9 + r() * 0.2));
@@ -763,9 +820,9 @@ function negociosIA(base, s, rd, r, add) {
 // Na A, a compra vem primeiro; na B e na C, quase tudo é jogador livre ou emprestado por clube grande (garoto sem
 // espaço). Assim os elencos não esvaziam e a lista de livres não incha.
 function montarElencos(base, s, rd, r, add, mover) {
-  const meu = s.tecnico.clube, L = listasIA(base, s), livresIdx = base.clubes.findIndex(c => c.div === 'L'), nome = ci => base.clubes[ci].n, limEstr = limiteEstrangeiros(s.ano, 'L');
-  const emprestaveis = [...L.emprestimo].map(id => base.jog.get(id)).filter(j => j && BR.includes(base.clubes[j.clube].div) && j.clube !== meu && !s.emprestimos[j.id] && !preContratoDe(s, j.id) && !emAcordo(s, j.id) && !recente(s, j.id));
-  for (const ci of shuffle(r, base.clubes.map((c, i) => i).filter(i => BR.includes(base.clubes[i].div) && i !== meu))) {
+  const ia = ci => !ehHumano(s, ci), L = listasIA(base, s), livresIdx = base.clubes.findIndex(c => c.div === 'L'), nome = ci => base.clubes[ci].n, limEstr = limiteEstrangeiros(s.ano, 'L');
+  const emprestaveis = [...L.emprestimo].map(id => base.jog.get(id)).filter(j => j && BR.includes(base.clubes[j.clube].div) && ia(j.clube) && !s.emprestimos[j.id] && !preContratoDe(s, j.id) && !emAcordo(s, j.id) && !recente(s, j.id));
+  for (const ci of shuffle(r, base.clubes.map((c, i) => i).filter(i => BR.includes(base.clubes[i].div) && ia(i)))) {
     const c = base.clubes[ci], alvo = ALVO[c.div], el = base.elencos[ci];
     const conta = p => el.filter(x => x.pos === p).length, falta = POS_CHAVE.filter(p => conta(p) < MIN_POS[p]);
     let vagas = Math.min(3, falta.length + (el.length < alvo - 4 ? 3 : el.length < alvo - 1 ? 2 : el.length < alvo && r() < 0.5 ? 1 : 0));
@@ -818,8 +875,8 @@ export function precoExterior(base, s, j, r, para) {
 function renovacoesIA(base, s, rd, add) {
   if (rd < 6 || rd > 34) return;
   s.renovIA ||= {};
-  const meu = s.tecnico.clube; let mudou = false;
-  for (const ci of base.clubes.map((c, i) => i).filter(i => BR.includes(base.clubes[i].div) && i !== meu)) {
+  let mudou = false;
+  for (const ci of base.clubes.map((c, i) => i).filter(i => BR.includes(base.clubes[i].div) && !ehHumano(s, i))) {
     const el = base.elencos[ci], ord = el.slice().sort((a, b) => b.ovr - a.ovr), f = base.forca(ci), nome = base.clubes[ci].n, div = base.clubes[ci].div;
     let saem = el.filter(x => ['sai', 'dispensa', 'aposenta'].includes(s.renovIA[x.id]?.ano === s.ano && s.renovIA[x.id].d)).length;  // elenco não pode esvaziar
     for (const j of el) {
@@ -864,22 +921,40 @@ function novelas(base, s, rd, add) {
 // roda depois de cada rodada; na pré-temporada e nos regionais (rodada 0), uma vez por semana ("semana" = 1, 2, ...)
 export function resolverMercado(base, s, rd, semana = 0) {
   garantirMercado(s);
+  const r = rng(`mercado${s.seed}-${rd}${semana ? `-s${semana}` : ''}`), N = [];
+  const aberta = x => !!semana || janelaAberta(s.ano, x), nome = ci => base.clubes[ci].n, divDe = ci => base.clubes[ci]?.div ?? 'A';
+  const add = (texto, tipo = 'clube', div = divDe(s.tecnico.clube), extra) => N.push({ rodada: rd + 1, tipo, div, texto, mercado: true, ...extra });
+  const addDo = ci => (texto, tipo = 'clube', div = divDe(ci), extra) => N.push({ rodada: rd + 1, tipo, div, texto, mercado: true, clube: ci, ...extra });
+  for (const [id, c] of Object.entries(s.chegou)) if (agora(s) - c >= 14) delete s.chegou[id];
+  const hs = humanos(s);
+  for (const [ci, sv] of hs) mercadoDoTecnico(base, sv, rd, semana, r, addDo(ci));
+  // obrigação de compra por número de jogos (empréstimo envolvendo técnico)
+  for (const [id, e] of Object.entries(s.emprestimos)) {
+    const j = base.jog.get(+id), jogou = jogosNoEmprestimo(s, id), dono = ehHumano(s, e.para) ? e.para : e.de;
+    if (j && e.obrig?.gatilho === 'jogos' && jogou >= e.obrig.jogos) { efetivar(base, s, j, e, e.obrig.valor, 'Obrigação de compra'); add(`Obrigação de compra acionada: ${j.curto} completa ${jogou} jogos pelo ${nome(e.para)} e fica em definitivo por ${fmt(e.obrig.valor)}.`, 'clube', divDe(dono), { jogador: j.id, clube: dono }); }
+  }
+  rebaixadosIA(base, s, rd, r, aberta(rd + 1), add);
+  renovacoesIA(base, s, rd, add);
+  for (const [ci, sv] of hs) novelas(base, sv, rd, addDo(ci));
+  if (aberta(rd)) negociosIA(base, s, rd, r, add);
+  for (const [, sv] of hs) trabalhoDoOlheiro(base, sv, rd, r);
+  if (s.historicoTransf.length > 400) s.historicoTransf.length = 400;
+  s.noticias = [...N, ...s.noticias].slice(0, 220);
+}
+// a parte de cada técnico: acordos que chegam, respostas às propostas dele, ofertas pelos jogadores dele, pré-contratos
+// e quem quer sair
+function mercadoDoTecnico(base, s, rd, semana, r, add) {
+  garantirMercado(s);
   // leilão que ninguém abriu em duas passadas do mercado (avanço rápido, motor sem tela): a sala termina sem você
   if (s.leilaoAtivo && (s.leilaoAtivo.comecou || s.rodada * 100 + (s.semanaBloco?.n || 0) - (s.leilaoAtivo.criado ?? -1e9) >= 2)) encerrarPendente(base, s);
-  const r = rng(`mercado${s.seed}-${rd}${semana ? `-s${semana}` : ''}`), meu = s.tecnico.clube, N = [];
-  const aberta = x => !!semana || janelaAberta(s.ano, x);
-  const nome = ci => base.clubes[ci].n;
-  const add = (texto, tipo = 'clube', div = base.clubes[meu].div, extra) => N.push({ rodada: rd + 1, tipo, div, texto, mercado: true, ...extra });
-  for (const [id, c] of Object.entries(s.chegou)) if (agora(s) - c >= 14) delete s.chegou[id];
+  const meu = s.tecnico.clube, aberta = x => !!semana || janelaAberta(s.ano, x), nome = ci => base.clubes[ci].n;
   if (s.acordos.length && aberta(rd + 1)) cumprirAcordos(base, s, add);
-  for (const [id, e] of Object.entries(s.emprestimos)) {
-    const j = base.jog.get(+id), jogou = jogosNoEmprestimo(s, id);
-    if (j && e.obrig?.gatilho === 'jogos' && jogou >= e.obrig.jogos) { efetivar(base, s, j, e, e.obrig.valor, 'Obrigação de compra'); add(`Obrigação de compra acionada: ${j.curto} completa ${jogou} jogos pelo ${nome(e.para)} e fica em definitivo por ${fmt(e.obrig.valor)}.`, 'clube', base.clubes[meu].div, { jogador: j.id }); }
-  }
 
   for (const p of s.propostas.filter(x => x.estado === 'aguardando' && x.rodada <= rd)) {
     const j = base.jog.get(p.jogador), tipo = p.tipo || 'compra', t = p.troca && base.jog.get(p.troca);
     if (p.leilao === 'vivo') continue;                       // esperando o leilão
+    const dono = j.clube !== meu && ['compra', 'emprestimo'].includes(tipo) && vistaDo(s, j.clube);
+    if (dono) { propostaEntreTecnicos(base, s, dono, p, j, rd, add); continue; }
     // de surpresa: na hora da resposta, outro clube aparece e o vendedor abre leilão (a tela vem sozinha)
     if (tipo === 'compra' && j.clube === p.de && abrirLeilaoCompra(base, s, p.id, true)) { add(`Leilão! Outro clube também quer ${j.curto} e o ${nome(j.clube)} abriu a disputa. A sala está esperando você.`); continue; }
     const falha = (motivo, txt) => {
@@ -912,7 +987,7 @@ export function resolverMercado(base, s, rd, semana = 0) {
     // disputa por livre e pré-contrato: clubes que também fariam sentido entram na briga (na compra, a briga é o leilão)
     let melhorRival = null;
     if (tipo !== 'emprestimo' && tipo !== 'compra' && !fechada) {
-      const rivais = interessados(base, j, s).filter(ci => ci !== meu && r() < 0.25).slice(0, 2);
+      const rivais = interessados(base, j, s).filter(ci => !ehHumano(s, ci) && r() < 0.25).slice(0, 2);
       for (const ci of rivais) add(`O ${nome(ci)} também quer ${j.curto}.`);
       melhorRival = rivais.map(ci => ({ ci, v: vontade(base, s, j, ci) + (r() - 0.5) * 16 })).sort((a, b) => b.v - a.v)[0];
     }
@@ -948,7 +1023,7 @@ export function resolverMercado(base, s, rd, semana = 0) {
   }
 
   // contrapropostas suas nas ofertas recebidas: o clube topa (e o negócio sai), sobe um pouco ou desiste
-  for (const x of s.recebidas.filter(x => x.pedido && x.rodada <= rd)) {
+  for (const x of s.recebidas.filter(x => x.pedido && !x.humano && x.rodada <= rd)) {
     const j = base.jog.get(x.jogador), ped = x.pedido, teto = arred(x.valor * ((x.gigante ? 1.35 : 1.12) + r() * 0.2 + faseDe(s, j.id).d * 0.03));
     delete x.pedido;
     if (ped <= teto) {
@@ -961,7 +1036,7 @@ export function resolverMercado(base, s, rd, semana = 0) {
   // leilão: quem fez a oferta e até 3 interessados dão lances; vence quem pagar mais (no máximo 190% do valor)
   for (const x of s.recebidas.filter(x => (x.leilao === 'aberto' || (x.leilao === 'vivo' && s.leilaoAtivo?.id !== x.id)) && x.rodada <= rd)) {
     const j = base.jog.get(x.jogador), teto = arred(Math.max(x.valor, j.valor * 1000 * 1.9));
-    const outros = shuffle(r, interessados(base, j, s).filter(ci => ci !== x.de && ci !== meu && !rivais(base, ci, meu) && base.elencos[ci].length < 38)).slice(0, 3);
+    const outros = shuffle(r, interessados(base, j, s).filter(ci => ci !== x.de && !ehHumano(s, ci) && !rivais(base, ci, meu) && base.elencos[ci].length < 38)).slice(0, 3);
     const lances = [x.de, ...outros].map(ci => ({ ci, max: Math.max(ci === x.de ? x.valor : 0, Math.min(teto, caixaDe(base, s, ci) * (base.clubes[ci].div === 'X' ? 3 : 0.6)) * (0.55 + r() * 0.45)) }))
       .filter(l => l.max >= x.valor).sort((a, b) => b.max - a.max);
     const [v1, v2] = lances, valor = v2 ? Math.max(x.valor, arred(Math.min(v1.max, v2.max * 1.05))) : x.valor, motivo = querIr(base, s, j, v1.ci);
@@ -992,7 +1067,7 @@ export function resolverMercado(base, s, rd, semana = 0) {
       const listado = s.listas.venda.includes(j.id);
       if (s.listas.emprestimo.includes(j.id)) {
         if (r() > 0.3) continue;
-        const opcoes = base.clubes.map((c, i) => i).filter(ci => BR.includes(base.clubes[ci].div) && ci !== meu && !naoJogaA(base, s, j.id, ci) && base.elencos[ci].filter(x => x.ovr > j.ovr).length < 14);
+        const opcoes = base.clubes.map((c, i) => i).filter(ci => BR.includes(base.clubes[ci].div) && !ehHumano(s, ci) && !naoJogaA(base, s, j.id, ci) && base.elencos[ci].filter(x => x.ovr > j.ovr).length < 14);
         if (!opcoes.length) continue;
         const de = pickW(r, opcoes, ci => base.clubes[ci].fan);
         const compra = r() < 0.3 ? 'opcao' : r() < 0.25 ? 'obrigacao' : 'nenhuma';
@@ -1005,8 +1080,8 @@ export function resolverMercado(base, s, rd, semana = 0) {
       const e = s.est?.[j.id], emAlta = e && e[0] >= 3 && (media(e) >= 6.9 || e[1] >= e[0] * 0.4), f = faseDe(s, j.id), queda = s.querSair?.[j.id]?.queda;
       const chance = queda ? 0.5 : emNovela(s, j.id) ? 0.4 : listado ? 0.35 : f.k === 'excelente' ? 0.45 : f.k === 'boa' ? 0.28 : emAlta || j.ovr >= 78 || j.ovr >= base.forca(meu) + 4 ? 0.12 : 0;
       if (r() >= chance) continue;
-      let opcoes = interessados(base, j, s);
-      if ((listado || queda) && !opcoes.length) opcoes = base.clubes.map((c, i) => i).filter(ci => BR.includes(base.clubes[ci].div) && ci !== meu && !rivais(base, ci, meu) && !naoJogaA(base, s, j.id, ci) && Math.abs(base.forca(ci) - j.ovr) <= 5);
+      let opcoes = interessados(base, j, s).filter(ci => !ehHumano(s, ci));
+      if ((listado || queda) && !opcoes.length) opcoes = base.clubes.map((c, i) => i).filter(ci => BR.includes(base.clubes[ci].div) && !ehHumano(s, ci) && !rivais(base, ci, meu) && !naoJogaA(base, s, j.id, ci) && Math.abs(base.forca(ci) - j.ovr) <= 5);
       if (!opcoes.length) continue;
       const de = pickW(r, opcoes, ci => base.clubes[ci].fan + (naContinental(s, ci) ? 4 : 0)), valor = queda ? arred(j.valor * 1000 * (0.7 + r() * 0.3)) : arred(precoPedido(base, s, j, de) * (listado ? 0.7 + r() * 0.25 : 0.85 + r() * 0.3 + f.d * 0.04));
       if (caixaDe(base, s, de) < valor) continue;
@@ -1021,7 +1096,7 @@ export function resolverMercado(base, s, rd, semana = 0) {
   if (rd >= ABRE_PRE) for (const j of base.elencos[meu]) {
     const nov = emNovela(s, j.id);
     if (!contratoNoFim(s, j) || preContratoDe(s, j.id) || s.emprestimos[j.id] || vaiAposentar(s, j) || (!nov && (rd < 24 || j.ovr < base.forca(meu) - 4)) || r() > (nov ? 0.3 : 0.15)) continue;
-    const opcoes = interessados(base, j, s); if (!opcoes.length) continue;
+    const opcoes = interessados(base, j, s).filter(ci => !ehHumano(s, ci)); if (!opcoes.length) continue;
     const para = pickW(r, opcoes, ci => base.clubes[ci].fan);
     s.preContratos.push({ jogador: j.id, de: meu, para, rodada: rd });
     add(`${j.curto} assina pré-contrato com o ${nome(para)} e sai no fim da temporada. Renove os contratos que estão acabando.`);
@@ -1030,16 +1105,10 @@ export function resolverMercado(base, s, rd, semana = 0) {
   // chateado por não ter sido liberado: moral não sobe e, de vez em quando, ele cobra em público
   for (const [id, q] of Object.entries(s.querSair || {})) {
     const j = base.jog.get(+id);
-    if (!j || j.clube !== meu || (!q.queda && rd - q.rodada >= 8) || (q.queda && q.queda.ano !== s.ano)) { delete s.querSair[id]; continue; }
+    if (!j || !ehHumano(s, j.clube) || (!q.queda && rd - q.rodada >= 8) || (q.queda && q.queda.ano !== s.ano)) { delete s.querSair[id]; continue; }
+    if (j.clube !== meu) continue;
     if (q.queda && !aberta(rd + 1)) { rescisaoDaQueda(base, s, j, q.queda.multa, add); continue; }
     s.mor[id] = Math.min(s.mor[id] ?? 62, 45);
     if (r() < 0.15) add(q.queda ? `${j.curto} avisa: "Não jogo a Série ${q.queda.div}. Se a janela fechar e eu estiver aqui, rescindo."` : `${j.curto} cobra a diretoria: "Eu ${q.motivo.replace(/^é /, 'tinha ')}. Quero ser negociado."`, 'clube', base.clubes[meu].div, { jogador: j.id, imprensa: true });
   }
-  rebaixadosIA(base, s, rd, r, aberta(rd + 1), add);
-  renovacoesIA(base, s, rd, add);
-  novelas(base, s, rd, add);
-  if (aberta(rd)) negociosIA(base, s, rd, r, add);
-  trabalhoDoOlheiro(base, s, rd, r);
-  if (s.historicoTransf.length > 400) s.historicoTransf.length = 400;
-  s.noticias = [...N, ...s.noticias].slice(0, 220);
 }

@@ -2,6 +2,7 @@
 // clube; quem joga no Brasil desfalca o clube por 2 rodadas (qualquer competição) e ganha moral pela convocação.
 import { clamp, PAISES } from './util.js';
 import { faseDe } from './forma.js';
+import { humanos } from './humanos.js';
 
 export const DATAS_FIFA = [17, 24, 30];   // rodada do Brasileirão em que sai a convocação (setembro, outubro e novembro; a de março cai nos regionais)
 export const ESTRUTURA = { GOL: 3, ZAG: 4, LD: 2, LE: 2, VOL: 3, MC: 2, MEI: 2, PE: 2, PD: 2, CA: 4 };
@@ -23,8 +24,9 @@ export function convocar(s, jogadores) {
 
 // chamada depois de cada rodada: na data FIFA, todas as seleções com jogador no Brasileirão convocam
 export function dataFifa(base, s) {
-  if (!DATAS_FIFA.includes(s.rodada) || (s.convocados?.ano === s.ano && s.convocados.rodada === s.rodada) || s.demitido) return [];
-  const ci = s.tecnico.clube, porNat = new Map(), nats = new Set();
+  const hs = humanos(s).filter(([, sv]) => !sv.demitido);
+  if (!DATAS_FIFA.includes(s.rodada) || (s.convocados?.ano === s.ano && s.convocados.rodada === s.rodada) || !hs.length) return [];
+  const porNat = new Map(), nats = new Set();
   for (const j of base.jog.values()) {
     const div = base.clubes[j.clube].div;
     if (j.fora || div === 'L' || j.ovr < 60 || j.idade > 36) continue;
@@ -38,9 +40,12 @@ export function dataFifa(base, s) {
     if (BR.includes(base.clubes[j.clube].div)) ids.push(j.id);
   }
   s.convocados = { ano: s.ano, rodada: s.rodada, ate: s.rodada + 2, ids, bra };
-  const meus = ids.map(id => base.jog.get(id)).filter(j => j.clube === ci), brasil = bra.map(id => base.jog.get(id)), daqui = brasil.filter(j => BR.includes(base.clubes[j.clube].div));
-  for (const j of meus) s.mor[j.id] = clamp((s.mor[j.id] ?? 62) + 10, 0, 100);
-  const N = [{ tipo: 'destaque', clube: ci, texto: `Data FIFA: a Seleção Brasileira convoca 26. ${daqui.length ? `Do Brasileirão: ${lista(daqui.map(j => `${j.curto} (${base.clubes[j.clube].n})`))}.` : 'Ninguém do Brasileirão.'} ${brasil.length - daqui.length ? `Os outros ${brasil.length - daqui.length} jogam fora do país.` : ''}`.trim() }];
-  if (meus.length) N.push({ tipo: 'clube', clube: ci, texto: `Convocados: ${lista(meus.map(j => `${j.curto}${j.nat === 'BRA' ? '' : ` (${PAISES[j.nat] || j.nat})`}`))} ${meus.length > 1 ? 'desfalcam' : 'desfalca'} o ${base.clubes[ci].n} nas próximas 2 rodadas.` });
+  const brasil = bra.map(id => base.jog.get(id)), daqui = brasil.filter(j => BR.includes(base.clubes[j.clube].div));
+  const N = [{ tipo: 'destaque', clube: hs.length === 1 ? hs[0][0] : undefined, texto: `Data FIFA: a Seleção Brasileira convoca 26. ${daqui.length ? `Do Brasileirão: ${lista(daqui.map(j => `${j.curto} (${base.clubes[j.clube].n})`))}.` : 'Ninguém do Brasileirão.'} ${brasil.length - daqui.length ? `Os outros ${brasil.length - daqui.length} jogam fora do país.` : ''}`.trim() }];
+  for (const [ci] of hs) {
+    const meus = ids.map(id => base.jog.get(id)).filter(j => j.clube === ci);
+    for (const j of meus) s.mor[j.id] = clamp((s.mor[j.id] ?? 62) + 10, 0, 100);
+    if (meus.length) N.push({ tipo: 'clube', clube: ci, texto: `Convocados: ${lista(meus.map(j => `${j.curto}${j.nat === 'BRA' ? '' : ` (${PAISES[j.nat] || j.nat})`}`))} ${meus.length > 1 ? 'desfalcam' : 'desfalca'} o ${base.clubes[ci].n} nas próximas 2 rodadas.` });
+  }
   return N;
 }

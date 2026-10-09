@@ -4,6 +4,7 @@ import { rivais } from './rivais.js';
 import { rng, pick, pickW, SETOR, nivelDiv } from './util.js';
 import { matematicos, alfinetadas, aposentadorias } from './jornais.js';
 import { naoJogaA } from './mundo.js';
+import { humanos, ehHumano } from './humanos.js';
 
 const DIVS = ['A', 'B', 'C'];
 export const media = e => e && e[0] ? e[3] / e[0] / 10 : 0;
@@ -60,7 +61,7 @@ export function manchete(base, j, n, x, t, r = rng('manchete' + j.id)) {
 // dv: a divisão da rodada (cada uma joga nas suas datas); só ela entra nas notícias de resultado, liderança e destaques
 export function gerarNoticias(base, s, rd, jogos, tabs, dv = null) {
   const DIVS = dv ? [dv] : ['A', 'B', 'C'];
-  const r = rng(`jornal${s.seed}-${rd}`), meu = s.tecnico.clube, N = [];
+  const r = rng(`jornal${s.seed}-${rd}`), meu = c => ehHumano(s, c), N = [];
   const add = (tipo, div, texto, extra) => N.push({ rodada: rd + 1, tipo, div, texto, ...extra });
   const nome = ci => base.clubes[ci].n, curto = id => base.jog.get(+id)?.curto || '?';
   const golsNaRodada = {};
@@ -68,10 +69,10 @@ export function gerarNoticias(base, s, rd, jogos, tabs, dv = null) {
   for (const { d, h, a, sim } of jogos) for (const e of sim.eventos) if (e.tipo === 'gol') golsNaRodada[e.jogador] = (golsNaRodada[e.jogador] || 0) + 1;
 
   // seu jogo
-  const mj = jogos.find(x => x.h === meu || x.a === meu);
-  if (mj) {
+  for (const [ci] of humanos(s)) {
+    const mj = jogos.find(x => x.h === ci || x.a === ci); if (!mj) continue;
     const g = mj.sim.eventos.filter(e => e.tipo === 'gol');
-    add('clube', mj.d, `${rivais(base, mj.h, mj.a) ? 'Clássico: ' : ''}${nome(mj.h)} ${mj.sim.gols[0]} × ${mj.sim.gols[1]} ${nome(mj.a)}. ${g.length ? 'Gols: ' + g.map(e => `${curto(e.jogador)} ${e.min}'`).join(', ') + '.' : 'Sem gols.'}`);
+    add('clube', mj.d, `${rivais(base, mj.h, mj.a) ? 'Clássico: ' : ''}${nome(mj.h)} ${mj.sim.gols[0]} × ${mj.sim.gols[1]} ${nome(mj.a)}. ${g.length ? 'Gols: ' + g.map(e => `${curto(e.jogador)} ${e.min}'`).join(', ') + '.' : 'Sem gols.'}`, { clube: ci });
   }
 
   for (const d of DIVS) {
@@ -88,7 +89,7 @@ export function gerarNoticias(base, s, rd, jogos, tabs, dv = null) {
       const u = l.ultimos, ult = u[u.length - 1];
       let n = 0; for (let i = u.length - 1; i >= 0 && u[i] === ult; i--) n++;
       if (n !== 4 || ult === 'E') continue;
-      const ehMeu = l.clube === meu;
+      const ehMeu = meu(l.clube);
       if (ult === 'V') add(ehMeu ? 'clube' : 'resultado', d, `${nome(l.clube)} engata a quarta vitória seguida na Série ${d}.`, { clube: l.clube });
       else add(ehMeu ? 'clube' : 'crise', d, ehMeu ? `Quarta derrota seguida. A torcida protesta e a diretoria cobra reação.` : `Crise no ${nome(l.clube)}: quarta derrota seguida e técnico pressionado.`, { clube: l.clube, imprensa: true });
     }
@@ -115,14 +116,14 @@ export function gerarNoticias(base, s, rd, jogos, tabs, dv = null) {
     });
     let qtos = 2 + Math.floor(r() * 2);
     while (qtos > 0 && emAlta.length) {
-      const j = pickW(r, emAlta, x => media(s.est[x.id]) + s.est[x.id][1] * 0.3 + (x.clube === meu ? 2 : 0));
+      const j = pickW(r, emAlta, x => media(s.est[x.id]) + s.est[x.id][1] * 0.3 + (meu(x.clube) ? 2 : 0));
       emAlta.splice(emAlta.indexOf(j), 1);
       const opcoes = interessados(base, j, s); if (!opcoes.length) continue;
       qtos--;
       const para = pickW(r, opcoes, ci => base.clubes[ci].fan + base.forca(ci) / 10);
       s.rumores[j.id] = rd;
       const texto = pick(r, MODELOS_RUMOR)(j.curto, nome(j.clube), nome(para), SETOR_TXT[SETOR[j.pos]]);
-      add(j.clube === meu ? 'clube' : 'rumor', base.clubes[j.clube].div, j.clube === meu ? `Assédio: ${texto}` : texto, { jogador: j.id, de: j.clube, para });
+      add(meu(j.clube) ? 'clube' : 'rumor', base.clubes[j.clube].div, meu(j.clube) ? `Assédio: ${texto}` : texto, { jogador: j.id, de: j.clube, para, clube: j.clube });
     }
   }
 
@@ -135,7 +136,7 @@ export function gerarNoticias(base, s, rd, jogos, tabs, dv = null) {
     const vagas = { GOL: 1, DEF: 4, MEI: 3, ATA: 3 }, time = [];
     for (const [id, n] of notas) { const st = SETOR[base.jog.get(id).pos]; if (vagas[st]) { vagas[st]--; time.push([id, n]); } }
     s.destaques[d] = { rodada: rd + 1, time };
-    if (d === base.clubes[meu].div && notas[0]) {
+    if (humanos(s).some(([ci]) => base.clubes[ci].div === d) && notas[0]) {
       const [id, n, x, t] = notas[0], j = base.jog.get(id);
       add('destaque', d, `Craque da ${ORD(rd + 1)} rodada: ${j.curto} (${nome(j.clube)}), nota ${n.toFixed(1).replace('.', ',')}.`, { jogador: j.id });
       s.manchete = { rodada: rd + 1, div: d, jogador: j.id, nota: n, ...manchete(base, j, n, x, t, r) };

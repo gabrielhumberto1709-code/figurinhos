@@ -1,9 +1,10 @@
 // Estado do jogo: cria a carreira, avança rodadas e calcula tabelas.
 import { rng, pick, jogador } from './util.js';
+import { humanos, ehHumano, vistaDo, mundoDe } from './humanos.js';
 import { pontosCorridos, dataRodada, dataAmistoso as diaAmistoso, dataLiga, dataLiga2, N_LIGA, janelaNaData, doAno } from './calendario.js';
 import { simular, melhorTime, bancoAuto, posicoesDe, PERS, vagaPara, encaixe, fatorCond, forcaSetores } from './partida.js';
 import { fragilidade, indisponiveis, posJogo, TREINO_LES } from './dm.js';
-import { garantirCarreira, torcidaAposJogo, aposRodada, tituloDeCopa } from './carreira.js';
+import { garantirCarreira, torcidaAposJogo, aposRodada, demissoesIA, tituloDeCopa } from './carreira.js';
 import { evoluir } from './treino.js';
 import { rivais } from './rivais.js';
 import { registrarForma, bonusFase } from './forma.js';
@@ -220,10 +221,11 @@ export function barradoMedo(base, s, id, ci) {
   if (!ev || ![ev.h, ev.a].includes(e.de) || ![ev.h, ev.a].includes(ci)) return false;
   if (e.liberado === chaveEv(ev)) return false;
   const j = base.jog.get(+id);
-  if (ci !== s.tecnico.clube && e.de === s.tecnico.clube && j && base.elencos[ci].slice().sort((a, b) => b.ovr - a.ovr).indexOf(j) < 11) {
+  const dono = !ehHumano(s, ci) && vistaDo(s, e.de);
+  if (dono && j && base.elencos[ci].slice().sort((a, b) => b.ovr - a.ovr).indexOf(j) < 11) {
     e.liberado = chaveEv(ev);
-    lancar(s, 'medo', `Multa da cláusula do medo: ${j.curto} (${base.clubes[ci].n})`, multaMedo(j));
-    s.noticias.unshift({ rodada: s.rodada, tipo: 'clube', mercado: true, jogador: j.id, div: base.clubes[s.tecnico.clube].div, texto: `O ${base.clubes[ci].n} paga ${Math.round(multaMedo(j) / 1000).toLocaleString('pt-BR')} mil euros de multa para ${j.curto} enfrentar o clube dono.` });
+    lancar(dono, 'medo', `Multa da cláusula do medo: ${j.curto} (${base.clubes[ci].n})`, multaMedo(j));
+    s.noticias.unshift({ rodada: s.rodada, tipo: 'clube', clube: e.de, mercado: true, jogador: j.id, div: base.clubes[e.de].div, texto: `O ${base.clubes[ci].n} paga ${Math.round(multaMedo(j) / 1000).toLocaleString('pt-BR')} mil euros de multa para ${j.curto} enfrentar o clube dono.` });
     return false;
   }
   return true;
@@ -268,15 +270,15 @@ function aplicarLimite(time, elenco, fora, lim, cond, bancoManual) {
 export function escalacao(base, s, ci, comp = compProxima(base, s), poupa = 0) {
   const t = escalacaoLivre(base, s, ci, comp, poupa), lim = limiteEstrangeiros(s.ano, comp);
   if (!(lim < Infinity) || [...t.xi, ...t.banco].filter(estrangeiro).length <= lim) return t;
-  return aplicarLimite(t, base.elencos[ci], t.fora || indisponiveis(s, base.elencos[ci], comp), lim, s.cond || {}, ci === s.tecnico.clube && !!s.banco);
+  return aplicarLimite(t, base.elencos[ci], t.fora || indisponiveis(s, base.elencos[ci], comp), lim, s.cond || {}, !!vistaDo(s, ci)?.banco);
 }
-function escalacaoLivre(base, s, ci, comp, poupa) {
-  const elenco = base.elencos[ci], cond = s.cond || {}, fora = indisponiveis(s, elenco, comp);
+function escalacaoLivre(base, s0, ci, comp, poupa) {
+  const elenco = base.elencos[ci], cond = s0.cond || {}, fora = indisponiveis(s0, elenco, comp), s = vistaDo(s0, ci);
   // time alternativo (IA nos regionais): os melhores descansam
-  if (poupa && ci !== s.tecnico.clube) for (const j of elenco.filter(j => !fora.has(j.id)).sort((a, b) => b.ovr - a.ovr).slice(0, poupa)) fora.add(j.id);
-  for (const j of elenco) if (s.emprestimos?.[j.id]?.medo && barradoMedo(base, s, j.id, ci)) fora.add(j.id);
-  if (comp === 'L' && base.clubes[ci].div === 'A') for (const j of elenco) if (barrado12(s, j.id, ci)) fora.add(j.id);
-  if (ci !== s.tecnico.clube) { const t = taticaIA(base, ci); return { ...melhorTime(elenco, t.formacao, fora, cond, bonusFase(s)), estilo: t.estilo, gatilhos: t.gatilhos, fora }; }
+  if (poupa && !s) for (const j of elenco.filter(j => !fora.has(j.id)).sort((a, b) => b.ovr - a.ovr).slice(0, poupa)) fora.add(j.id);
+  for (const j of elenco) if (s0.emprestimos?.[j.id]?.medo && barradoMedo(base, s0, j.id, ci)) fora.add(j.id);
+  if (comp === 'L' && base.clubes[ci].div === 'A') for (const j of elenco) if (barrado12(s0, j.id, ci)) fora.add(j.id);
+  if (!s) { const t = taticaIA(base, ci); return { ...melhorTime(elenco, t.formacao, fora, cond, bonusFase(s0)), estilo: t.estilo, gatilhos: t.gatilhos, fora }; }
   let time = null, trocados = [];
   if (s.xi?.length === 11) {
     const porId = new Map(elenco.map(j => [j.id, j])), xi = s.xi.map(id => porId.get(id));
@@ -299,8 +301,10 @@ function escalacaoLivre(base, s, ci, comp, poupa) {
 // quem tem histórico de lesão, idade e treino puxado se machuca mais
 const fase = s => bonusFase(s);
 // casa cheia empurra: mando de 1,03 (vazio) a 1,11 (lotado)
-const fatorCasa = (base, s, h, a) => 1.03 + 0.08 * bilheteria(base, s, h, a, [], 10, h === s.tecnico.clube ? s.fin?.ingresso || 'normal' : 'normal').occ;
-const fragilDe = (base, s) => id => { const j = base.jog.get(id); return fragilidade(s, j) * (j?.clube === s.tecnico.clube ? TREINO_LES[s.treino] || 1 : 1); };
+const fatorCasa = (base, s, h, a) => 1.03 + 0.08 * bilheteria(base, s, h, a, [], 10, vistaDo(s, h)?.fin?.ingresso || 'normal').occ;
+// treino de cada técnico (clube -> fator); clube da IA = 1
+const porTreino = (s, T) => new Map(humanos(s).map(([c, v]) => [c, T[v.treino] || 1]));
+const fragilDe = (base, s) => { const tr = porTreino(s, TREINO_LES); return id => { const j = base.jog.get(id); return fragilidade(s, j) * (tr.get(j?.clube) ?? 1); }; };
 
 // escolher capitão mexe com o vestiário: quem perde a braçadeira e ainda joga fica chateado
 export function definirCapitao(base, s, id) {
@@ -318,9 +322,10 @@ export function definirCapitao(base, s, id) {
 const TREINO = { leve: 1.25, normal: 1, intenso: 0.8 };
 export function recuperar(base, s, dias) {
   if (!(dias > 0)) return;
+  const tr = porTreino(s, TREINO);
   for (const [id, c] of Object.entries(s.cond)) {
     const j = base.jog.get(+id), ageF = !j ? 1 : j.idade >= 34 ? 0.78 : j.idade >= 31 ? 0.9 : j.idade <= 23 ? 1.12 : 1;
-    const treino = j && j.clube === s.tecnico.clube ? TREINO[s.treino] || 1 : 1;
+    const treino = (j && tr.get(j.clube)) ?? 1;
     const q = 0.18 * ageF * treino, nova = c + (100 - c) * (1 - (1 - q) ** dias); // recupera um pouco por dia: 3 dias não bastam, uma semana quase
     if (nova > 99 || !j) delete s.cond[id]; else s.cond[id] = Math.round(nova * 10) / 10;
   }
@@ -333,23 +338,22 @@ function aposJogo(base, s, h, a, sim) {
   // fase: média recente das notas; seu jogador que entra em fase excelente ou péssima vira notícia
   for (const t of [0, 1]) for (const [id, , depois] of registrarForma(s, sim.notas[t])) {
     const j = base.jog.get(id);
-    if (j && j.clube === s.tecnico.clube && (depois.k === 'excelente' || depois.k === 'pessima')) s.noticias.unshift({ rodada: s.rodada, tipo: 'clube', jogador: id, div: base.clubes[j.clube].div, texto: depois.k === 'excelente' ? `${j.curto} vive fase excelente e rende acima do próprio nível.` : `${j.curto} atravessa fase péssima. A torcida já pede mudança.` });
+    if (j && ehHumano(s, j.clube) && (depois.k === 'excelente' || depois.k === 'pessima')) s.noticias.unshift({ rodada: s.rodada, tipo: 'clube', clube: j.clube, jogador: id, div: base.clubes[j.clube].div, texto: depois.k === 'excelente' ? `${j.curto} vive fase excelente e rende acima do próprio nível.` : `${j.curto} atravessa fase péssima. A torcida já pede mudança.` });
   }
   const k = rivais(base, h, a) ? 2 : 1, res = sim.gols[0] > sim.gols[1] ? [4 * k, -4 * k] : sim.gols[0] < sim.gols[1] ? [-4 * k, 4 * k] : [0, 0]; // clássico vale o dobro no vestiário
   [h, a].forEach((ci, t) => {
     let bonus = 0;
-    if (ci === s.tecnico.clube) { const cap = sim.capitao; if (cap) { const mc = s.mor[cap] ?? 62; bonus = mc >= 70 ? 1 : mc < 35 ? -1 : 0; } }
+    if (ehHumano(s, ci)) { const cap = sim.capitaes?.[t] ?? sim.capitao; if (cap) { const mc = s.mor[cap] ?? 62; bonus = mc >= 70 ? 1 : mc < 35 ? -1 : 0; } }
     for (const [id, n] of Object.entries(sim.notas[t])) {
       const d = res[t] + (n >= 7.5 ? 3 : n <= 5.5 ? -3 : 0) + bonus;
       s.mor[id] = Math.max(0, Math.min(100, (s.mor[id] ?? 62) + d));
     }
   });
   // quem é dos 14 melhores e fica 3 jogos sem entrar perde moral
-  const ci = s.tecnico.clube;
-  if (ci === h || ci === a) {
-    for (const n of evoluir(base, s, ci, sim.notas[ci === h ? 0 : 1])) s.noticias.unshift({ rodada: s.rodada, div: base.clubes[ci].div, clube: ci, ...n });
+  for (const [ci, sv] of humanos(s)) if (ci === h || ci === a) {
+    for (const n of evoluir(base, sv, ci, sim.notas[ci === h ? 0 : 1])) s.noticias.unshift({ rodada: s.rodada, div: base.clubes[ci].div, clube: ci, ...n });
     const jogou = new Set(Object.keys(sim.notas[ci === h ? 0 : 1]).map(Number));
-    acompanharPromessas(base, s, sim, ci === h ? 0 : 1);
+    acompanharPromessas(base, sv, sim, ci === h ? 0 : 1);
     for (const j of base.elencos[ci].slice().sort((x, y) => y.ovr - x.ovr).slice(0, 14)) {
       if (jogou.has(j.id)) { delete s.semJogar[j.id]; continue; }
       s.semJogar[j.id] = (s.semJogar[j.id] || 0) + 1;
@@ -404,7 +408,7 @@ function registrar(est, sim) {
 // rodada de uma divisão em duas etapas: os jogos da IA são decididos logo; o seu pode ser assistido ao vivo
 export function iniciarRodada(base, s, d = base.clubes[s.tecnico.clube].div) {
   if (ligaAcabou(s, d)) return null;
-  Object.assign(s, { ...TATICA_PADRAO(), ...s });
+  if (s.tecnico.clube >= 0) Object.assign(s, { ...TATICA_PADRAO(), ...s });
   const rd = feitas(s, d), ci = s.tecnico.clube, jogos = [];
   descansarAte(base, s, dataLiga(s.ano, d, rd));
   let meu = null;
@@ -412,7 +416,7 @@ export function iniciarRodada(base, s, d = base.clubes[s.tecnico.clube].div) {
     const th = escalacao(base, s, h, 'L'), ta = escalacao(base, s, a, 'L'), seed = `${s.seed}-${d}-${rd}-${h}-${a}`;
     const opts = { cond: s.cond, mor: s.mor, auto: [h === ci ? s.subsAuto !== false : true, a === ci ? s.subsAuto !== false : true], fragil: fragilDe(base, s), fase: fase(s), mando: fatorCasa(base, s, h, a) + MANDO_DIV[d], ritmo: RITMO_DIV[d], arbitro: arbitroDo(s, seed) };
     if (h === ci || a === ci) meu = { d, h, a, th, ta, seed, humano: h === ci ? 0 : 1, opts, capitao: (h === ci ? th : ta).capitao };
-    else jogos.push({ d, h, a, sim: simular(th, ta, seed, opts) });
+    else jogos.push({ d, ...jogoSimulado(s, h, a, th, ta, seed, opts) });
   }
   return { d, rd, jogos, meu, titulo: `Série ${d} · ${rd + 1}ª rodada` };
 }
@@ -430,8 +434,10 @@ function descansarAte(base, s, data) {
 const PRIO = { sup: 0, cont: 1, copa: 2, reg: 3, liga2: 4, liga: 5, amistoso: 6 };
 export function pendentes(base, s) {
   garantirTemporada(base, s);
-  const ci = s.tecnico.clube, ano = s.ano, L = [], tem = par => par.includes(ci);
-  if (s.rodada === 0 && !s.demitido) { const A = garantirAmistosos(base, s), i = A.jogos.findIndex(x => !x.g); if (i >= 0) L.push({ tipo: 'amistoso', i, h: A.jogos[i].h, a: A.jogos[i].a, data: dataAmistoso(s, A.jogos[i]), meu: true, titulo: `Amistoso de pré-temporada (${i + 1}/${A.jogos.length})` }); }
+  // "meu": o clube do técnico (na vista de um técnico, o dele); no mundo da liga online, qualquer técnico
+  const ci = s.tecnico.clube, ano = s.ano, L = [], tem = par => ci >= 0 ? par.includes(ci) : par.some(c => ehHumano(s, c));
+  // liga online não tem amistosos (cada técnico teria os seus)
+  if (s.rodada === 0 && !s.demitido && ci >= 0 && !mundoDe(s)._mesas) { const A = garantirAmistosos(base, s), i = A.jogos.findIndex(x => !x.g); if (i >= 0) L.push({ tipo: 'amistoso', i, h: A.jogos[i].h, a: A.jogos[i].a, data: dataAmistoso(s, A.jogos[i]), meu: true, titulo: `Amistoso de pré-temporada (${i + 1}/${A.jogos.length})` }); }
   for (const d of DIVS) if (!ligaAcabou(s, d)) {
     const k = feitas(s, d), par = rodadasDe(base, s, d)[k].find(tem);
     L.push({ tipo: 'liga', d, rodada: k, data: dataLiga(ano, d, k), meu: !!par, h: par?.[0], a: par?.[1], titulo: `Série ${d} · ${k + 1}ª rodada` });
@@ -443,15 +449,15 @@ export function pendentes(base, s) {
     const T = s.reg[k], F = fasesReg(k)[T.fase], par = jogosDaFaseReg(T).find(tem);
     L.push({ tipo: 'reg', k, fase: T.fase, data: dataFaseReg(ano, k, T.fase), meu: !!par, h: par?.[0], a: par?.[1], titulo: `${REGIONAIS[k].nome} · ${F.nome}`, mataMata: mataMataReg(F), final: finalReg(k, F), neutro: !!REGIONAIS[k].mata[F.m]?.neutro });
   }
-  if (supDevida(s)) { const { h, a } = s.cont.sup; L.push({ tipo: 'sup', h, a, data: dataSup(dataRodada, ano), meu: [h, a].includes(ci), titulo: 'Supercopa do Brasil · final', neutro: true }); }
+  if (supDevida(s)) { const { h, a } = s.cont.sup; L.push({ tipo: 'sup', h, a, data: dataSup(dataRodada, ano), meu: tem([h, a]), titulo: 'Supercopa do Brasil · final', neutro: true }); }
   return L.sort((x, y) => x.data - y.data || PRIO[x.tipo] - PRIO[y.tipo]);
 }
 // próximo compromisso do seu clube
 export function proximoEvento(base, s) { return pendentes(base, s).find(e => e.meu) || null; }
 // o mundo anda até a data (inclusive) sem o seu clube: o que é de outros se resolve na ordem das datas
-export function mundoAte(base, s, ate) {
+export function mundoAte(base, s, ate, todos = false) {
   for (let n = 0; n < 4000; n++) {
-    const x = pendentes(base, s).find(e => !e.meu && +e.data <= +ate);
+    const x = pendentes(base, s).find(e => (todos || !e.meu) && +e.data <= +ate);
     if (!x) break;
     semanasDoBloco(base, s, x.data);
     rodar(base, s, x, R => R.meu ? simular(R.meu.th, R.meu.ta, R.meu.seed, R.meu.opts) : null);
@@ -470,6 +476,30 @@ function rodar(base, s, x, sim) {
 // a temporada acabou quando não falta nada no calendário
 export const temporadaAcabou = (base, s) => !pendentes(base, s).length;
 
+// jogo simulado direto (IA, ou técnico na liga online): com técnico no jogo guarda os titulares, os capitães e, online,
+// a ficha para assistir depois (mesmo resultado, refeito minuto a minuto)
+function jogoSimulado(s, h, a, th, ta, seed, opts) {
+  const sim = simular(th, ta, seed, opts), jg = { h, a, seed, sim };
+  if (ehHumano(s, h) || ehHumano(s, a)) {
+    sim.capitaes = [th.capitao ?? null, ta.capitao ?? null];
+    jg.xi = [th.xi.map(j => j?.id), ta.xi.map(j => j?.id)];
+    if (mundoDe(s)._mesas) jg.vivo = fotoJogo(th, ta, seed, opts);
+  }
+  return jg;
+}
+const fotoJ = j => j && { id: j.id, nome: j.nome, curto: j.curto, pos: j.pos, ovr: j.ovr, att: { ...j.att }, idade: j.idade, num: j.num, nat: j.nat, rosto: j.rosto, clube: j.clube };
+const fotoT = t => ({ formacao: t.formacao, pers: t.pers || null, xi: t.xi.map(fotoJ), banco: (t.banco || []).map(fotoJ), estilo: t.estilo, gatilhos: t.gatilhos || {}, cobrador: t.cobrador ?? null, capitao: t.capitao ?? null });
+export function fotoJogo(th, ta, seed, opts) {
+  const ids = [th, ta].flatMap(t => [...t.xi, ...(t.banco || [])]).filter(Boolean).map(j => j.id), de = m => Object.fromEntries(ids.filter(id => m?.[id] != null).map(id => [id, m[id]]));
+  return { th: fotoT(th), ta: fotoT(ta), seed, opts: { cond: de(opts.cond), mor: de(opts.mor), auto: opts.auto, neutro: !!opts.neutro, mando: opts.mando, ritmo: opts.ritmo, arbitro: opts.arbitro || null,
+    fragil: Object.fromEntries(ids.map(id => [id, opts.fragil ? opts.fragil(id) : 1])), fase: Object.fromEntries(ids.map(id => [id, opts.fase ? opts.fase(id) : 0])) } };
+}
+// a ficha vira de novo os parâmetros da partida (para assistir)
+export const daFoto = F => ({ th: F.th, ta: F.ta, seed: F.seed, opts: { ...F.opts, fragil: id => F.opts.fragil[id] ?? 1, fase: id => F.opts.fase[id] || 0 } });
+const xiDe = M => [M.th.xi.map(j => j?.id), M.ta.xi.map(j => j?.id)];
+// div das notícias de copa: a do clube citado (ou a do técnico do save)
+const divNot = (base, s, n) => base.clubes[n.clube ?? s.tecnico.clube]?.div ?? 'A';
+
 // ---------- Copa do Brasil ----------
 export function iniciarCopa(base, s) {
   const i = s.copa.fase, F = FASES[i], jogos = [], decide = F.perna !== 'ida', fin = F.k === 'fin';
@@ -483,39 +513,45 @@ export function iniciarCopa(base, s) {
 }
 
 export function concluirCopa(base, s, R, simMeu) {
-  const i = R.fase, ci = s.tecnico.clube, F = FASES[i], decide = F.perna !== 'ida', fin = F.k === 'fin', N = [], vencedores = [], nome = c => base.clubes[c].n;
+  const i = R.fase, F = FASES[i], decide = F.perna !== 'ida', fin = F.k === 'fin', N = [], vencedores = [], nome = c => base.clubes[c].n;
   const jogos = R.jogos.slice();
-  if (R.meu) { simMeu.capitao = R.meu.capitao; jogos.push({ h: R.meu.h, a: R.meu.a, seed: R.meu.seed, sim: simMeu }); }
-  const dmN = [], estreia = R.meu && !s.copa.jogos.some(j => j.h === ci || j.a === ci);
-  for (const { h, a, seed, sim } of jogos) {
+  if (R.meu) { simMeu.capitao = R.meu.capitao; jogos.push({ h: R.meu.h, a: R.meu.a, seed: R.meu.seed, sim: simMeu, xi: xiDe(R.meu) }); }
+  const hs = humanos(s), estreia = new Set(hs.map(([c]) => c).filter(c => !s.copa.jogos.some(j => j.h === c || j.a === c)));
+  const dmN = [], jogaram = new Set();
+  for (const jg of jogos) {
+    const { h, a, seed, sim } = jg;
     aposJogo(base, s, h, a, daBase(base, sim));
     dmN.push(...posJogo(base, s, h, a, sim, 'CB'));
     const dec = decidir(s, i, h, a, sim.gols, seed, sim.campo);
     s.copa.jogos.push({ fase: i, h, a, gols: sim.gols, pen: dec.pen || null });
     for (const e of sim.eventos) if (e.tipo === 'gol' && base.jog.has(e.jogador)) s.copa.art[e.jogador] = (s.copa.art[e.jogador] || 0) + 1;
     if (dec.vencedor != null) vencedores.push(dec.vencedor);
-    const meuJogo = h === ci || a === ci, placar = `${nome(h)} ${sim.gols[0]} × ${sim.gols[1]} ${nome(a)}${dec.agg ? ` (agregado ${dec.agg[0]} a ${dec.agg[1]})` : ''}${dec.pen ? ` (${dec.pen[0]} a ${dec.pen[1]} nos pênaltis)` : ''}`;
-    if (meuJogo) {
-      if (h === ci && !fin) { const b = bilheteria(base, s, ci, a, [], 10, s.fin.ingresso); lancar(s, 'bilheteria', `Bilheteria Copa do Brasil × ${nome(a)} (${b.publico.toLocaleString('pt-BR')} pagantes)`, b.renda); }
-      if (estreia && PREMIOS[F.k]) lancar(s, 'premio', `Copa do Brasil: cota da ${F.nome.split(' ·')[0].toLowerCase()}`, PREMIOS[F.k]);
-      torcidaAposJogo(s, ci, h, sim.gols, { pen: dec.pen, mataMata: decide, final: fin, classico: rivais(base, h, a) });
-      s.ultima = { rodada: s.rodada - 1, copa: F.nome, div: 'copa', casa: h, fora: a, ...sim, pen: dec.pen || null, xi: [R.meu.th.xi.map(j => j.id), R.meu.ta.xi.map(j => j.id)] }; registrarConfronto(base, s);
-      N.push({ tipo: 'clube', texto: `Copa do Brasil, ${F.nome.toLowerCase()}: ${placar}.${dec.vencedor === ci ? (fin ? ' É CAMPEÃO!' : ' Classificado!') : dec.perdedor === ci ? ' Eliminado.' : ''}` });
+    const placar = `${nome(h)} ${sim.gols[0]} × ${sim.gols[1]} ${nome(a)}${dec.agg ? ` (agregado ${dec.agg[0]} a ${dec.agg[1]})` : ''}${dec.pen ? ` (${dec.pen[0]} a ${dec.pen[1]} nos pênaltis)` : ''}`;
+    for (const [ci, sv] of hs) {
+      if (h !== ci && a !== ci) continue;
+      jogaram.add(sv);
+      if (h === ci && !fin) { const b = bilheteria(base, s, ci, a, [], 10, sv.fin.ingresso); lancar(sv, 'bilheteria', `Bilheteria Copa do Brasil × ${nome(a)} (${b.publico.toLocaleString('pt-BR')} pagantes)`, b.renda); }
+      if (estreia.has(ci) && PREMIOS[F.k]) lancar(sv, 'premio', `Copa do Brasil: cota da ${F.nome.split(' ·')[0].toLowerCase()}`, PREMIOS[F.k]);
+      torcidaAposJogo(sv, ci, h, sim.gols, { pen: dec.pen, mataMata: decide, final: fin, classico: rivais(base, h, a) });
+      sv.ultima = { rodada: s.rodada - 1, copa: F.nome, div: 'copa', casa: h, fora: a, ...sim, pen: dec.pen || null, xi: jg.xi }; if (jg.vivo) sv.ultimaVivo = jg.vivo; registrarConfronto(base, sv);
+      N.push({ tipo: 'clube', clube: ci, texto: `Copa do Brasil, ${F.nome.toLowerCase()}: ${placar}.${dec.vencedor === ci ? (fin ? ' É CAMPEÃO!' : ' Classificado!') : dec.perdedor === ci ? ' Eliminado.' : ''}` });
     }
   }
-  const avancou = vencedores.includes(ci);
   avancarFase(s, vencedores, c => forcaCont(base, c, s.ano));
   if (fin) {
     N.push({ tipo: 'destaque', texto: `${nome(s.copa.campeao)} é campeão da Copa do Brasil ${s.ano} em cima do ${nome(s.copa.vice)}.` });
-    if (s.copa.campeao === ci) { lancar(s, 'premio', 'Copa do Brasil: prêmio de campeão', PREMIOS.campeao); tituloDeCopa(s); }
-    if (s.copa.vice === ci) lancar(s, 'premio', 'Copa do Brasil: prêmio de vice', PREMIOS.vice);
-  } else if (avancou && decide) {
+    for (const [ci, sv] of hs) {
+      if (s.copa.campeao === ci) { lancar(sv, 'premio', 'Copa do Brasil: prêmio de campeão', PREMIOS.campeao); tituloDeCopa(sv); }
+      if (s.copa.vice === ci) lancar(sv, 'premio', 'Copa do Brasil: prêmio de vice', PREMIOS.vice);
+    }
+  } else if (decide) for (const [ci, sv] of hs) {
+    if (!vencedores.includes(ci)) continue;
     const prox = FASES[s.copa.fase], ch = s.copa.chaves.find(c => c.includes(ci)), adv = ch.find(x => x !== ci), etapa = prox.nome.split(' ·')[0].toLowerCase();
-    if (PREMIOS[prox.k]) lancar(s, 'premio', `Copa do Brasil: classificação para ${prox.k === 'fin' ? 'a final' : etapa}`, PREMIOS[prox.k]);
-    N.push({ tipo: 'clube', texto: `Sorteio da Copa do Brasil: ${prox.k === 'fin' ? 'final em campo neutro' : etapa} contra o ${nome(adv)}${prox.k === 'fin' ? '' : prox.perna === 'unico' ? (ch[0] === ci ? ', em casa' : ', fora') : ch[0] === ci ? ', com a ida em casa' : ', com a volta em casa'}.` });
+    if (PREMIOS[prox.k]) lancar(sv, 'premio', `Copa do Brasil: classificação para ${prox.k === 'fin' ? 'a final' : etapa}`, PREMIOS[prox.k]);
+    N.push({ tipo: 'clube', clube: ci, texto: `Sorteio da Copa do Brasil: ${prox.k === 'fin' ? 'final em campo neutro' : etapa} contra o ${nome(adv)}${prox.k === 'fin' ? '' : prox.perna === 'unico' ? (ch[0] === ci ? ', em casa' : ', fora') : ch[0] === ci ? ', com a ida em casa' : ', com a volta em casa'}.` });
   }
-  s.noticias = [...dmN.map(n => ({ rodada: s.rodada, div: base.clubes[n.clube].div, ...n })), ...N.map(n => ({ rodada: s.rodada, div: base.clubes[ci].div, copa: true, ...n })), ...s.noticias].slice(0, 220);
-  if (R.meu) correio(base, s);
+  s.noticias = [...dmN.map(n => ({ rodada: s.rodada, div: base.clubes[n.clube].div, ...n })), ...N.map(n => ({ rodada: s.rodada, div: divNot(base, s, n), copa: true, ...n })), ...s.noticias].slice(0, 220);
+  for (const sv of jogaram) correio(base, sv);
   return R.meu ? s.ultima : null;
 }
 
@@ -530,7 +566,7 @@ function jogoCopa(base, s, h, a, comp, seed, extra = {}) {
   const th = timeCont(base, s, h, comp, poupa(h)), ta = timeCont(base, s, a, comp, poupa(a));
   const opts = { cond: s.cond, mor: s.mor, auto: [h === ci ? s.subsAuto !== false : true, a === ci ? s.subsAuto !== false : true], fragil: fragilDe(base, s), neutro: !!extra.neutro, fase: fase(s), mando: fatorCasa(base, s, h, a), arbitro: arbitroDo(s, seed) };
   if (h === ci || a === ci) return { meu: { d: comp, h, a, th, ta, seed, humano: h === ci ? 0 : 1, opts, capitao: (h === ci ? th : ta).capitao, agg: [0, 0], ...extra } };
-  return { jogo: { h, a, seed, sim: simular(th, ta, seed, opts) } };
+  return { jogo: jogoSimulado(s, h, a, th, ta, seed, opts) };
 }
 export function iniciarCont(base, s, k) {
   const T = s.cont[k], f = T.fase, jogos = [];
@@ -543,44 +579,48 @@ export function iniciarCont(base, s, k) {
   return { cont: k, fase: f, jogos, meu, titulo: `${TORNEIOS[k].nome} · ${FASES_CONT[f].nome}` };
 }
 export function concluirCont(base, s, R, simMeu) {
-  const k = R.cont, T = s.cont[k], f = R.fase, P = TORNEIOS[k].premio, ci = s.tecnico.clube, nome = c => base.clubes[c].n, N = [], dmN = [];
+  const k = R.cont, T = s.cont[k], f = R.fase, P = TORNEIOS[k].premio, nome = c => base.clubes[c].n, N = [], dmN = [];
   const jogos = R.jogos.slice();
-  if (R.meu) { simMeu.capitao = R.meu.capitao; jogos.push({ h: R.meu.h, a: R.meu.a, seed: R.meu.seed, sim: simMeu }); }
-  const venc = {};
-  for (const { h, a, seed, sim } of jogos) {
+  if (R.meu) { simMeu.capitao = R.meu.capitao; jogos.push({ h: R.meu.h, a: R.meu.a, seed: R.meu.seed, sim: simMeu, xi: xiDe(R.meu) }); }
+  const venc = {}, hs = humanos(s), jogaram = new Set();
+  const estavam = new Map(hs.map(([ci]) => [ci, T.grupos.findIndex(g => g.includes(ci))]));
+  for (const jg of jogos) {
+    const { h, a, seed, sim } = jg;
     aposJogo(base, s, h, a, daBase(base, sim));
     dmN.push(...posJogo(base, s, h, a, sim, k));
     const dec = decidirCont(T, f, h, a, sim.gols, seed, sim.campo);
     venc[`${h}-${a}`] = dec.vencedor;
     T.jogos.push({ fase: f, h, a, gols: sim.gols, pen: dec.pen || null });
     for (const e of sim.eventos) if (e.tipo === 'gol') { const j = jogadorCont(base, s.ano, e.jogador), x = T.art[e.jogador] || (T.art[e.jogador] = [0, j?.curto || '?', j?.clube ?? (e.time ? a : h)]); x[0]++; }
-    if (h !== ci && a !== ci) continue;
-    const casa = h === ci, adv = casa ? a : h, my = sim.gols[casa ? 0 : 1], ot = sim.gols[casa ? 1 : 0];
-    if (casa && f !== F_FIN) { const b = bilheteria(base, s, ci, adv, [], 10, s.fin.ingresso); lancar(s, 'bilheteria', `Bilheteria ${TORNEIOS[k].nome} × ${nome(adv)} (${b.publico.toLocaleString('pt-BR')} pagantes)`, b.renda); }
-    if (f === 0) lancar(s, 'premio', `${TORNEIOS[k].nome}: cota da fase de grupos`, P.grupos);
-    if (f < F_MATA && my > ot) lancar(s, 'premio', `${TORNEIOS[k].nome}: vitória na fase de grupos`, P.vitoria);
-    torcidaAposJogo(s, ci, h, sim.gols, { pen: dec.pen, mataMata: f >= F_MATA && FASES_CONT[f].perna !== 'ida', final: f === F_FIN, classico: rivais(base, h, a) });
-    s.ultima = { rodada: s.rodada - 1, copa: `${TORNEIOS[k].nome} · ${FASES_CONT[f].nome}`, div: k, casa: h, fora: a, ...sim, pen: dec.pen || null, xi: [R.meu.th.xi.map(j => j.id), R.meu.ta.xi.map(j => j.id)] }; registrarConfronto(base, s);
-    N.push({ tipo: 'clube', texto: `${TORNEIOS[k].nome}, ${FASES_CONT[f].nome.toLowerCase()}: ${nome(h)} ${sim.gols[0]} × ${sim.gols[1]} ${nome(a)}${dec.agg ? ` (agregado ${dec.agg[0]} a ${dec.agg[1]})` : ''}${dec.pen ? ` (${dec.pen[0]} a ${dec.pen[1]} nos pênaltis)` : ''}.${dec.vencedor === ci ? (f === F_FIN ? ' É CAMPEÃO!' : ' Classificado!') : dec.perdedor === ci ? ' Eliminado.' : ''}` });
+    for (const [ci, sv] of hs) {
+      if (h !== ci && a !== ci) continue;
+      jogaram.add(sv);
+      const casa = h === ci, adv = casa ? a : h, my = sim.gols[casa ? 0 : 1], ot = sim.gols[casa ? 1 : 0];
+      if (casa && f !== F_FIN) { const b = bilheteria(base, s, ci, adv, [], 10, sv.fin.ingresso); lancar(sv, 'bilheteria', `Bilheteria ${TORNEIOS[k].nome} × ${nome(adv)} (${b.publico.toLocaleString('pt-BR')} pagantes)`, b.renda); }
+      if (f === 0) lancar(sv, 'premio', `${TORNEIOS[k].nome}: cota da fase de grupos`, P.grupos);
+      if (f < F_MATA && my > ot) lancar(sv, 'premio', `${TORNEIOS[k].nome}: vitória na fase de grupos`, P.vitoria);
+      torcidaAposJogo(sv, ci, h, sim.gols, { pen: dec.pen, mataMata: f >= F_MATA && FASES_CONT[f].perna !== 'ida', final: f === F_FIN, classico: rivais(base, h, a) });
+      sv.ultima = { rodada: s.rodada - 1, copa: `${TORNEIOS[k].nome} · ${FASES_CONT[f].nome}`, div: k, casa: h, fora: a, ...sim, pen: dec.pen || null, xi: jg.xi }; if (jg.vivo) sv.ultimaVivo = jg.vivo; registrarConfronto(base, sv);
+      N.push({ tipo: 'clube', clube: ci, texto: `${TORNEIOS[k].nome}, ${FASES_CONT[f].nome.toLowerCase()}: ${nome(h)} ${sim.gols[0]} × ${sim.gols[1]} ${nome(a)}${dec.agg ? ` (agregado ${dec.agg[0]} a ${dec.agg[1]})` : ''}${dec.pen ? ` (${dec.pen[0]} a ${dec.pen[1]} nos pênaltis)` : ''}.${dec.vencedor === ci ? (f === F_FIN ? ' É CAMPEÃO!' : ' Classificado!') : dec.perdedor === ci ? ' Eliminado.' : ''}` });
+    }
   }
   const vencedores = jogosDaFase(T).map(([h, a]) => venc[`${h}-${a}`]);
   avancarCont(T, vencedores);
-  if (f === F_MATA - 1) {
-    const estava = T.grupos.some(g => g.includes(ci)), pos = estava ? tabelaGrupo(T, T.grupos.findIndex(g => g.includes(ci))).findIndex(l => l.clube === ci) + 1 : 0;
-    if (estava) {
-      const oitavas = k === 'LIB' ? pos <= 2 : pos === 1, adv = T.chaves.find(c => c.includes(ci))?.find(x => x !== ci);
-      N.push({ tipo: 'clube', texto: oitavas ? `${TORNEIOS[k].nome}: classificado para as oitavas de final${adv != null ? ` contra o ${nome(adv)}` : ''}.` : k === 'SUL' && pos === 2 ? 'Sul-Americana: 2º no grupo, vai ao playoff contra um 3º colocado da Libertadores.' : k === 'LIB' && pos === 3 ? 'Libertadores: 3º no grupo, cai para o playoff da Sul-Americana.' : `${TORNEIOS[k].nome}: eliminado na fase de grupos.` });
-      if (oitavas) lancar(s, 'premio', `${TORNEIOS[k].nome}: classificação para as oitavas`, P.oit);
-    }
+  if (f === F_MATA - 1) for (const [ci, sv] of hs) {
+    const g = estavam.get(ci); if (g < 0) continue;
+    const pos = tabelaGrupo(T, g).findIndex(l => l.clube === ci) + 1;
+    const oitavas = k === 'LIB' ? pos <= 2 : pos === 1, adv = T.chaves.find(c => c.includes(ci))?.find(x => x !== ci);
+    N.push({ tipo: 'clube', clube: ci, texto: oitavas ? `${TORNEIOS[k].nome}: classificado para as oitavas de final${adv != null ? ` contra o ${nome(adv)}` : ''}.` : k === 'SUL' && pos === 2 ? 'Sul-Americana: 2º no grupo, vai ao playoff contra um 3º colocado da Libertadores.' : k === 'LIB' && pos === 3 ? 'Libertadores: 3º no grupo, cai para o playoff da Sul-Americana.' : `${TORNEIOS[k].nome}: eliminado na fase de grupos.` });
+    if (oitavas) lancar(sv, 'premio', `${TORNEIOS[k].nome}: classificação para as oitavas`, P.oit);
   } else if (FASES_CONT[f].perna === 'volta') {
     const kf = FASES_CONT[f].k;
-    if (T.chaves.some(c => c.includes(ci))) lancar(s, 'premio', `${TORNEIOS[k].nome}: classificação para ${{ po: 'as oitavas', oit: 'as quartas', qua: 'a semifinal', sem: 'a final' }[kf]}`, { po: P.oit, oit: P.qua, qua: P.sem, sem: P.fin }[kf]);
+    for (const [ci, sv] of hs) if (T.chaves.some(c => c.includes(ci))) lancar(sv, 'premio', `${TORNEIOS[k].nome}: classificação para ${{ po: 'as oitavas', oit: 'as quartas', qua: 'a semifinal', sem: 'a final' }[kf]}`, { po: P.oit, oit: P.qua, qua: P.sem, sem: P.fin }[kf]);
   } else if (f === F_FIN) {
     N.push({ tipo: 'destaque', texto: `${nome(T.campeao)} é campeão da ${TORNEIOS[k].nome} ${s.ano} em cima do ${nome(T.vice)}.` });
-    if (T.campeao === ci) { lancar(s, 'premio', `${TORNEIOS[k].nome}: prêmio de campeão`, P.campeao); tituloDeCopa(s); }
+    const sv = vistaDo(s, T.campeao); if (sv) { lancar(sv, 'premio', `${TORNEIOS[k].nome}: prêmio de campeão`, P.campeao); tituloDeCopa(sv); }
   }
-  s.noticias = [...dmN.map(n => ({ rodada: s.rodada, div: base.clubes[n.clube].div, ...n })), ...N.map(n => ({ rodada: s.rodada, div: base.clubes[ci].div, copa: true, ...n })), ...s.noticias].slice(0, 220);
-  if (R.meu || !R.cont) correio(base, s);
+  s.noticias = [...dmN.map(n => ({ rodada: s.rodada, div: base.clubes[n.clube].div, ...n })), ...N.map(n => ({ rodada: s.rodada, div: divNot(base, s, n), copa: true, ...n })), ...s.noticias].slice(0, 220);
+  for (const sv of jogaram) correio(base, sv);
   return R.meu ? s.ultima : null;
 }
 export function iniciarSup(base, s) {
@@ -590,20 +630,21 @@ export function iniciarSup(base, s) {
   return { sup: true, jogos: x.jogo ? [x.jogo] : [], meu: x.meu || null, titulo: 'Supercopa do Brasil · final' };
 }
 export function concluirSup(base, s, R, simMeu) {
-  const ci = s.tecnico.clube, nome = c => base.clubes[c].n, { h, a, seed, sim } = R.meu ? { h: R.meu.h, a: R.meu.a, seed: R.meu.seed, sim: simMeu } : R.jogos[0];
+  const nome = c => base.clubes[c].n, jg = R.meu ? { h: R.meu.h, a: R.meu.a, seed: R.meu.seed, sim: simMeu, xi: xiDe(R.meu) } : R.jogos[0], { h, a, seed, sim } = jg;
   if (R.meu) simMeu.capitao = R.meu.capitao;
   aposJogo(base, s, h, a, sim);
   const dmN = posJogo(base, s, h, a, sim, 'SUP'), dec = decidirCont({}, F_FIN, h, a, sim.gols, seed, sim.campo);
   s.cont.sup.jogo = { h, a, gols: sim.gols, pen: dec.pen || null, campeao: dec.vencedor };
   const placar = `${nome(h)} ${sim.gols[0]} × ${sim.gols[1]} ${nome(a)}${dec.pen ? ` (${dec.pen[0]} a ${dec.pen[1]} nos pênaltis)` : ''}`;
-  if (R.meu) {
-    torcidaAposJogo(s, ci, h, sim.gols, { pen: dec.pen, mataMata: true, final: true });
-    lancar(s, 'premio', `Supercopa do Brasil: ${dec.vencedor === ci ? 'campeão' : 'vice'}`, dec.vencedor === ci ? PREMIO_SUP.campeao : PREMIO_SUP.vice);
-    s.ultima = { rodada: -1, copa: 'Supercopa do Brasil · final', div: 'SUP', casa: h, fora: a, ...sim, pen: dec.pen || null, xi: [R.meu.th.xi.map(j => j.id), R.meu.ta.xi.map(j => j.id)] }; registrarConfronto(base, s);
+  const hs = humanos(s).filter(([ci]) => ci === h || ci === a);
+  for (const [ci, sv] of hs) {
+    torcidaAposJogo(sv, ci, h, sim.gols, { pen: dec.pen, mataMata: true, final: true });
+    lancar(sv, 'premio', `Supercopa do Brasil: ${dec.vencedor === ci ? 'campeão' : 'vice'}`, dec.vencedor === ci ? PREMIO_SUP.campeao : PREMIO_SUP.vice);
+    sv.ultima = { rodada: -1, copa: 'Supercopa do Brasil · final', div: 'SUP', casa: h, fora: a, ...sim, pen: dec.pen || null, xi: jg.xi }; if (jg.vivo) sv.ultimaVivo = jg.vivo; registrarConfronto(base, sv);
   }
-  const N = [{ tipo: dec.vencedor === ci ? 'clube' : 'destaque', texto: `Supercopa do Brasil: ${placar}. ${nome(dec.vencedor)} é campeão.` }];
-  s.noticias = [...dmN, ...N].map(n => ({ rodada: 0, div: base.clubes[n.clube ?? ci].div, copa: true, ...n })).concat(s.noticias).slice(0, 220);
-  if (R.meu || !R.cont) correio(base, s);
+  const N = [{ tipo: ehHumano(s, dec.vencedor) ? 'clube' : 'destaque', clube: ehHumano(s, dec.vencedor) ? dec.vencedor : undefined, texto: `Supercopa do Brasil: ${placar}. ${nome(dec.vencedor)} é campeão.` }];
+  s.noticias = [...dmN, ...N].map(n => ({ rodada: 0, div: divNot(base, s, n), copa: true, ...n })).concat(s.noticias).slice(0, 220);
+  for (const [, sv] of hs) correio(base, sv);
   return R.meu ? s.ultima : null;
 }
 // ---------- amistosos de pré-temporada ----------
@@ -664,39 +705,47 @@ export function iniciarReg(base, s, k) {
   return { reg: k, fase: f, jogos, meu, titulo: `${REGIONAIS[k].nome} · ${F.nome}` };
 }
 export function concluirReg(base, s, R, simMeu) {
-  const k = R.reg, S = REGIONAIS[k], T = s.reg[k], f = R.fase, fases = fasesReg(k), F = fases[f], P = S.premio, ci = s.tecnico.clube, nome = c => base.clubes[c].n, N = [], dmN = [];
-  const de = S.copa ? 'da' : 'do', jogos = R.jogos.slice(), titulos = { ...T.titulos }, vivo = vivoReg(T, ci);
-  if (R.meu) { simMeu.capitao = R.meu.capitao; jogos.push({ h: R.meu.h, a: R.meu.a, seed: R.meu.seed, sim: simMeu }); }
-  const venc = {};
-  for (const { h, a, seed, sim } of jogos) {
+  const k = R.reg, S = REGIONAIS[k], T = s.reg[k], f = R.fase, fases = fasesReg(k), F = fases[f], P = S.premio, nome = c => base.clubes[c].n, N = [], dmN = [];
+  const de = S.copa ? 'da' : 'do', jogos = R.jogos.slice(), titulos = { ...T.titulos }, hs = humanos(s), vivos = new Map(hs.map(([ci]) => [ci, vivoReg(T, ci)])), jogaram = new Set();
+  if (R.meu) { simMeu.capitao = R.meu.capitao; jogos.push({ h: R.meu.h, a: R.meu.a, seed: R.meu.seed, sim: simMeu, xi: xiDe(R.meu), neutro: R.meu.opts.neutro }); }
+  const venc = {}, neutro = !!REGIONAIS[k].mata[F.m]?.neutro;
+  for (const jg of jogos) {
+    const { h, a, seed, sim } = jg;
     aposJogo(base, s, h, a, daBase(base, sim));
     dmN.push(...posJogo(base, s, h, a, sim, 'REG'));
     const dec = decidirReg(T, h, a, sim.gols, seed, sim.campo);
     venc[`${h}-${a}`] = dec.vencedor;
     T.jogos.push({ fase: f, e: F.e, m: F.m, h, a, gols: sim.gols, pen: dec.pen || null });
-    if (h !== ci && a !== ci) continue;
-    const casa = h === ci, adv = casa ? a : h, my = sim.gols[casa ? 0 : 1], ot = sim.gols[casa ? 1 : 0];
-    if (casa && !R.meu?.opts.neutro) { const b = bilheteria(base, s, ci, adv, [], 10, s.fin.ingresso), fator = S.copa ? 0.6 : 0.5; lancar(s, 'bilheteria', `Bilheteria ${S.curto} × ${nome(adv)} (${Math.round(b.publico * (fator + 0.1)).toLocaleString('pt-BR')} pagantes)`, Math.round(b.renda * fator)); }
-    if (f === 0 && P.cota) lancar(s, 'premio', `${S.nome}: cota de participação`, P.cota);
-    if (F.e != null && my > ot && P.vitoria) lancar(s, 'premio', `${S.nome}: vitória na fase de grupos`, P.vitoria);
-    torcidaAposJogo(s, ci, h, sim.gols, { pen: dec.pen, mataMata: mataMataReg(F), final: finalReg(k, F), classico: rivais(base, h, a) });
-    s.ultima = { rodada: s.rodada - 1, copa: `${S.nome} · ${F.nome}`, div: k, casa: h, fora: a, ...sim, pen: dec.pen || null, xi: [R.meu.th.xi.map(j => j.id), R.meu.ta.xi.map(j => j.id)] }; registrarConfronto(base, s);
-    N.push({ tipo: 'clube', texto: `${S.nome}, ${F.nome.toLowerCase()}: ${nome(h)} ${sim.gols[0]} × ${sim.gols[1]} ${nome(a)}${dec.agg ? ` (agregado ${dec.agg[0]} a ${dec.agg[1]})` : ''}${dec.pen ? ` (${dec.pen[0]} a ${dec.pen[1]} nos pênaltis)` : dec.vantagem ? ' (passa a melhor campanha)' : ''}.` });
+    for (const [ci, sv] of hs) {
+      if (h !== ci && a !== ci) continue;
+      jogaram.add(sv);
+      const casa = h === ci, adv = casa ? a : h, my = sim.gols[casa ? 0 : 1], ot = sim.gols[casa ? 1 : 0];
+      if (casa && !(jg.neutro ?? neutro)) { const b = bilheteria(base, s, ci, adv, [], 10, sv.fin.ingresso), fator = S.copa ? 0.6 : 0.5; lancar(sv, 'bilheteria', `Bilheteria ${S.curto} × ${nome(adv)} (${Math.round(b.publico * (fator + 0.1)).toLocaleString('pt-BR')} pagantes)`, Math.round(b.renda * fator)); }
+      if (f === 0 && P.cota) lancar(sv, 'premio', `${S.nome}: cota de participação`, P.cota);
+      if (F.e != null && my > ot && P.vitoria) lancar(sv, 'premio', `${S.nome}: vitória na fase de grupos`, P.vitoria);
+      torcidaAposJogo(sv, ci, h, sim.gols, { pen: dec.pen, mataMata: mataMataReg(F), final: finalReg(k, F), classico: rivais(base, h, a) });
+      sv.ultima = { rodada: s.rodada - 1, copa: `${S.nome} · ${F.nome}`, div: k, casa: h, fora: a, ...sim, pen: dec.pen || null, xi: jg.xi }; if (jg.vivo) sv.ultimaVivo = jg.vivo; registrarConfronto(base, sv);
+      N.push({ tipo: 'clube', clube: ci, texto: `${S.nome}, ${F.nome.toLowerCase()}: ${nome(h)} ${sim.gols[0]} × ${sim.gols[1]} ${nome(a)}${dec.agg ? ` (agregado ${dec.agg[0]} a ${dec.agg[1]})` : ''}${dec.pen ? ` (${dec.pen[0]} a ${dec.pen[1]} nos pênaltis)` : dec.vantagem ? ' (passa a melhor campanha)' : ''}.` });
+    }
   }
   avancarReg(T, jogosDaFaseReg(T).map(([h, a]) => venc[`${h}-${a}`]));
-  const prox = fases[T.fase], par = T.chaves.find(c => c.includes(ci));
-  if (prox?.m != null && prox.m !== F.m && par) {
-    if (P.mata?.[prox.m]) lancar(s, 'premio', `${S.nome}: classificação (${prox.nome.split(' ·')[0].toLowerCase()})`, P.mata[prox.m]);
-    N.push({ tipo: 'clube', texto: `${S.nome}: classificado para ${prox.nome.split(' ·')[0].toLowerCase()} contra o ${nome(par.find(x => x !== ci))}.` });
-  } else if (vivo && !vivoReg(T, ci) && T.campeao !== ci && T.vice !== ci) N.push({ tipo: 'clube', texto: `${S.nome}: o ${nome(ci)} está eliminado.` });
-  for (const [t, c] of Object.entries(T.titulos)) if (titulos[t] == null) N.push({ tipo: c === ci ? 'clube' : 'destaque', texto: `${nome(c)} é campeão da ${t}.` });
-  if (T.campeao != null && !prox) {
-    N.push({ tipo: T.campeao === ci ? 'clube' : 'destaque', texto: `${nome(T.campeao)} é campeão ${de} ${S.nome} ${s.ano} em cima do ${nome(T.vice)}.` });
-    if (T.campeao === ci) { if (P.campeao) lancar(s, 'premio', `${S.nome}: prêmio de campeão`, P.campeao); tituloDeCopa(s); }
-    if (T.vice === ci && P.vice) lancar(s, 'premio', `${S.nome}: prêmio de vice`, P.vice);
+  const prox = fases[T.fase];
+  for (const [ci, sv] of hs) {
+    const par = T.chaves.find(c => c.includes(ci));
+    if (prox?.m != null && prox.m !== F.m && par) {
+      if (P.mata?.[prox.m]) lancar(sv, 'premio', `${S.nome}: classificação (${prox.nome.split(' ·')[0].toLowerCase()})`, P.mata[prox.m]);
+      N.push({ tipo: 'clube', clube: ci, texto: `${S.nome}: classificado para ${prox.nome.split(' ·')[0].toLowerCase()} contra o ${nome(par.find(x => x !== ci))}.` });
+    } else if (vivos.get(ci) && !vivoReg(T, ci) && T.campeao !== ci && T.vice !== ci) N.push({ tipo: 'clube', clube: ci, texto: `${S.nome}: o ${nome(ci)} está eliminado.` });
   }
-  s.noticias = [...dmN.map(n => ({ rodada: s.rodada, div: base.clubes[n.clube].div, ...n })), ...N.map(n => ({ rodada: s.rodada, div: base.clubes[ci].div, copa: true, ...n })), ...s.noticias].slice(0, 220);
-  if (R.meu) correio(base, s);
+  for (const [t, c] of Object.entries(T.titulos)) if (titulos[t] == null) N.push({ tipo: ehHumano(s, c) ? 'clube' : 'destaque', clube: c, texto: `${nome(c)} é campeão da ${t}.` });
+  if (T.campeao != null && !prox) {
+    N.push({ tipo: ehHumano(s, T.campeao) ? 'clube' : 'destaque', clube: T.campeao, texto: `${nome(T.campeao)} é campeão ${de} ${S.nome} ${s.ano} em cima do ${nome(T.vice)}.` });
+    const c = vistaDo(s, T.campeao), v = vistaDo(s, T.vice);
+    if (c) { if (P.campeao) lancar(c, 'premio', `${S.nome}: prêmio de campeão`, P.campeao); tituloDeCopa(c); }
+    if (v && P.vice) lancar(v, 'premio', `${S.nome}: prêmio de vice`, P.vice);
+  }
+  s.noticias = [...dmN.map(n => ({ rodada: s.rodada, div: base.clubes[n.clube].div, ...n })), ...N.map(n => ({ rodada: s.rodada, div: divNot(base, s, n), copa: true, ...n })), ...s.noticias].slice(0, 220);
+  for (const sv of jogaram) correio(base, sv);
   return R.meu ? s.ultima : null;
 }
 // pré-temporada: até a 1ª rodada da Série A, a cada semana o mercado roda e os salários saem
@@ -706,8 +755,7 @@ function semanasDoBloco(base, s, ate) {
   const fim = Math.min(+ate, +dataRodada(s.ano, 0)), B = s.semanaBloco?.ano === s.ano ? s.semanaBloco : { ano: s.ano, t: +diaAmistoso(s.ano, 0), n: 0 };
   while (B.t + SEMANA <= fim) {
     B.t += SEMANA; B.n++;
-    garantirFinancas(base, s);
-    lancar(s, 'salarios', 'Salários (7 dias)', -folhaDia(base, s) * 7, 0);
+    for (const [, sv] of humanos(s)) { garantirFinancas(base, sv); lancar(sv, 'salarios', 'Salários (7 dias)', -folhaDia(base, sv) * 7, 0); }
     resolverMercado(base, s, 0, B.n);
   }
   s.semanaBloco = B;
@@ -740,26 +788,34 @@ export const copaSemVoce = garantirTemporada; // nome antigo (migração dos sav
 export function concluirRodada(base, s, R, simMeu) {
   s.res = s.res || { A: {}, B: {}, C: {} };
   s.est = s.est || {};
-  const ci = s.tecnico.clube, d = R.d || base.clubes[ci].div, jogos = R.jogos.slice(), m = R.meu;
-  if (m) { simMeu.capitao = m.capitao; jogos.push({ d: m.d, h: m.h, a: m.a, sim: simMeu }); }
+  const d = R.d || base.clubes[s.tecnico.clube].div, jogos = R.jogos.slice(), m = R.meu;
+  if (m) { simMeu.capitao = m.capitao; jogos.push({ d: m.d, h: m.h, a: m.a, sim: simMeu, xi: xiDe(m) }); }
   const dmN = [];
   for (const { h, a, sim } of jogos) { (s.res[d] ||= {})[chave(h, a)] = sim.gols; registrar(s.est, sim); if (d === 'A') contarSerieA(s, h, a, sim); cartoesDoTime(s, d, h, a, sim); aposJogo(base, s, h, a, sim); dmN.push(...posJogo(base, s, h, a, sim, 'L')); }
-  if (m) {
-    s.ultima = { rodada: R.rd, div: m.d, casa: m.h, fora: m.a, ...simMeu, xi: [m.th.xi.map(j => j.id), m.ta.xi.map(j => j.id)] };
-    registrarConfronto(base, s);
-    torcidaAposJogo(s, ci, m.h, simMeu.gols, { classico: rivais(base, m.h, m.a) });
+  // o jogo de cada técnico: súmula, confronto, torcida
+  const hs = humanos(s), meus = hs.map(([ci, sv]) => [ci, sv, jogos.find(x => x.h === ci || x.a === ci)]).filter(x => x[2]);
+  for (const [ci, sv, jg] of meus) {
+    sv.ultima = { rodada: R.rd, div: d, casa: jg.h, fora: jg.a, ...jg.sim, xi: jg.xi }; if (jg.vivo) sv.ultimaVivo = jg.vivo;
+    registrarConfronto(base, sv);
+    torcidaAposJogo(sv, ci, jg.h, jg.sim.gols, { classico: rivais(base, jg.h, jg.a) });
   }
   if (d === 'A') s.rodada++; else s.feitas[d] = (s.feitas[d] || 0) + 1;
-  const tabs = Object.fromEntries(DIVS.map(x => [x, tabela(base, s, x)])), meuDiv = base.clubes[ci].div;
-  if (m && m.h === ci) bilheteriaLiga(base, s, R.rd, m.a, tabs[meuDiv]);
+  const tabs = Object.fromEntries(DIVS.map(x => [x, tabela(base, s, x)]));
+  for (const [ci, sv, jg] of meus) if (jg.h === ci) bilheteriaLiga(base, sv, R.rd, jg.a, tabs[base.clubes[ci].div]);
   gerarNoticias(base, s, R.rd, jogos, tabs, d);
   for (const n of dmN) s.noticias.unshift({ rodada: s.rodada, div: base.clubes[n.clube].div, ...n });
+  // a rodada da Série A é o relógio: contas, cargo, vestiário e eventos de cada técnico; a IA troca técnicos, a CBF
+  // convoca na Data FIFA e o mercado anda
   if (d === 'A') {
-    for (const txt of contasDaRodada(base, s, R.rd, null, tabs[meuDiv])) s.noticias.unshift({ rodada: R.rd + 1, tipo: 'clube', evento: true, div: meuDiv, texto: txt });
-    for (const n of [...aposRodada(base, s, tabs), ...vestiarioAposRodada(base, s, tabs), ...eventosAposRodada(base, s), ...dataFifa(base, s)]) s.noticias.unshift({ rodada: R.rd + 1, div: base.clubes[n.clube].div, ...n });
+    for (const [ci, sv] of hs) {
+      const dv = base.clubes[ci].div;
+      for (const txt of contasDaRodada(base, sv, R.rd, null, tabs[dv])) s.noticias.unshift({ rodada: R.rd + 1, tipo: 'clube', clube: ci, evento: true, div: dv, texto: txt });
+      for (const n of [...aposRodada(base, sv, tabs), ...vestiarioAposRodada(base, sv, tabs), ...eventosAposRodada(base, sv)]) s.noticias.unshift({ rodada: R.rd + 1, div: base.clubes[n.clube].div, ...n });
+    }
+    for (const n of [...demissoesIA(base, s, tabs), ...dataFifa(base, s)]) s.noticias.unshift({ rodada: R.rd + 1, div: base.clubes[n.clube]?.div ?? 'A', ...n });
     resolverMercado(base, s, R.rd);
   }
-  if (m || d === 'A') correio(base, s);
+  for (const [ci, sv] of hs) if (d === 'A' || meus.some(x => x[0] === ci)) correio(base, sv);
   return m ? s.ultima : null;
 }
 
@@ -812,10 +868,11 @@ export function iniciarLiga2(base, s, d) {
 }
 function agregado2(F, h, a) { const ida = F.jogos.find(j => j.i === F.i - 1 && j.h === a && j.a === h); return ida ? [ida.gols[1], ida.gols[0]] : [0, 0]; }
 export function concluirLiga2(base, s, R, simMeu) {
-  const d = R.liga2, F = s.f2[d], ci = s.tecnico.clube, nome = c => base.clubes[c].n, N = [], dmN = [], jogos = R.jogos.slice(), decide = decisivo2(F, d);
-  if (R.meu) { simMeu.capitao = R.meu.capitao; jogos.push({ h: R.meu.h, a: R.meu.a, seed: R.meu.seed, sim: simMeu }); }
+  const d = R.liga2, F = s.f2[d], nome = c => base.clubes[c].n, N = [], dmN = [], jogos = R.jogos.slice(), decide = decisivo2(F, d), hs = humanos(s), jogaram = new Set();
+  if (R.meu) { simMeu.capitao = R.meu.capitao; jogos.push({ h: R.meu.h, a: R.meu.a, seed: R.meu.seed, sim: simMeu, xi: xiDe(R.meu) }); }
   const venc = {};
-  for (const { h, a, seed, sim } of jogos) {
+  for (const jg of jogos) {
+    const { h, a, seed, sim } = jg;
     registrar(s.est, sim); cartoesDoTime(s, d, h, a, sim); aposJogo(base, s, h, a, sim); dmN.push(...posJogo(base, s, h, a, sim, 'L'));
     let dec = {};
     if (decide) {
@@ -826,27 +883,32 @@ export function concluirLiga2(base, s, R, simMeu) {
     }
     venc[`${h}-${a}`] = dec.vencedor;
     F.jogos.push({ i: F.i, h, a, gols: sim.gols, pen: dec.pen || null });
-    if (h !== ci && a !== ci) continue;
-    if (h === ci) { const b = bilheteria(base, s, ci, a, [], 10, s.fin.ingresso); lancar(s, 'bilheteria', `Bilheteria ${R.titulo.split(' · ').slice(0, 2).join(' · ')} × ${nome(a)} (${b.publico.toLocaleString('pt-BR')} pagantes)`, Math.round(b.renda * 1.15)); }
-    torcidaAposJogo(s, ci, h, sim.gols, { pen: dec.pen, mataMata: decide, final: d === 'C' && F.i === 7, classico: rivais(base, h, a) });
-    s.ultima = { rodada: s.rodada - 1, copa: R.titulo, div: d, casa: h, fora: a, ...sim, pen: dec.pen || null, xi: [R.meu.th.xi.map(j => j.id), R.meu.ta.xi.map(j => j.id)] }; registrarConfronto(base, s);
-    N.push({ tipo: 'clube', texto: `${R.titulo}: ${nome(h)} ${sim.gols[0]} × ${sim.gols[1]} ${nome(a)}${dec.agg ? ` (agregado ${dec.agg[0]} a ${dec.agg[1]})` : ''}${dec.pen ? ` (${dec.pen[0]} a ${dec.pen[1]} nos pênaltis)` : dec.vantagem ? ' (passa o melhor colocado)' : ''}.` });
+    const titulo = tituloFase2(F, d, [h, a]);
+    for (const [ci, sv] of hs) {
+      if (h !== ci && a !== ci) continue;
+      jogaram.add(sv);
+      if (h === ci) { const b = bilheteria(base, s, ci, a, [], 10, sv.fin.ingresso); lancar(sv, 'bilheteria', `Bilheteria ${titulo.split(' · ').slice(0, 2).join(' · ')} × ${nome(a)} (${b.publico.toLocaleString('pt-BR')} pagantes)`, Math.round(b.renda * 1.15)); }
+      torcidaAposJogo(sv, ci, h, sim.gols, { pen: dec.pen, mataMata: decide, final: d === 'C' && F.i === 7, classico: rivais(base, h, a) });
+      sv.ultima = { rodada: s.rodada - 1, copa: titulo, div: d, casa: h, fora: a, ...sim, pen: dec.pen || null, xi: jg.xi }; if (jg.vivo) sv.ultimaVivo = jg.vivo; registrarConfronto(base, sv);
+      N.push({ tipo: 'clube', clube: ci, texto: `${titulo}: ${nome(h)} ${sim.gols[0]} × ${sim.gols[1]} ${nome(a)}${dec.agg ? ` (agregado ${dec.agg[0]} a ${dec.agg[1]})` : ''}${dec.pen ? ` (${dec.pen[0]} a ${dec.pen[1]} nos pênaltis)` : dec.vantagem ? ' (passa o melhor colocado)' : ''}.` });
+    }
   }
   const vencedores = jogosFase2(F, d).map(([h, a]) => venc[`${h}-${a}`]);
   F.i++;
+  const tipo = c => ehHumano(s, c) ? 'clube' : 'destaque';
   if (d === 'B' && F.i === 2) {
     F.venc = vencedores;
-    for (const c of vencedores) N.push({ tipo: c === ci ? 'clube' : 'destaque', texto: `ACESSO! ${nome(c)} vence o playoff e vai para a Série A.` });
+    for (const c of vencedores) N.push({ tipo: tipo(c), clube: c, texto: `ACESSO! ${nome(c)} vence o playoff e vai para a Série A.` });
   }
   if (d === 'C' && F.i === 6) {
     const t = [0, 1].map(g => tabelaQuad(F, g)), lider = t.map(x => x[0]), ord = lider[0].p > lider[1].p || (lider[0].p === lider[1].p && lider[0].sg >= lider[1].sg) ? [0, 1] : [1, 0];
     F.final = [lider[ord[0]].clube, lider[ord[1]].clube];
     F.sobem = t.flatMap(x => x.slice(0, 2).map(l => l.clube));
-    for (const c of F.sobem) N.push({ tipo: c === ci ? 'clube' : 'destaque', texto: `ACESSO! ${nome(c)} garante vaga na Série B.` });
+    for (const c of F.sobem) N.push({ tipo: tipo(c), clube: c, texto: `ACESSO! ${nome(c)} garante vaga na Série B.` });
   }
-  if (d === 'C' && F.i === 8) { F.campeao = vencedores[0]; F.vice = F.final.find(c => c !== F.campeao); N.push({ tipo: F.campeao === ci ? 'clube' : 'destaque', texto: `${nome(F.campeao)} é campeão da Série C ${s.ano} em cima do ${nome(F.vice)}.` }); if (F.campeao === ci) tituloDeCopa(s); }
-  s.noticias = [...dmN.map(n => ({ rodada: s.rodada, div: base.clubes[n.clube].div, ...n })), ...N.map(n => ({ rodada: s.rodada, div: d, ...n })), ...s.noticias].slice(0, 220);
-  if (R.meu) correio(base, s);
+  if (d === 'C' && F.i === 8) { F.campeao = vencedores[0]; F.vice = F.final.find(c => c !== F.campeao); N.push({ tipo: tipo(F.campeao), clube: F.campeao, texto: `${nome(F.campeao)} é campeão da Série C ${s.ano} em cima do ${nome(F.vice)}.` }); const c = vistaDo(s, F.campeao); if (c) tituloDeCopa(c); }
+  s.noticias = [...dmN.map(n => ({ rodada: s.rodada, div: base.clubes[n.clube].div, ...n })), ...N.map(n => ({ rodada: s.rodada, ...n, div: d })), ...s.noticias].slice(0, 220);
+  for (const sv of jogaram) correio(base, sv);
   return R.meu ? s.ultima : null;
 }
 // classificação final de cada divisão (acesso, queda, meta): a B põe os vencedores do playoff logo depois dos 2 primeiros;

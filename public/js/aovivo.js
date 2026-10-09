@@ -65,7 +65,7 @@ export function tela(V) {
     <div class="campo-h"><canvas id="vivo-cv" role="img" aria-label="Campinho com a partida ao vivo"></canvas></div>
     <div class="ticker" id="vivo-ticker" role="status" aria-live="polite">${V.ult ? esc(V.ult.txt) : 'Bola rolando…'}</div>
     <div id="vivo-fim">${V.fim ? fimHtml(V) : ''}</div>
-    <div class="linha-botoes"><button class="botao sec" type="button" data-acao="vivo-painel" ${V.fim ? 'disabled' : ''}>Mexer no time (${5 - V.P.subs[V.humano]} trocas)</button></div>
+    ${V.R.replay ? '' : `<div class="linha-botoes"><button class="botao sec" type="button" data-acao="vivo-painel" ${V.fim ? 'disabled' : ''}>Mexer no time (${5 - V.P.subs[V.humano]} trocas)</button></div>`}
     <div id="vivo-painel">${V.painel ? painelHtml(V) : ''}</div>
     <section class="cartao stats" id="vivo-stats">${statsHtml(V)}</section>
     ${outrosHtml(V) ? `<section class="cartao" id="vivo-outros">${outrosHtml(V)}</section>` : ''}
@@ -118,10 +118,11 @@ function painelHtml(V) {
 // mata-mata da copa: empate no jogo (ou no agregado da final) vai para os pênaltis, com a mesma semente da súmula
 function fimHtml(V) {
   const g = V.P.gols, eu = V.humano, m = V.R.meu, ag = m.agg || [0, 0];
-  const pen = m.mataMata && g[0] + ag[0] === g[1] + ag[1] ? penaltis(m.seed, campoDe(V.P)) : null;
+  // reprise (liga online): os pênaltis vêm da súmula
+  const pen = V.R.replay ? V.R.pen && { 0: V.R.pen[0], 1: V.R.pen[1], seq: [] } : m.mataMata && g[0] + ag[0] === g[1] + ag[1] ? penaltis(m.seed, campoDe(V.P)) : null;
   const res = pen ? (pen[eu] > pen[1 - eu] ? 'Vitória' : 'Derrota') : g[0] === g[1] ? 'Empate' : (g[eu] > g[1 - eu] ? 'Vitória' : 'Derrota');
   const sub = pen ? `<small>Pênaltis: ${pen[0]} a ${pen[1]}</small>` : m.mataMata && (ag[0] || ag[1]) ? `<small>Agregado: ${g[0] + ag[0]} a ${g[1] + ag[1]}</small>` : '';
-  const serie = pen ? `<div class="penaltis">${[0, 1].map(t => `<p><b>${H.esc(H.clube(t ? m.a : m.h).s || '')}</b> ${pen.seq.filter(x => x.t === t).map(x => `<span class="${x.gol ? 'ok' : 'erro'}" title="${H.esc(x.nome)}">${x.gol ? '●' : '✕'} ${H.esc(x.nome)}</span>`).join('')}</p>`).join('')}</div>` : '';
+  const serie = pen?.seq.length ? `<div class="penaltis">${[0, 1].map(t => `<p><b>${H.esc(H.clube(t ? m.a : m.h).s || '')}</b> ${pen.seq.filter(x => x.t === t).map(x => `<span class="${x.gol ? 'ok' : 'erro'}" title="${H.esc(x.nome)}">${x.gol ? '●' : '✕'} ${H.esc(x.nome)}</span>`).join('')}</p>`).join('')}</div>` : '';
   const titulo = m.final && res === 'Vitória' ? `<div class="campeao-vivo" role="status"><strong>CAMPEÃO!</strong>${'<i></i>'.repeat(24)}</div>` : '';
   return `${titulo}<section class="resultado-vivo ${res.toLowerCase()}"><strong>${res}</strong>${sub}<button class="botao" type="button" data-acao="vivo-fim">Continuar</button></section>${serie}`;
 }

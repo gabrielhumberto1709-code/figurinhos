@@ -1202,3 +1202,55 @@ test('base sul-americana do Treineiros: elencos reais e vagas por país nas copa
   assert.equal(s.cont.LIB.grupos.flat().length, 32); assert.equal(L.BRA, 5); assert.ok(L.ARG >= 6 && L.COL === 4 && L.BOL === 2, JSON.stringify(L));
   assert.equal(new Set([...s.cont.LIB.grupos.flat(), ...s.cont.SUL.grupos.flat()]).size, 64);
 });
+
+import { novoMundo, novaMesa, montar, processarProximo, vistaDe, horario, adiantar, devido, proximoHorario, merge3, liberarMesa, clubeLivre } from '../public/js/motor/online.js';
+import { daFoto, pendentes } from '../public/js/motor/mundo.js';
+import { aceitarRecebida as aceitarR } from '../public/js/motor/mercado.js';
+test('liga online: dois técnicos no mesmo mundo, cada um com a sua tática, finanças e correio; proposta entre eles; replay igual; virada', () => {
+  const W = novoMundo(base, 31), mesas = {};
+  montar(W, mesas);
+  const A = base.clubes.findIndex(c => c.n === 'Palmeiras'), B = base.clubes.findIndex(c => c.n === 'Flamengo');
+  mesas.u1 = novaMesa(base, W, A, { nome: 'Ana' }); mesas.u2 = novaMesa(base, W, B, { nome: 'Beto' });
+  assert.equal(novaMesa(base, W, A, { nome: 'Outro' }), null, 'clube já tem técnico');
+  const va = vistaDe(W, 'u1'), vb = vistaDe(W, 'u2');
+  assert.equal(va.tecnico.clube, A); assert.ok(va.msgs.length >= 2 && va.caixa > 0 && vb.caixa > 0);
+  assert.equal(W.tecnico.clube, -1); assert.ok(!('fin' in W) && !('msgs' in W), 'mundo sem campos de técnico');
+  // proposta da Ana por um jogador do Beto (janela aberta na pré-temporada)
+  const alvo = base.elencos[B].slice().sort((a, b) => a.ovr - b.ovr)[8];
+  assert.equal(fazerProposta(base, va, alvo, { tipo: 'compra', valor: 2e6, salario: salarioPedido(base, va, alvo, 3, A), anos: 3 }), null);
+  // a Ana deixa o melhor jogador no banco
+  const melhor = base.elencos[A].slice().sort((a, b) => b.ovr - a.ovr)[0], xi = escalacao(base, va, A, 'L').xi.map(j => j.id), outro = base.elencos[A].find(j => !xi.includes(j.id) && j.pos === melhor.pos && j.id !== melhor.id) || base.elencos[A].find(j => !xi.includes(j.id) && j.pos !== 'GOL');
+  va.xi = xi.map(id => id === melhor.id ? outro.id : id);
+  let n = 0;
+  while (!vb.recebidas.some(x => x.humano) && n++ < 30) processarProximo(base, W);
+  const x = vb.recebidas.find(y => y.humano);
+  assert.ok(x && x.de === A && x.jogador === alvo.id, 'proposta chegou ao Beto');
+  const ca = va.caixa, cb = vb.caixa;
+  assert.equal(aceitarR(base, vb, x.id), null);
+  assert.equal(alvo.clube, A); assert.equal(va.caixa, ca - 2e6); assert.equal(vb.caixa, cb + 2e6);
+  assert.equal(va.propostas.find(p => p.jogador === alvo.id).estado, 'concluida');
+  while (W.rodada < 4 && n++ < 400) processarProximo(base, W);
+  for (const v of [va, vb]) { assert.ok(v.ultima?.gols && v.fin.extrato.some(e => e.tipo === 'salarios') && v.ultimaVivo, 'súmula, salários e replay de cada um'); }
+  const lado = va.ultima.casa === A ? 0 : 1;
+  if (!va.ultima.xi[lado].includes(outro.id)) assert.fail('a escalação da Ana não foi usada');
+  // replay: a ficha refaz o mesmo jogo
+  const F = daFoto(va.ultimaVivo);
+  assert.deepEqual(simular(F.th, F.ta, F.seed, F.opts).gols, va.ultima.gols);
+  // a IA não mexe nos elencos dos técnicos
+  assert.ok(!W.historicoTransf.some(h => h.ia && ([A, B].includes(h.de) || [A, B].includes(h.para))));
+  // relógio: horários em sequência; o ADM adianta o próximo para agora
+  const L = { ritmo: 'normal', inicio: Date.UTC(2026, 9, 9, 14) }, W2 = { slot: 0 };
+  const h0 = horario(L, 0), h1 = horario(L, 1);
+  assert.ok(h0 >= L.inicio + 600e3 && h1 > h0 && !devido(L, W2, h0 - 1) && devido(L, W2, h0));
+  const L2 = adiantar(L, W2, L.inicio + 60e3); assert.equal(proximoHorario(L2, W2), L.inicio + 60e3);
+  // merge de 3 vias: dinheiro soma as duas mudanças, chave mexida só de um lado entra
+  assert.deepEqual(merge3({ caixa: 100, a: 1, l: [1] }, { caixa: 90, a: 2, l: [1, 2] }, { caixa: 130, a: 1, l: [1, 3] }), { caixa: 120, a: 2, l: [1, 3, 2] });
+  // virada com os dois
+  while (W.ano === 2026 && n++ < 600) processarProximo(base, W);
+  assert.equal(W.ano, 2027); assert.equal(va.historico[0].clube, A); assert.equal(vb.historico[0].clube, B);
+  // sem amistosos na liga (o mundo não tem como jogar os de cada um) e o Beto sai: o Flamengo volta para a IA com o caixa
+  assert.ok(!pendentes(base, vb).some(e => e.tipo === 'amistoso'));
+  const caixaB = vb.caixa; liberarMesa(base, W, 'u2');
+  assert.ok(!mesas.u2 && clubeLivre(base, W, B) && W.caixaIA[B] === caixaB);
+  processarProximo(base, W);
+});
