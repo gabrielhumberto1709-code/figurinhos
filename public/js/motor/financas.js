@@ -5,6 +5,7 @@ import { dataRodada, tabela } from './mundo.js';
 import { liberar, multaRescisao } from './mercado.js';
 import { dataAmistoso, doAno } from './calendario.js';
 import { FASES } from './copa.js';
+import { clubesCont } from './continental.js';
 
 const DIA = 864e5;
 const PISO = { A: 150000, B: 40000, C: 15000 };                 // salário anual mínimo por divisão
@@ -69,6 +70,10 @@ export const receitaAnual = c => cotaTV(c) + comercial(c) + bilEst(c);
 export const ENCARGOS = 0.7, ESTRUTURA = 0.38, JUROS = 0.1;
 export const estruturaAnual = c => Math.round(ESTRUTURA * receitaAnual(c));
 export function dividaInicial(c) { const r = real(c); return Math.round(r ? r.divida : receitaAnual(c) * ({ A: 1, B: 2, C: 1 }[c.div] || 0)); }
+// dívida em vezes a receita do ano. Acima de 0,9 a diretoria segura salários e verba (até -45% no teto: Atlético-MG e
+// Corinthians no aperto). Amortizar a dívida solta o clube aos poucos.
+export const pesoDivida = (c, divida = dividaInicial(c)) => { const R = receitaAnual(c); return R > 0 ? divida / R : 0; };
+export const corteDivida = d => d > 0.9 ? Math.min(45, Math.round(16 * (d - 0.9))) : 0;
 // caixa de quem assume: o do balanço (sem balanço, 3% da receita), mais uma folga no fácil
 export function caixaReal(c, dificuldade = 'normal') { const r = real(c), R = receitaAnual(c); return Math.round(((r ? r.caixa : 0.03 * R) + ({ facil: 0.15, normal: 0.03, dificil: 0 }[dificuldade] ?? 0.03) * R) / 1e4) * 1e4; }
 // verba de contratações da IA por temporada: o gasto real médio (o resto vem do que ela vende); sem balanço, pela receita e a dívida
@@ -172,7 +177,9 @@ export function tetoSalarial(base, s) {
   let v = (TETO_DIV[c.div] || 500) * (0.5 + (c.fan || 3) / 8);
   const pct = (txt, p) => { partes.push([txt, p]); v *= 1 + p / 100; };
   if (recemPromovido(base, s, ci)) pct('recém-promovido: aporte menor', c.div === 'A' ? -55 : -40);
-  const cont = k => s.cont?.ano === s.ano && (s.cont[k]?.grupos.some(g => g.includes(ci)) || s.cont[k]?.vindos?.includes(ci));
+  const d = pesoDivida(c, s.fin?.divida ?? dividaInicial(c)), corte = corteDivida(d);
+  if (corte) pct(`dívida de ${d.toFixed(1).replace('.', ',')}x a receita`, -corte);
+  const cont = k => clubesCont(s, k).includes(ci);
   if (cont('LIB')) pct('na Libertadores', 35); else if (cont('SUL')) pct('na Sul-Americana', 15);
   const fase = s.copa?.ano === s.ano ? Math.max(-1, ...s.copa.jogos.filter(j => j.h === ci || j.a === ci).map(j => j.fase), ...(s.copa.chaves.some(x => x.includes(ci)) ? [s.copa.fase] : [])) : -1;
   const k = fase >= 0 ? FASES[fase].k : null, copa = { oit: 5, qua: 10, sem: 15, fin: 20 }[k];
@@ -200,7 +207,7 @@ export function pedirVerba(base, s, pos) {
   const meta = metaDiretoria(base, s).pos, ci = s.tecnico.clube, sv = base.elencos[ci].reduce((t, j) => t + j.valor * 1000, 0);
   const conf = clamp((f.diretoria - 30) / 60, 0, 1);
   const sport = rd < 5 ? 0.85 : pos <= meta ? 1 : pos <= meta + 3 ? 0.55 : 0.25;
-  const fin = s.caixa < 0 ? 0.2 : s.caixa > sv * 0.35 ? 0.45 : s.caixa < sv * 0.05 ? 0.8 : 1;
+  const fin = (s.caixa < 0 ? 0.2 : s.caixa > sv * 0.35 ? 0.45 : s.caixa < sv * 0.05 ? 0.8 : 1) * clamp(1.3 - 0.3 * pesoDivida(base.clubes[ci], f.divida), 0.15, 1);
   f.verbasRecentes = f.verbasRecentes.filter(r => rd - r < 8);
   const rep = 0.35 ** f.verbasRecentes.length;
   const chance = 0.6 * conf * sport * fin * rep;

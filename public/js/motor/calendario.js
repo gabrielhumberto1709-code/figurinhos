@@ -32,6 +32,7 @@ export function pontosCorridos(times, seed) {
 // - Série C: 1ª fase em turno único de 4/abr a 30/ago, quadrangulares de 5/set a 10/out e final 18 e 25/out.
 // - Copa do Brasil: fases 1 a 4 em jogo único (fev-mar), a Série A entra na 5ª fase (abr-mai); oitavas, quartas e
 //   semi em ida e volta; final única em 6/dez.
+// - Pré-Libertadores: 2ª fase 19 e 26/fev, 3ª fase 5 e 12/mar (quintas).
 // - Libertadores e Sul-Americana: grupos de 8/abr a 27/mai; playoff da Sul-Americana 22 e 29/jul (2º do grupo da Sula
 //   × 3º do grupo da Libertadores); oitavas em agosto, quartas em setembro, semi em outubro; finais 21/nov (Sula) e
 //   28/nov (Libertadores). Copas regionais (Nordeste, Sul-Sudeste, Verde) de 25/mar a 7/jun, às quartas.
@@ -59,7 +60,9 @@ export const dataRodada = (ano, r) => r >= 38 ? new Date(+dataLiga(ano, 'A', 37)
 export const COPA_DATAS = ['2-18', '2-25', '3-11', '3-18', '4-22', '5-13', '8-2', '8-5', '8-26', '9-2', '11-1', '11-8', '12-6'];
 export const dataCopa = (ano, i) => doAno(ano, COPA_DATAS[i]);
 const CONT_DATAS = ['4-8', '4-15', '4-29', '5-6', '5-20', '5-27', '7-22', '7-29', '8-12', '8-19', '9-9', '9-16', '10-14', '10-21'];
-export const dataCont = (ano, i, k = 'LIB') => doAno(ano, CONT_DATAS[i] || (k === 'SUL' ? '11-21' : '11-28'));
+// pré-Libertadores 2026 (Conmebol): 2ª fase 17-19 e 24-26/fev, 3ª fase 3-5 e 10-12/mar; aqui às quintas
+const PRE_DATAS = ['2-19', '2-26', '3-5', '3-12'];
+export const dataCont = (ano, i, k = 'LIB') => doAno(ano, k === 'PRE' ? PRE_DATAS[i] : CONT_DATAS[i] || (k === 'SUL' ? '11-21' : '11-28'));
 export const dataSup = ano => doAno(ano, '2-1');
 export const dataAmistoso = (ano, i) => doAno(ano, ['1-3', '1-6', '1-8'][i]);
 export const JANELAS = [['1-5', '3-3'], ['7-20', '9-11']];

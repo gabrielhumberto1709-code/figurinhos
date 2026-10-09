@@ -8,6 +8,7 @@
 import { pontosCorridos, datasRegionais } from './calendario.js';
 import { penaltis } from './copa.js';
 import { rng, shuffle } from './util.js';
+import { clubesCont } from './continental.js';
 
 // ---------- chaveamentos ----------
 const top4 = L => [[L[0], L[3]], [L[1], L[2]]];
@@ -341,7 +342,7 @@ function participantes(base, s, k, ant, troca) {
   if (troca && (k === 'SP' || k === 'SP2')) { const [de, para] = k === 'SP' ? [troca.caem, troca.sobem] : [troca.sobem, troca.caem]; clubes = clubes.map(c => de.includes(c) ? para[de.indexOf(c)] : c); }
   if (!S.copa || s.ano === 2026) return clubes;
   // copa regional: quem está na Libertadores/Sul-Americana sai; entra o mais forte da mesma região (A, B ou C) que ainda não joga
-  const conm = new Set(['LIB', 'SUL'].flatMap(x => s.cont?.ano === s.ano ? s.cont[x]?.grupos.flat() || [] : [])), usados = new Set(clubes);
+  const conm = new Set(['LIB', 'SUL'].flatMap(x => clubesCont(s, x))), usados = new Set(clubes);
   const a2 = new Set(ant?.SP2?.clubes || []);   // a A2 joga também nas quartas: não cabe copa regional
   const regiao = i => { const n = S.ufs.length > 1 ? Math.floor(i / (clubes.length / S.ufs.length)) : 0; return S.ufs[n]; };
   return clubes.map((ci, i) => {

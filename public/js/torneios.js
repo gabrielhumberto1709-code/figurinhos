@@ -5,7 +5,7 @@ import { FASES, PREMIOS, dataCopa, campanha, naCopa, mandoDe } from './motor/cop
 import { fmtDinheiro } from './motor/util.js';
 import { REGIONAIS, ESTADUAIS, COPAS_REG, fasesReg, dataFaseReg, jogosDaFaseReg, tabelaReg, campanhaReg, vivoReg, regsDe } from './motor/regionais.js';
 import { dataAmistoso, dataLiga2, N_LIGA } from './motor/calendario.js';
-import { TORNEIOS, PREMIO_SUP, FASES_CONT, F_MATA, dataCont, dataSup, tabelaGrupo, campanhaCont, naCont, jogoDoClube, emQualCont, jogosDaFase } from './motor/continental.js';
+import { TORNEIOS, PREMIO_SUP, F_MATA, dataCont, dataSup, tabelaGrupo, campanhaCont, naCont, jogoDoClube, emQualCont, jogosDaFase, fasesDe } from './motor/continental.js';
 
 let H; // { app, clube, esc, imgEscudo, render }
 export const configurar = h => { H = h; };
@@ -13,10 +13,11 @@ export const configurar = h => { H = h; };
 const ABAS = [['brasileirao', 'Brasileirão'], ['copa', 'Copa do Brasil'], ['continental', 'Continental'], ['regionais', 'Regionais'], ['agenda', 'Agenda'], ['historico', 'Histórico']];
 const SEMANA = ['dom', 'seg', 'ter', 'qua', 'qui', 'sex', 'sáb'];
 const dataCurta = d => `${SEMANA[d.getUTCDay()]} ${String(d.getUTCDate()).padStart(2, '0')}/${String(d.getUTCMonth() + 1).padStart(2, '0')}`;
-// zonas de 2026: G5 na Libertadores (mais quem herdar vaga da Copa do Brasil ou das continentais), os 6 seguintes na Sula;
+// zonas de 2026 (CBF): 1º ao 4º nos grupos da Libertadores, 5º na pré-Libertadores, 6º ao 11º na Sula, 4 caem
+// (vaga repassada pela Copa do Brasil ou pelas continentais muda quem entra, como na vida real);
 // B sobe 2 direto e do 3º ao 6º joga o playoff; C leva 8 ao quadrangular e cai só 2
 const ZONAS = {
-  A: [[1, 5, 'z-lib', 'Libertadores', 'var(--carimbo)'], [6, 11, 'z-sul', 'Sul-Americana', 'var(--gramado)'], [17, 20, 'z-cai', 'Rebaixamento', 'var(--cartao)']],
+  A: [[1, 4, 'z-lib', 'Libertadores', 'var(--carimbo)'], [5, 5, 'z-pre', 'Pré-Libertadores', '#6E8FD0'], [6, 11, 'z-sul', 'Sul-Americana', 'var(--gramado)'], [17, 20, 'z-cai', 'Rebaixamento', 'var(--cartao)']],
   B: [[1, 2, 'z-sobe', 'Acesso direto', 'var(--gramado)'], [3, 6, 'z-sul', 'Playoff de acesso', 'var(--carimbo)'], [17, 20, 'z-cai', 'Rebaixamento', 'var(--cartao)']],
   C: [[1, 8, 'z-sobe', 'Quadrangular de acesso', 'var(--gramado)'], [19, 20, 'z-cai', 'Rebaixamento (Série D)', 'var(--cartao)']],
 };
@@ -86,20 +87,28 @@ function continental() {
       <ol class="chave-copa">${placarCopa({ h: x.h, a: x.a, gols: j?.gols, pen: j?.pen, data: j ? null : dataSup(dataRodada, s.ano) }, ci)}</ol>
       <div class="chips"><span class="chip-info">Campeão ${fmtDinheiro(PREMIO_SUP.campeao)}</span><span class="chip-info">Vice ${fmtDinheiro(PREMIO_SUP.vice)}</span></div></section>`;
   }
-  const T = s.cont[k], P = TORNEIOS[k].premio, camp = campanhaCont(s, k, ci), fases = [];
-  for (let f = FASES_CONT.length - 1; f >= F_MATA; f--) {
+  const T = s.cont[k], P = TORNEIOS[k].premio, camp = campanhaCont(s, k, ci), nome = c => H.esc(H.clube(c).n);
+  // mata-mata, do mais recente ao mais antigo: jogos feitos e, na fase atual, os confrontos com a data
+  const mata = (T, k, de, pre = '') => { const F = fasesDe(k), out = []; for (let f = F.length - 1; f >= de; f--) {
     const jogos = T.jogos.filter(j => j.fase === f);
-    if (jogos.length) fases.push(`<section class="cartao"><h3>${FASES_CONT[f].nome}</h3><ol class="chave-copa">${jogos.map(j => placarCopa(j, ci)).join('')}</ol></section>`);
-    else if (f === T.fase && T.chaves.length) fases.push(`<section class="cartao"><h3>${FASES_CONT[f].nome} · ${dataCurta(dataCont(dataRodada, s.ano, f, k))}</h3><ol class="chave-copa">${jogosDaFase(T).map(([h, a]) => placarCopa({ h, a }, ci)).join('')}</ol></section>`);
-  }
+    if (jogos.length) out.push(`<section class="cartao"><h3>${pre}${F[f].nome}</h3><ol class="chave-copa">${jogos.map(j => placarCopa(j, ci)).join('')}</ol></section>`);
+    else if (f === T.fase && T.chaves.length) out.push(`<section class="cartao"><h3>${pre}${F[f].nome} · ${dataCurta(dataCont(dataRodada, s.ano, f, k))}</h3><ol class="chave-copa">${jogosDaFase(T).map(([h, a]) => placarCopa({ h, a }, ci)).join('')}</ol></section>`);
+  } return out.join(''); };
+  const PR = k === 'LIB' && s.cont.PRE, sorteio = T.espera && !T.grupos.length;
+  const pre = PR ? `<section class="cartao"><h3>Pré-Libertadores ${PR.ano}</h3>
+      <p class="mudo" style="font-size:.95rem">16 clubes na 2ª fase (19 e 26/fev) e 8 na 3ª (5 e 12/mar), em ida e volta, com a volta na casa do cabeça de chave; empate no agregado vai para os pênaltis. Os 4 vencedores vão aos grupos da Libertadores; quem cai na 3ª fase vai para os grupos da Sul-Americana.</p>
+      ${PR.venc ? `<p style="font-size:.95rem">Foram aos grupos: ${PR.venc.map(nome).join(', ')}.</p>` : ''}
+      <div class="chips"><span class="chip-info">2ª fase ${fmtDinheiro(TORNEIOS.PRE.premio.f2)}</span><span class="chip-info">3ª fase ${fmtDinheiro(TORNEIOS.PRE.premio.f3)}</span></div></section>${mata(PR, 'PRE', 0, 'Pré-Libertadores · ')}` : '';
+  const fases = [mata(T, k, F_MATA)];
   const grupos = T.grupos.map((g, i) => `<section class="cartao tabela-wrap"><h3>Grupo ${LETRA[i]}</h3><table class="tab-arrasta"><thead><tr><th>#</th><th style="text-align:left">Clube</th><th>P</th><th>J</th><th>SG</th><th>Últimos 5</th></tr></thead>
     <tbody>${tabelaGrupo(T, i).map((l, n) => `<tr class="${n < (k === 'LIB' ? 2 : 1) ? 'z-lib' : n === (k === 'LIB' ? 2 : 1) ? 'z-sul' : ''} ${l.clube === ci ? 'meu' : ''}"><td class="pos">${n + 1}</td><td class="clube-cel"><span>${nomeC(l.clube)}</span></td><td class="p">${l.p}</td><td>${l.j}</td><td>${l.sg}</td><td>${forma(l.ult)}</td></tr>`).join('')}</tbody></table></section>`).join('');
   const art = Object.values(T.art).sort((a, b) => b[0] - a[0]).slice(0, 5);
   return `${topo}<section class="cartao copa-topo"><div class="titulo-linha"><h3>${TORNEIOS[k].nome} ${T.ano}</h3>${T.campeao != null ? `<span class="tag destaque">Campeão: ${H.esc(H.clube(T.campeao).n)}</span>` : ''}</div>
       <p><b>${camp ? `${H.esc(H.clube(ci).n)}: ${camp}` : `O ${H.esc(H.clube(ci).n)} não disputa esta edição.`}</b></p>
-      <p class="mudo" style="font-size:.95rem">32 clubes em 8 grupos de 4, em turno e returno (em 2026, os grupos do sorteio real), de 8/abr a 27/mai. ${k === 'LIB' ? 'Os 2 primeiros vão às oitavas e o 3º cai para o playoff da Sul-Americana.' : 'O 1º vai direto às oitavas; o 2º joga o playoff (22 e 29/jul) contra um 3º da Libertadores, que decide em casa.'} Oitavas, quartas e semi em ida e volta, com a volta na casa da melhor campanha (empate no agregado vai para os pênaltis); final única em campo neutro (${k === 'LIB' ? '28' : '21'}/nov). ${k === 'LIB' ? 'Vagas brasileiras: G5 da Série A, campeão e vice da Copa do Brasil e os campeões brasileiros da Libertadores e da Sula; quem já está classificado repassa a vaga ao próximo da tabela.' : 'Vagas: os 6 seguintes da Série A depois dos que foram à Libertadores.'}</p>${(s.repasses || []).length && k === 'LIB' ? `<p style="font-size:.95rem">${s.repasses.map(r => `Vaga repassada: ${H.esc(H.clube(r.clube).n)} (${r.pos}º) herdou a vaga de ${r.por} do ${H.esc(H.clube(r.de).n)}.`).join(' ')}</p>` : ''}
+      <p class="mudo" style="font-size:.95rem">32 clubes em 8 grupos de 4, em turno e returno (em 2026, os grupos do sorteio real), de 8/abr a 27/mai. ${k === 'LIB' ? 'Os 2 primeiros vão às oitavas e o 3º cai para o playoff da Sul-Americana.' : 'O 1º vai direto às oitavas; o 2º joga o playoff (22 e 29/jul) contra um 3º da Libertadores, que decide em casa.'} Oitavas, quartas e semi em ida e volta, com a volta na casa da melhor campanha (empate no agregado vai para os pênaltis); final única em campo neutro (${k === 'LIB' ? '28' : '21'}/nov). ${k === 'LIB' ? 'Vagas brasileiras (regra de 2026): do 1º ao 4º da Série A e o campeão da Copa do Brasil vão direto aos grupos; o 5º e o vice da Copa jogam a pré-Libertadores. Campeões brasileiros da Libertadores e da Sula também vão aos grupos. Vaga de quem já está classificado passa adiante: a do campeão da Copa vai para o vice, as outras para o próximo da tabela.' : 'Vagas brasileiras: do 6º ao 11º da Série A (os 6 seguintes a quem foi à Libertadores); mais 4 vagas de quem cai na 3ª fase da pré-Libertadores.'}</p>${(s.repasses || []).length && k === 'LIB' ? `<p style="font-size:.95rem">${s.repasses.map(r => `Vaga repassada: ${nome(r.clube)}${r.pos ? ` (${r.pos}º)` : ''} herdou a vaga ${r.pre ? 'na pré' : 'nos grupos'} de ${r.por} do ${nome(r.de)}.`).join(' ')}</p>` : ''}
+      ${sorteio ? `<p style="font-size:.95rem"><b>Sorteio dos grupos em 12/mar, depois da pré-Libertadores.</b> Já classificados do Brasil: ${T.espera.filter(c => H.clube(c).div !== 'X').map(nome).join(', ')}.</p>` : ''}
       <div class="chips">${[['Grupos', P.grupos], ['Vitória nos grupos', P.vitoria], ['Oitavas', P.oit], ['Quartas', P.qua], ['Semi', P.sem], ['Final', P.fin], ['Campeão', P.campeao]].map(([t, v]) => `<span class="chip-info">${t} ${fmtDinheiro(v)}</span>`).join('')}</div></section>
-    ${fases.join('')}<div class="grupos-cont">${grupos}</div>
+    ${fases.join('')}<div class="grupos-cont">${grupos}</div>${pre}
     ${art.length ? `<section class="cartao"><h3>Artilharia</h3><ol class="selecao">${art.map(([g, nome, c]) => `<li><span class="clube-cel"><span>${H.imgEscudo(c, 18, 20)}${H.esc(nome)}</span></span><span class="nota">${g}</span></li>`).join('')}</ol></section>` : ''}`;
 }
 
@@ -152,13 +161,14 @@ export function agenda() {
       ev.push({ data: dataCopa(dataRodada, s.ano, i), comp: `Copa · ${FASES[i].curto}`, copa: true, h, a, futuro: !ch });
     }
   }
-  for (const k of ['LIB', 'SUL']) {
-    const T = s.cont?.[k]; if (!T || !(T.grupos.some(g => g.includes(ci)) || T.vindos?.includes(ci))) continue;
-    for (const j of T.jogos.filter(x => x.h === ci || x.a === ci)) ev.push({ data: dataCont(dataRodada, s.ano, j.fase, k), comp: `${k === 'LIB' ? 'Liberta' : 'Sul-Am.'} · ${FASES_CONT[j.fase].curto}`, copa: true, h: j.h, a: j.a, g: j.gols, pen: j.pen });
-    if (naCont(s, k, ci)) for (let f = T.fase; f < FASES_CONT.length; f++) {
+  for (const k of ['PRE', 'LIB', 'SUL']) {
+    const T = s.cont?.[k], F = fasesDe(k), rot = { PRE: 'Pré-Liberta', LIB: 'Liberta', SUL: 'Sul-Am.' }[k];
+    if (!T || !(k === 'PRE' ? T.clubes.includes(ci) : T.grupos.some(g => g.includes(ci)) || T.vindos?.includes(ci))) continue;
+    for (const j of T.jogos.filter(x => x.h === ci || x.a === ci)) ev.push({ data: dataCont(dataRodada, s.ano, j.fase, k), comp: `${rot} · ${F[j.fase].curto}`, copa: true, h: j.h, a: j.a, g: j.gols, pen: j.pen });
+    if (naCont(s, k, ci)) for (let f = T.fase; f < F.length; f++) {
       const jg = jogoDoClube(T, f, ci), [h, a] = jg || [ci, null];
-      if (k === 'LIB' && FASES_CONT[f].k === 'po') continue;
-      ev.push({ data: dataCont(dataRodada, s.ano, f, k), comp: `${k === 'LIB' ? 'Liberta' : 'Sul-Am.'} · ${FASES_CONT[f].curto}`, copa: true, h, a, futuro: !jg });
+      if (k === 'LIB' && F[f].k === 'po') continue;
+      ev.push({ data: dataCont(dataRodada, s.ano, f, k), comp: `${rot} · ${F[f].curto}`, copa: true, h, a, futuro: !jg });
     }
   }
   for (const kr of s.reg?.ano === s.ano ? regsDe(s, ci) : []) {

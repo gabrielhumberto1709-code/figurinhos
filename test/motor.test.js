@@ -402,14 +402,23 @@ test('continentais: grupos completos, mata-mata até o campeão, prêmios e vaga
   assert.deepEqual(s.cont.SUL.vindos.slice().sort(), terceiros);
   assert.ok(s.cont.sup.jogo?.campeao != null);
   assert.ok(s.fin.extrato.some(e => e.desc.includes('Libertadores: cota da fase de grupos')));
-  // vagas: G5 + campeões (Libertadores, Sula, Copa do Brasil) e vice da Copa; quem já estava dentro repassa ao próximo
-  const tabA = tabela(base, s, 'A').map(l => l.clube), br = c => c != null && base.clubes[c].div !== 'X';
-  const esperado = tabA.slice(0, 5);
-  for (const c of [s.cont.LIB.campeao, s.cont.SUL.campeao, s.copa.campeao, s.copa.vice].filter(br)) esperado.push(esperado.includes(c) ? tabA.find(x => !esperado.includes(x)) : c);
+  // vagas de 2026: 1º ao 4º e os campeões (Libertadores, Sula, Copa) nos grupos; o 5º e o vice da Copa na pré
   virarTemporada(base, s);
-  const libBR = s.cont.LIB.grupos.flat().filter(c => base.clubes[c].div !== 'X');
-  assert.deepEqual(libBR.slice().sort(), esperado.slice().sort());
+  const cl = s.classif, tabA = cl.A, br = c => c != null && ['A', 'B', 'C'].includes(base.clubes[c].div);
+  const titulos = [cl.lib, cl.sul, cl.copa].filter(br), vice = br(cl.copaVice) ? cl.copaVice : null;
+  const libBR = s.cont.LIB.espera.filter(br), preBR = s.cont.PRE.clubes.filter(br);
+  assert.ok([...tabA.slice(0, 4), ...titulos].every(c => libBR.includes(c)), 'G4 e campeões nos grupos');
+  assert.equal(libBR.length, 4 + titulos.length);
+  assert.equal(preBR.length, 1 + (vice != null ? 1 : 0));
+  if (vice != null) assert.ok(libBR.includes(vice) || preBR.includes(vice));
+  assert.ok(preBR.includes(tabA.find(c => !libBR.includes(c))), 'o mais bem colocado de fora vai à pré');
   assert.equal(s.cont.sup.h, tabA[0]);
+  // pré: 2ª e 3ª fases em ida e volta; no fim, sorteio com os 4 vencedores na Libertadores e os 4 da 3ª fase na Sula
+  assert.equal(s.cont.LIB.grupos.length, 0);
+  while (!s.cont.LIB.grupos.length) avancar(base, s);
+  const P = s.cont.PRE, L = s.cont.LIB.grupos.flat(), U = s.cont.SUL.grupos.flat();
+  assert.equal(P.jogos.length, 24); assert.equal(new Set([...L, ...U]).size, 64);
+  assert.ok(P.venc.every(c => L.includes(c)) && P.perd.every(c => U.includes(c)));
 });
 
 import { abrirColetiva, responder, efeito, TONS, perfil } from '../public/js/motor/imprensa.js';
@@ -1015,16 +1024,20 @@ test('calendário 2026: datas da CBF/Conmebol e vaga da Libertadores repassada a
   assert.equal(d(diaDiv(2026, 'B', 0)), '2026-03-21'); assert.equal(d(diaDiv(2026, 'B', 37)), '2026-11-14'); assert.equal(d(diaDiv2(2026, 'B', 1)), '2026-11-28');
   assert.equal(d(diaDiv(2026, 'C', 0)), '2026-04-04'); assert.equal(d(diaDiv(2026, 'C', 18)), '2026-08-30'); assert.equal(d(diaDiv2(2026, 'C', 7)), '2026-10-25');
   assert.equal(d(diaCopa(2026, 0)), '2026-02-18'); assert.equal(d(diaCopa(2026, 12)), '2026-12-06');
-  assert.equal(d(diaCont(2026, 6, 'SUL')), '2026-07-22'); assert.equal(d(diaCont(2026, 14, 'LIB')), '2026-11-28'); assert.equal(d(diaCont(2026, 14, 'SUL')), '2026-11-21');
+  assert.equal(d(diaCont(2026, 6, 'SUL')), '2026-07-22'); assert.equal(d(diaCont(2026, 0, 'PRE')), '2026-02-19'); assert.equal(d(diaCont(2026, 3, 'PRE')), '2026-03-12'); assert.equal(d(diaCont(2026, 14, 'LIB')), '2026-11-28'); assert.equal(d(diaCont(2026, 14, 'SUL')), '2026-11-21');
   assert.ok(janelaNaData(2026, Date.UTC(2026, 0, 5)) && !janelaNaData(2026, Date.UTC(2026, 2, 4)) && janelaNaData(2026, Date.UTC(2026, 8, 11, 12)) && !janelaNaData(2026, Date.UTC(2026, 8, 12)));
   // 2027 repete as semanas de 2026: Série A numa quarta no fim de janeiro
   assert.equal(diaDiv(2027, 'A', 0).getUTCDay(), 3);
-  // campeão da Copa do Brasil já no G5 e campeão da Libertadores fora dele: a vaga da Copa passa para o 6º
+  // campeão da Copa do Brasil já no G4: a vaga dele nos grupos vai para o vice, e a pré do vice para o próximo da tabela
   const A = base.clubes.map((c, i) => i).filter(i => base.clubes[i].div === 'A');
   const s = { classif: { A, copa: A[2], copaVice: A[9], lib: A[12], sul: null } }, v = vagasBR(base, s);
-  assert.deepEqual(v.LIB, [...A.slice(0, 5), A[12], A[5], A[9]]);
-  assert.deepEqual(v.repasses.map(r => [r.clube, r.de, r.pos]), [[A[5], A[2], 6]]);
-  assert.deepEqual(v.SUL, A.filter(c => !v.LIB.includes(c)).slice(0, 6));
+  assert.deepEqual(v.LIB, [...A.slice(0, 4), A[12], A[9]]);
+  assert.deepEqual(v.PRE, [A[4], A[5]]);
+  assert.deepEqual(v.repasses.map(r => [r.clube, r.de, r.pos]), [[A[9], A[2], 10], [A[5], A[9], 6]]);
+  assert.deepEqual(v.SUL, A.filter(c => !v.LIB.includes(c) && !v.PRE.includes(c)).slice(0, 6));
+  // campeão da Copa fora do G4 vai aos grupos e o vice (fora) vai à pré com o 5º
+  const v2 = vagasBR(base, { classif: { A, copa: A[7], copaVice: A[8] } });
+  assert.deepEqual([v2.LIB, v2.PRE, v2.repasses.length], [[...A.slice(0, 4), A[7]], [A[4], A[8]], 0]);
 });
 
 test('teto salarial da diretoria: recém-promovido ganha menos aporte, continental e copa sobem, proposta acima é barrada', () => {
@@ -1033,6 +1046,10 @@ test('teto salarial da diretoria: recém-promovido ganha menos aporte, continent
   const tR = tetoSalarial(base, rem), tB = tetoSalarial(base, bah);
   assert.ok(tR.partes.some(([t]) => t.startsWith('recém')) && tR.teto < 5000, `Remo ${tR.teto}`);
   assert.ok(tetoSalarial(base, fla).teto > tB.teto && tB.teto > tR.teto);
+  // dívida aperta: o Corinthians (3,2x a receita) tem teto bem menor que o do Flamengo; amortizar solta
+  const [cor] = ini('Corinthians'), tC = tetoSalarial(base, cor);
+  assert.ok(tC.partes.some(([t, p]) => t.startsWith('dívida') && p <= -30) && tC.teto < 0.65 * tetoSalarial(base, fla).teto, JSON.stringify(tC));
+  cor.fin.divida /= 4; assert.ok(tetoSalarial(base, cor).teto > tC.teto * 1.3);
   // Bahia entra na Libertadores e chega às quartas da Copa do Brasil: o teto sobe 35% e mais 10%
   bah.cont.LIB.grupos[0][3] = ciB; bah.copa.jogos.push({ fase: FASES.findIndex(f => f.k === 'qua'), h: ciB, a: 0, gols: [1, 0] });
   assert.equal(tetoSalarial(base, bah).teto, Math.round(tB.teto * 1.35 * 1.1 / 50) * 50);
@@ -1198,10 +1215,12 @@ test('base sul-americana do Treineiros: elencos reais e vagas por país nas copa
   assert.equal(arg.length, 30); assert.ok(arg.every(ci => base.elencos[ci].length >= 20));
   const s = novoJogo(base, cfg(77)); s.ano = 2027; s.classif = { A: base.clubes.map((c, i) => i).filter(i => base.clubes[i].div === 'A') };
   novaCont(base, s);
-  const pais = k => { const n = {}; for (const c of s.cont[k].grupos.flat()) { const p = base.clubes[c].div === 'X' ? base.clubes[c].nat : 'BRA'; n[p] = (n[p] || 0) + 1; } return n; };
-  const L = pais('LIB');
-  assert.equal(s.cont.LIB.grupos.flat().length, 32); assert.equal(L.BRA, 5); assert.ok(L.ARG >= 6 && L.COL === 4 && L.BOL === 2, JSON.stringify(L));
-  assert.equal(new Set([...s.cont.LIB.grupos.flat(), ...s.cont.SUL.grupos.flat()]).size, 64);
+  // grupos saem depois da pré: 28 direto + 16 na pré (Libertadores) e 28 direto na Sula
+  const pais = L => { const n = {}; for (const c of L) { const p = base.clubes[c].div === 'X' ? base.clubes[c].nat : 'BRA'; n[p] = (n[p] || 0) + 1; } return n; };
+  const { LIB, PRE, SUL } = s.cont, D = pais(LIB.espera), P = pais(PRE.clubes);
+  assert.deepEqual([LIB.espera.length, PRE.clubes.length, SUL.espera.length, LIB.grupos.length], [28, 16, 28, 0]);
+  assert.deepEqual([D.BRA, P.BRA], [4, 1]); assert.ok(D.ARG >= 5 && D.COL === 2 && D.BOL === 2 && P.ARG === 1 && P.COL === 2, JSON.stringify([D, P]));
+  assert.equal(new Set([...LIB.espera, ...PRE.clubes, ...SUL.espera]).size, 72);
 });
 
 import { novoMundo, novaMesa, montar, processarProximo, vistaDe, horario, adiantar, devido, proximoHorario, merge3, liberarMesa, clubeLivre } from '../public/js/motor/online.js';

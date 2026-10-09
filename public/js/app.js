@@ -7,7 +7,7 @@ import { campanha } from './motor/copa.js';
 import { F_MATA, tabelaGrupo } from './motor/continental.js';
 import { REGIONAIS, fasesReg, tabelaReg } from './motor/regionais.js';
 import * as Torneios from './torneios.js';
-import { garantirFinancas, amortizar, JUROS, estruturaAnual, receitaAnual, orcamento, socorro, metaDiretoria, balanco, bilheteria, pedirVerba, dicasFinanceiras, fairPlay, registroBloqueado, tetoSalarial, ANO_FPF, SANCOES, PRECOS, NOME_PRECO } from './motor/financas.js';
+import { garantirFinancas, pesoDivida, corteDivida, dividaInicial, EURO, amortizar, JUROS, estruturaAnual, receitaAnual, orcamento, socorro, metaDiretoria, balanco, bilheteria, pedirVerba, dicasFinanceiras, fairPlay, registroBloqueado, tetoSalarial, ANO_FPF, SANCOES, PRECOS, NOME_PRECO } from './motor/financas.js';
 import { garantirMercado } from './motor/mercado.js';
 import * as Mercado from './mercado.js';
 import * as AoVivo from './aovivo.js';
@@ -283,6 +283,12 @@ function rostoAleatorio() {
   return [Math.floor(r() * 6), Math.floor(r() * 7), Math.floor(r() * 14), Math.floor(r() * 8), Math.floor(r() * 3), 0, 0, 0, 0, 0].map(v => v.toString(36)).join('');
 }
 
+// dívida em reais, como sai no noticiário (R$ 2,4 bi), e a etiqueta da escolha de clube
+const reais = v => { const x = v * EURO; return x >= 1e9 ? `R$ ${(x / 1e9).toFixed(1).replace('.', ',')} bi` : `R$ ${Math.round(x / 1e6)} mi`; };
+function dividaTag(ci) {
+  const c = clube(ci), v = dividaInicial(c), d = pesoDivida(c, v);
+  return `<small class="divida-tag ${d >= 2 ? 'crise' : corteDivida(d) ? 'alerta' : 'ok'}">${v > 0 ? `Dívida ${reais(v)}` : 'Sem dívida'}</small>`;
+}
 telas.novo = () => {
   const n = app.novo, t = n.tecnico;
   if (n.passo === 1) return `<div class="titulo-linha"><h2>Seu técnico</h2><span class="passos">Passo 1 de 2</span></div>
@@ -311,7 +317,7 @@ telas.novo = () => {
     </div></section>
     ${n.modo === 'reputacao' ? '' : `<section class="cartao"><h3>${n.modo === 'sorteio' ? 'Sortear entre os clubes da' : 'Escolha o clube'}</h3>
       <div class="chips" role="group" aria-label="Divisão">${divs.map(d => `<button type="button" class="chip" data-acao="aba-div" data-div="${d}" aria-pressed="${n.abaDiv === d}">Série ${d}</button>`).join('')}</div>
-      ${n.modo === 'escolher' ? `<div class="clubes-lista">${lista.map(ci => `<label class="opcao clube-op"><input type="radio" name="clube" data-campo="clube" value="${ci}" ${n.clube === ci ? 'checked' : ''}>${imgEscudo(ci, 34, 37)}<span><strong style="font-size:1rem">${esc(clube(ci).n)}</strong><br><span class="estrelas" aria-label="Força ${forcaEstrelas(ci)} de 5">${estrelasTxt(forcaEstrelas(ci))}</span></span></label>`).join('')}</div>` : ''}
+      ${n.modo === 'escolher' ? `<div class="clubes-lista">${lista.map(ci => `<label class="opcao clube-op"><input type="radio" name="clube" data-campo="clube" value="${ci}" ${n.clube === ci ? 'checked' : ''}>${imgEscudo(ci, 34, 37)}<span><strong style="font-size:1rem">${esc(clube(ci).n)}</strong><br><span class="estrelas" aria-label="Força ${forcaEstrelas(ci)} de 5">${estrelasTxt(forcaEstrelas(ci))}</span><br>${dividaTag(ci)}</span></label>`).join('')}</div>` : ''}
     </section>`}
     <p class="erro" role="alert"></p>
     <div class="linha-botoes"><button class="botao sec" data-acao="passo1" type="button">Voltar</button><button class="botao grande" data-acao="comecar" type="button" style="flex:2">Começar carreira</button></div>`;
@@ -444,7 +450,8 @@ telas.financas = () => {
     <section class="cartao divida-fin"><div class="titulo-linha"><h3>Dívida</h3><b class="num ${f.divida > 0 ? 'neg' : 'pos'}">${fmtDinheiro(f.divida || 0)}</b></div>
       <p>${f.divida > 0 ? `Juros de ${Math.round(JUROS * 100)}% ao ano: <b>${fmtDinheiro(f.divida * JUROS)}</b> por temporada.` : 'O clube não deve nada.'} Estrutura do clube (administração, CT, base, viagens): <b>${fmtDinheiro(estruturaAnual(c))}</b> por temporada. Receita recorrente prevista: <b>${fmtDinheiro(receitaAnual(c))}</b>.</p>
       ${f.divida > 0 && s.caixa > 0 ? `<div class="linha-botoes">${[1e6, 5e6, 20e6].filter(v => v < Math.min(s.caixa, f.divida)).map(v => `<button class="botao peq sec" type="button" data-acao="amortizar" data-v="${v}">Pagar ${fmtDinheiro(v)}</button>`).join('')}<button class="botao peq sec" type="button" data-acao="amortizar" data-v="${Math.min(s.caixa, f.divida)}">Pagar ${fmtDinheiro(Math.min(s.caixa, f.divida))}</button></div>` : ''}
-      <p class="mudo" style="font-size:.95rem">Valores do balanço real de 2025. Caixa negativo no fim do ano vira dívida nova; pagar a dívida corta os juros.</p></section>
+      ${(d => `<p>${f.divida > 0 ? `São ${reais(f.divida)}, ${d.toFixed(1).replace('.', ',')}x a receita do ano. ` : ''}${corteDivida(d) ? `Com isso a diretoria corta <b>${corteDivida(d)}%</b> do teto salarial${corteDivida(d) >= 20 ? ' e quase não libera verba' : ' e libera menos verba'}; abaixo de 0,9x o aperto acaba.` : 'Dívida sob controle: sem corte no teto salarial.'}</p>`)(pesoDivida(c, f.divida || 0))}
+      <p class="mudo" style="font-size:.95rem">Valores do balanço real de 2025. Caixa negativo no fim do ano vira dívida nova; pagar a dívida corta os juros e solta o teto salarial.</p></section>
     <div class="chips" role="group" aria-label="Seção">${[['resumo', 'Resumo'], ['extrato', 'Extrato'], ['balanco', `Balanço ${s.ano}`]].map(([k, t]) => `<button type="button" class="chip" data-acao="aba-fin" data-a="${k}" aria-pressed="${aba === k}">${t}</button>`).join('')}</div>`;
   if (aba === 'extrato') return topo + `<section class="cartao"><h3>Extrato</h3>${f.extrato.length ? `<ul class="extrato">${f.extrato.slice(0, 150).map(e => `<li><span class="rd">R${e.r + 1}</span><span>${esc(e.desc)}</span><b class="${e.valor < 0 ? 'neg' : 'pos'}">${e.valor < 0 ? '−' : '+'} ${fmtDinheiro(Math.abs(e.valor))}</b></li>`).join('')}</ul>` : '<p class="mudo">Nada lançado ainda. As contas fecham a cada rodada.</p>'}</section>`;
   if (aba === 'balanco') {
@@ -853,7 +860,7 @@ Torneios.configurar({ app, clube, esc, imgEscudo, render: () => render() });
 Coletiva.configurar({ app, clube, esc, render: () => render(), salvar: () => salvar(), jogar: () => comecarJogo() });
 Gala.configurar({ app, clube, esc, imgEscudo, render: () => render() });
 Liga.configurar({ app, api, compacta, descompacta, carregarBase, esc, clube, imgEscudo, aviso, ir, render: () => render(), desenhaTopo, rostoAleatorio,
-  estrelas: ci => `<span class="estrelas" aria-label="Força ${forcaEstrelas(ci)} de 5">${estrelasTxt(forcaEstrelas(ci))}</span>` });
+  estrelas: ci => `<span class="estrelas" aria-label="Força ${forcaEstrelas(ci)} de 5">${estrelasTxt(forcaEstrelas(ci))}</span><br>${dividaTag(ci)}` });
 Leilao.configurar({ app, clube, esc, imgEscudo, aviso, render: () => render(), salvar: () => salvar() });
 Jornal.configurar({ app, clube, esc, imgEscudo, render: () => render() });
 Mercado.configurar({ app, clube, esc, imgEscudo, $, aviso, render: () => render(), salvar: () => salvar() });

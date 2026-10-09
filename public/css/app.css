@@ -167,7 +167,7 @@ td.clube-cel { text-align: left; }
 .clube-cel img { width: 20px; height: 22px; flex: none; }
 td.p { font-weight: 700; }
 tr.meu td { background: rgb(242 179 61 / .35); }
-td.pos { font-weight: 700; border-left: 4px solid transparent; }
+td.pos { font-weight: 700; border-left: 8px solid transparent; }
 tr.z-lib td.pos { border-left-color: var(--carimbo); } tr.z-pre td.pos { border-left-color: #6E8FD0; }
 tr.z-sul td.pos { border-left-color: var(--gramado); } tr.z-sobe td.pos { border-left-color: var(--gramado); } tr.z-cai td.pos { border-left-color: var(--cartao); }
 .forma { display: inline-flex; gap: 3px; }
@@ -184,7 +184,7 @@ tr.z-sul td.pos { border-left-color: var(--gramado); } tr.z-sobe td.pos { border
 @media (min-width: 640px) { .arrasta-dica { display: none; } }
 .forma i.V { background: var(--gramado); } .forma i.D { background: var(--cartao); } .forma i.E { background: #B9B1A2; }
 .legenda { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: .9rem; color: var(--texto-2); }
-.legenda span::before { content: ''; display: inline-block; width: 10px; height: 10px; margin-right: 5px; background: var(--c); }
+.legenda span::before { content: ''; display: inline-block; width: 8px; height: 14px; border-radius: 2px; margin-right: 5px; background: var(--c); }
 @media (max-width: 480px) { .so-largo { display: none; } }
 
 /* ---------- partida ---------- */
@@ -237,6 +237,8 @@ tr.z-sul td.pos { border-left-color: var(--gramado); } tr.z-sobe td.pos { border
 .clubes-lista { display: grid; gap: 8px; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); }
 .clube-op { display: grid; grid-template-columns: 34px 1fr; gap: 8px; align-items: center; }
 .clube-op img { width: 34px; height: 37px; }
+.divida-tag { font-weight: 700; } .divida-tag.ok { color: var(--gramado); } .divida-tag.alerta { color: #B7791F; } .divida-tag.crise { color: var(--tinta); }
+:root[data-tema=escuro] .divida-tag.ok { color: #8FD18A; } :root[data-tema=escuro] .divida-tag.alerta { color: #F2B33D; }
 .estrelas { color: var(--placar); letter-spacing: 1px; font-size: .95rem; -webkit-text-stroke: .5px var(--linha); }
 .passos { font-family: var(--f-pixel); font-size: .85rem; color: var(--texto-2); }
 

@@ -17,6 +17,7 @@ import { naSelecao } from './selecao.js';
 import { enviar } from './correio.js';
 import { abrirLeilaoCompra, encerrarPendente } from './leilao.js';
 import { humanos, ehHumano, vistaDo, sufixo } from './humanos.js';
+import { emQualCont } from './continental.js';
 
 const arred = v => Math.max(50000, Math.round(v / 10000) * 10000);
 const arredSal = v => Math.max(10, Math.round(v / 10) * 10);
@@ -460,11 +461,11 @@ function barrarSaida(base, s, p) {
   return `${j.curto} queria ir e ficou chateado (moral em baixa).`;
 }
 // a proposta é de um clube maior? (divisão acima, copa continental que o seu não joga, ou bem mais forte)
-const naContinental = (s, ci) => ['LIB', 'SUL'].some(k => s.cont?.[k]?.grupos.some(g => g.includes(ci)));
+const naContinental = (s, ci) => !!emQualCont(s, ci);
 export function querIr(base, s, j, de) {
   const meu = s.tecnico.clube, a = base.clubes[de], b = base.clubes[meu];
   if (nivelDiv(a) < nivelDiv(b)) return a.div === 'X' ? 'sonha em jogar fora do país' : `é a chance de jogar a Série ${a.div}`;
-  if (naContinental(s, de) && !naContinental(s, meu)) return `quer disputar a ${s.cont.LIB.grupos.some(g => g.includes(de)) ? 'Libertadores' : 'Sul-Americana'}`;
+  if (naContinental(s, de) && !naContinental(s, meu)) return `quer disputar a ${emQualCont(s, de) === 'LIB' ? 'Libertadores' : 'Sul-Americana'}`;
   if (base.forca(de) >= base.forca(meu) + 5) return 'quer jogar num clube maior';
   return null;
 }

@@ -12,7 +12,7 @@ import { correio, cartasDeInicio } from './correio.js';
 import { arbitroDo } from './arbitros.js';
 import { vestiarioAposRodada } from './vestiario.js';
 import { eventosAposRodada } from './eventos.js';
-import { TORNEIOS, PREMIO_SUP, FASES_CONT, F_MATA, F_PO, F_FIN, forcaCont, deFora, dataCont, dataSup, novaCont, contDevida, naCont, supDevida, jogosDaFase, decidirCont, avancarCont, timeFora, jogadorCont, agregadoCont, tabelaGrupo } from './continental.js';
+import { TORNEIOS, PREMIO_SUP, FASES_CONT, F_MATA, F_PO, F_FIN, forcaCont, deFora, dataCont, dataSup, novaCont, contDevida, naCont, supDevida, jogosDaFase, decidirCont, avancarCont, timeFora, jogadorCont, agregadoCont, tabelaGrupo, fasesDe, compDe, fecharPre, FASES_PRE } from './continental.js';
 import { gerarNoticias } from './noticias.js';
 import { resolverMercado, garantirMercado, acompanharPromessas } from './mercado.js';
 import { dataFifa } from './selecao.js';
@@ -208,7 +208,7 @@ export function capitaoDe(base, s, xi) {
 }
 
 // competição do próximo jogo do seu clube (os cartões valem por competição)
-export const compProxima = (base, s) => { const ev = proximoEvento(base, s); return ev?.tipo === 'amistoso' ? 'AMI' : ev?.tipo === 'reg' ? 'REG' : ev?.tipo === 'copa' ? 'CB' : ev?.tipo === 'cont' ? ev.k : ev?.tipo === 'sup' ? 'SUP' : 'L'; };
+export const compProxima = (base, s) => { const ev = proximoEvento(base, s); return ev?.tipo === 'amistoso' ? 'AMI' : ev?.tipo === 'reg' ? 'REG' : ev?.tipo === 'copa' ? 'CB' : ev?.tipo === 'cont' ? compDe(ev.k) : ev?.tipo === 'sup' ? 'SUP' : 'L'; };
 
 // IA escala os melhores (poupando cansados) no esquema dela; o seu time usa a escalação manual quando ela ainda vale.
 // Lesionados e suspensos ficam de fora; na escalação manual, a vaga deles é completada só para esse jogo.
@@ -445,7 +445,7 @@ export function pendentes(base, s) {
   }
   for (const d of ['B', 'C']) { const F = fase2(base, s, d); if (!F || F.i >= N2[d]) continue; const par = jogosFase2(F, d).find(tem); L.push({ tipo: 'liga2', d, i: F.i, data: dataLiga2(ano, d, F.i), meu: !!par, h: par?.[0], a: par?.[1], titulo: tituloFase2(F, d, par), mataMata: !!par && decisivo2(F, d), final: d === 'C' && F.i === 7 }); }
   if (copaAtiva(s)) { const i = s.copa.fase, ch = s.copa.chaves.find(tem), [h, a] = ch ? mandoDe(i, ch) : []; L.push({ tipo: 'copa', fase: i, data: dataCopa(dataRodada, ano, i), meu: !!ch, h, a, titulo: `Copa do Brasil · ${FASES[i].nome}`, neutro: FASES[i].k === 'fin' }); }
-  for (const k of ['LIB', 'SUL']) if (contDevida(s, k, Infinity)) { const T = s.cont[k], par = jogosDaFase(T).find(tem); L.push({ tipo: 'cont', k, fase: T.fase, data: dataCont(dataRodada, ano, T.fase, k), meu: !!par, h: par?.[0], a: par?.[1], titulo: `${TORNEIOS[k].nome} · ${FASES_CONT[T.fase].nome}`, neutro: T.fase === F_FIN }); }
+  for (const k of ['PRE', 'LIB', 'SUL']) if (contDevida(s, k, Infinity)) { const T = s.cont[k], par = jogosDaFase(T).find(tem); L.push({ tipo: 'cont', k, fase: T.fase, data: dataCont(dataRodada, ano, T.fase, k), meu: !!par, h: par?.[0], a: par?.[1], titulo: `${TORNEIOS[k].nome} · ${fasesDe(k)[T.fase].nome}`, neutro: k !== 'PRE' && T.fase === F_FIN, mataMata: (k === 'PRE' || T.fase >= F_MATA) && fasesDe(k)[T.fase].perna !== 'ida' }); }
   for (const k of Object.keys(REGIONAIS)) if (regDevida(s, k, Infinity)) {
     const T = s.reg[k], F = fasesReg(k)[T.fase], par = jogosDaFaseReg(T).find(tem);
     L.push({ tipo: 'reg', k, fase: T.fase, data: dataFaseReg(ano, k, T.fase), meu: !!par, h: par?.[0], a: par?.[1], titulo: `${REGIONAIS[k].nome} · ${F.nome}`, mataMata: mataMataReg(F), final: finalReg(k, F), neutro: !!REGIONAIS[k].mata[F.m]?.neutro });
@@ -570,17 +570,18 @@ function jogoCopa(base, s, h, a, comp, seed, extra = {}) {
   return { jogo: jogoSimulado(s, h, a, th, ta, seed, opts) };
 }
 export function iniciarCont(base, s, k) {
-  const T = s.cont[k], f = T.fase, jogos = [];
+  const T = s.cont[k], f = T.fase, F = fasesDe(k)[f], jogos = [], fin = k !== 'PRE' && f === F_FIN;
   descansarAte(base, s, dataCont(dataRodada, s.ano, f, k));
   let meu = null;
   for (const [h, a] of jogosDaFase(T)) {
-    const volta = FASES_CONT[f].perna === 'volta', x = jogoCopa(base, s, h, a, k, `${s.seed}-${k}${s.ano}-${f}-${h}-${a}`, { mataMata: f >= F_MATA && FASES_CONT[f].perna !== 'ida', neutro: f === F_FIN, final: f === F_FIN });
-    if (x.meu) { meu = x.meu; if (volta) meu.agg = agregadoCont(T, h, a); } else jogos.push(x.jogo);
+    const x = jogoCopa(base, s, h, a, compDe(k), `${s.seed}-${k}${s.ano}-${f}-${h}-${a}`, { mataMata: (k === 'PRE' || f >= F_MATA) && F.perna !== 'ida', neutro: fin, final: fin });
+    if (x.meu) { meu = x.meu; if (F.perna === 'volta') meu.agg = agregadoCont(T, h, a); } else jogos.push(x.jogo);
   }
-  return { cont: k, fase: f, jogos, meu, titulo: `${TORNEIOS[k].nome} · ${FASES_CONT[f].nome}` };
+  return { cont: k, fase: f, jogos, meu, titulo: `${TORNEIOS[k].nome} · ${F.nome}` };
 }
 export function concluirCont(base, s, R, simMeu) {
   const k = R.cont, T = s.cont[k], f = R.fase, P = TORNEIOS[k].premio, nome = c => base.clubes[c].n, N = [], dmN = [];
+  const F = fasesDe(k)[f], pre = k === 'PRE', fin = !pre && f === F_FIN, mata = (pre || f >= F_MATA) && F.perna !== 'ida';
   const jogos = R.jogos.slice();
   if (R.meu) { simMeu.capitao = R.meu.capitao; jogos.push({ h: R.meu.h, a: R.meu.a, seed: R.meu.seed, sim: simMeu, xi: xiDe(R.meu) }); }
   const venc = {}, hs = humanos(s), jogaram = new Set();
@@ -588,7 +589,7 @@ export function concluirCont(base, s, R, simMeu) {
   for (const jg of jogos) {
     const { h, a, seed, sim } = jg;
     aposJogo(base, s, h, a, daBase(base, sim));
-    dmN.push(...posJogo(base, s, h, a, sim, k));
+    dmN.push(...posJogo(base, s, h, a, sim, compDe(k)));
     const dec = decidirCont(T, f, h, a, sim.gols, seed, sim.campo);
     venc[`${h}-${a}`] = dec.vencedor;
     T.jogos.push({ fase: f, h, a, gols: sim.gols, pen: dec.pen || null });
@@ -597,26 +598,36 @@ export function concluirCont(base, s, R, simMeu) {
       if (h !== ci && a !== ci) continue;
       jogaram.add(sv);
       const casa = h === ci, adv = casa ? a : h, my = sim.gols[casa ? 0 : 1], ot = sim.gols[casa ? 1 : 0];
-      if (casa && f !== F_FIN) { const b = bilheteria(base, s, ci, adv, [], 10, sv.fin.ingresso); lancar(sv, 'bilheteria', `Bilheteria ${TORNEIOS[k].nome} × ${nome(adv)} (${b.publico.toLocaleString('pt-BR')} pagantes)`, b.renda); }
-      if (f === 0) lancar(sv, 'premio', `${TORNEIOS[k].nome}: cota da fase de grupos`, P.grupos);
-      if (f < F_MATA && my > ot) lancar(sv, 'premio', `${TORNEIOS[k].nome}: vitória na fase de grupos`, P.vitoria);
-      torcidaAposJogo(sv, ci, h, sim.gols, { pen: dec.pen, mataMata: f >= F_MATA && FASES_CONT[f].perna !== 'ida', final: f === F_FIN, classico: rivais(base, h, a) });
-      sv.ultima = { rodada: s.rodada - 1, copa: `${TORNEIOS[k].nome} · ${FASES_CONT[f].nome}`, div: k, casa: h, fora: a, ...sim, pen: dec.pen || null, xi: jg.xi }; if (jg.vivo) sv.ultimaVivo = jg.vivo; registrarConfronto(base, sv);
-      N.push({ tipo: 'clube', clube: ci, texto: `${TORNEIOS[k].nome}, ${FASES_CONT[f].nome.toLowerCase()}: ${nome(h)} ${sim.gols[0]} × ${sim.gols[1]} ${nome(a)}${dec.agg ? ` (agregado ${dec.agg[0]} a ${dec.agg[1]})` : ''}${dec.pen ? ` (${dec.pen[0]} a ${dec.pen[1]} nos pênaltis)` : ''}.${dec.vencedor === ci ? (f === F_FIN ? ' É CAMPEÃO!' : ' Classificado!') : dec.perdedor === ci ? ' Eliminado.' : ''}` });
+      if (casa && !fin) { const b = bilheteria(base, s, ci, adv, [], 10, sv.fin.ingresso); lancar(sv, 'bilheteria', `Bilheteria ${TORNEIOS[k].nome} × ${nome(adv)} (${b.publico.toLocaleString('pt-BR')} pagantes)`, b.renda); }
+      if (pre && F.perna === 'ida') lancar(sv, 'premio', `Pré-Libertadores: cota da ${F.nome.split(' ·')[0]}`, P[F.k]);
+      if (!pre && f === 0) lancar(sv, 'premio', `${TORNEIOS[k].nome}: cota da fase de grupos`, P.grupos);
+      if (!pre && f < F_MATA && my > ot) lancar(sv, 'premio', `${TORNEIOS[k].nome}: vitória na fase de grupos`, P.vitoria);
+      torcidaAposJogo(sv, ci, h, sim.gols, { pen: dec.pen, mataMata: mata, final: fin, classico: rivais(base, h, a) });
+      sv.ultima = { rodada: s.rodada - 1, copa: `${TORNEIOS[k].nome} · ${F.nome}`, div: compDe(k), casa: h, fora: a, ...sim, pen: dec.pen || null, xi: jg.xi }; if (jg.vivo) sv.ultimaVivo = jg.vivo; registrarConfronto(base, sv);
+      N.push({ tipo: 'clube', clube: ci, texto: `${TORNEIOS[k].nome}, ${F.nome.toLowerCase()}: ${nome(h)} ${sim.gols[0]} × ${sim.gols[1]} ${nome(a)}${dec.agg ? ` (agregado ${dec.agg[0]} a ${dec.agg[1]})` : ''}${dec.pen ? ` (${dec.pen[0]} a ${dec.pen[1]} nos pênaltis)` : ''}.${dec.vencedor === ci ? (fin ? ' É CAMPEÃO!' : ' Classificado!') : dec.perdedor === ci ? ' Eliminado.' : ''}` });
     }
   }
   const vencedores = jogosDaFase(T).map(([h, a]) => venc[`${h}-${a}`]);
   avancarCont(T, vencedores);
-  if (f === F_MATA - 1) for (const [ci, sv] of hs) {
+  if (pre) {
+    if (f === FASES_PRE.length - 1) {
+      fecharPre(base, s);
+      N.push({ tipo: 'destaque', texto: `Pré-Libertadores: ${T.venc.map(nome).join(', ')} vão à fase de grupos. Saiu o sorteio dos grupos da Libertadores e da Sul-Americana.` });
+      for (const [ci] of hs) if (T.venc.includes(ci) || T.perd.includes(ci)) {
+        const L = T.venc.includes(ci), g = s.cont[L ? 'LIB' : 'SUL'].grupos.findIndex(x => x.includes(ci));
+        N.push({ tipo: 'clube', clube: ci, texto: `${L ? 'Classificado para a fase de grupos da Libertadores' : 'Caiu na 3ª fase da pré-Libertadores e vai para a fase de grupos da Sul-Americana'}: grupo ${'ABCDEFGH'[g]}, com ${s.cont[L ? 'LIB' : 'SUL'].grupos[g].filter(x => x !== ci).map(nome).join(', ')}.` });
+      }
+    }
+  } else if (f === F_MATA - 1) for (const [ci, sv] of hs) {
     const g = estavam.get(ci); if (g < 0) continue;
     const pos = tabelaGrupo(T, g).findIndex(l => l.clube === ci) + 1;
     const oitavas = k === 'LIB' ? pos <= 2 : pos === 1, adv = T.chaves.find(c => c.includes(ci))?.find(x => x !== ci);
     N.push({ tipo: 'clube', clube: ci, texto: oitavas ? `${TORNEIOS[k].nome}: classificado para as oitavas de final${adv != null ? ` contra o ${nome(adv)}` : ''}.` : k === 'SUL' && pos === 2 ? 'Sul-Americana: 2º no grupo, vai ao playoff contra um 3º colocado da Libertadores.' : k === 'LIB' && pos === 3 ? 'Libertadores: 3º no grupo, cai para o playoff da Sul-Americana.' : `${TORNEIOS[k].nome}: eliminado na fase de grupos.` });
     if (oitavas) lancar(sv, 'premio', `${TORNEIOS[k].nome}: classificação para as oitavas`, P.oit);
-  } else if (FASES_CONT[f].perna === 'volta') {
-    const kf = FASES_CONT[f].k;
+  } else if (F.perna === 'volta') {
+    const kf = F.k;
     for (const [ci, sv] of hs) if (T.chaves.some(c => c.includes(ci))) lancar(sv, 'premio', `${TORNEIOS[k].nome}: classificação para ${{ po: 'as oitavas', oit: 'as quartas', qua: 'a semifinal', sem: 'a final' }[kf]}`, { po: P.oit, oit: P.qua, qua: P.sem, sem: P.fin }[kf]);
-  } else if (f === F_FIN) {
+  } else if (fin) {
     N.push({ tipo: 'destaque', texto: `${nome(T.campeao)} é campeão da ${TORNEIOS[k].nome} ${s.ano} em cima do ${nome(T.vice)}.` });
     const sv = vistaDo(s, T.campeao); if (sv) { lancar(sv, 'premio', `${TORNEIOS[k].nome}: prêmio de campeão`, P.campeao); tituloDeCopa(sv); }
   }
