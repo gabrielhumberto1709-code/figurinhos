@@ -436,8 +436,8 @@ export function pendentes(base, s) {
   garantirTemporada(base, s);
   // "meu": o clube do técnico (na vista de um técnico, o dele); no mundo da liga online, qualquer técnico
   const ci = s.tecnico.clube, ano = s.ano, L = [], tem = par => ci >= 0 ? par.includes(ci) : par.some(c => ehHumano(s, c));
-  // liga online não tem amistosos (cada técnico teria os seus)
-  if (s.rodada === 0 && !s.demitido && ci >= 0 && !mundoDe(s)._mesas) { const A = garantirAmistosos(base, s), i = A.jogos.findIndex(x => !x.g); if (i >= 0) L.push({ tipo: 'amistoso', i, h: A.jogos[i].h, a: A.jogos[i].a, data: dataAmistoso(s, A.jogos[i]), meu: true, titulo: `Amistoso de pré-temporada (${i + 1}/${A.jogos.length})` }); }
+  // liga online: os amistosos são os primeiros horários da temporada (W.pre conta quantos já foram)
+  if (s.rodada === 0 && !s.demitido && ci >= 0 && (!mundoDe(s)._mesas || (mundoDe(s).pre?.ano === s.ano && mundoDe(s).pre.n < 3))) { const A = garantirAmistosos(base, s), i = A.jogos.findIndex(x => !x.g); if (i >= 0) L.push({ tipo: 'amistoso', i, h: A.jogos[i].h, a: A.jogos[i].a, data: dataAmistoso(s, A.jogos[i]), meu: true, titulo: `Amistoso de pré-temporada (${i + 1}/${A.jogos.length})` }); }
   for (const d of DIVS) if (!ligaAcabou(s, d)) {
     const k = feitas(s, d), par = rodadasDe(base, s, d)[k].find(tem);
     L.push({ tipo: 'liga', d, rodada: k, data: dataLiga(ano, d, k), meu: !!par, h: par?.[0], a: par?.[1], titulo: `Série ${d} · ${k + 1}ª rodada` });
@@ -651,12 +651,12 @@ export function concluirSup(base, s, R, simMeu) {
 // três jogos na primeira semana de janeiro, antes dos regionais: um contra time menor (em casa), um parelho (fora) e um de fora do país (em casa).
 // Não contam para nada: dão ritmo, cansam um pouco, mexem pouco na moral e rendem uma bilheteria pequena.
 const dataAmistoso = (s, J) => diaAmistoso(s.ano, s.amistosos.jogos.indexOf(J));
-function garantirAmistosos(base, s) {
+export function garantirAmistosos(base, s) {
   const ci = s.tecnico.clube;
   if (s.amistosos?.ano === s.ano && s.amistosos.clube === ci) return s.amistosos;
   const r = rng(`amist${s.seed}${s.ano}${ci}`), f = base.forca(ci), usados = new Set([ci]);
   const perto = (l, alvo) => l.filter(i => !usados.has(i)).sort((a, b) => Math.abs(base.forca(a) - alvo) - Math.abs(base.forca(b) - alvo)).slice(0, 6);
-  const br = base.clubes.map((c, i) => i).filter(i => DIVS.includes(base.clubes[i].div) && !rivais(base, i, ci));
+  const br = base.clubes.map((c, i) => i).filter(i => DIVS.includes(base.clubes[i].div) && !rivais(base, i, ci) && !ehHumano(s, i));
   const fora = base.clubes.map((c, i) => i).filter(i => base.clubes[i].div === 'X' && base.clubes[i].tier >= 2);
   const escolhe = l => { const x = pick(r, l); usados.add(x); return x; };
   const advs = [escolhe(perto(br, f - 6)), escolhe(perto(br, f + 1)), escolhe(perto(fora, f + 2).length ? perto(fora, f + 2) : perto(br, f + 3))];
@@ -676,9 +676,16 @@ export function concluirAmistoso(base, s, R, simMeu) {
   for (const id of Object.keys(sim.notas[t])) s.mor[id] = Math.max(0, Math.min(100, (s.mor[id] ?? 62) + (my > ot ? 1 : my < ot ? -1 : 0)));
   if (J.h === ci) { const b = bilheteria(base, s, ci, J.a, [], 10, s.fin.ingresso); lancar(s, 'bilheteria', `Amistoso × ${nome(J.a)} (${Math.round(b.publico * 0.5).toLocaleString('pt-BR')} pagantes)`, Math.round(b.renda * 0.4)); }
   s.ultima = { rodada: -1, copa: R.titulo, div: 'AMI', casa: J.h, fora: J.a, ...simMeu, pen: null, xi: [R.meu.th.xi.map(j => j.id), R.meu.ta.xi.map(j => j.id)] };
-  s.noticias.unshift({ rodada: 0, tipo: 'clube', div: base.clubes[ci].div, texto: `${R.titulo}: ${nome(J.h)} ${simMeu.gols[0]} × ${simMeu.gols[1]} ${nome(J.a)}.` });
+  s.noticias.unshift({ rodada: 0, tipo: 'clube', clube: ci, div: base.clubes[ci].div, texto: `${R.titulo}: ${nome(J.h)} ${simMeu.gols[0]} × ${simMeu.gols[1]} ${nome(J.a)}.` });
   correio(base, s);
   return s.ultima;
+}
+// liga online: o amistoso de cada técnico é simulado no horário (com a ficha para assistir depois)
+export function amistosoSimulado(base, s) {
+  if (s.demitido || !garantirAmistosos(base, s).jogos.some(x => !x.g)) return;
+  const R = iniciarAmistoso(base, s), M = R.meu, opts = { ...M.opts, auto: [true, true] }, foto = fotoJogo(M.th, M.ta, M.seed, opts); // a ficha antes: o jogo mexe no físico
+  concluirAmistoso(base, s, R, simular(M.th, M.ta, M.seed, opts));
+  s.ultimaVivo = foto;
 }
 
 // chance de vitória, empate e derrota do próximo jogo (Poisson pelos setores, com o fator casa)

@@ -385,7 +385,7 @@ telas.clube = () => {
         : `<button class="atalho off" type="button" data-acao="em-breve" data-t="${t}" style="--ac:${cor}" aria-disabled="true"><svg viewBox="0 0 24 24" aria-hidden="true">${ICONES[ic]}</svg><span>${t}</span>${href ? '' : '<small>em breve</small>'}</button>`;
     }).join('')}</nav>
     <div class="grade-clube">
-      <section class="cartao"><div class="titulo-linha"><h3>Seu clube no noticiário</h3><a href="#/noticias">Jornal da Bola</a></div><ul class="noticias">${s.noticias.filter(x => (x.tipo || 'clube') === 'clube').slice(0, 6).map(x => `<li><span class="rd">R${x.rodada}</span><span>${esc(x.texto)}</span></li>`).join('')}</ul></section>
+      <section class="cartao"><div class="titulo-linha"><h3>Seu clube no noticiário</h3><a href="#/noticias">Jornal da Bola</a></div><ul class="noticias">${s.noticias.filter(x => (x.tipo || 'clube') === 'clube' && (x.clube == null || x.clube === ci)).slice(0, 6).map(x => `<li><span class="rd">R${x.rodada}</span><span>${esc(x.texto)}</span></li>`).join('')}</ul></section>
       <section class="cartao"><div class="titulo-linha"><h3>Série ${d}</h3><a href="#/torneios">Tabela completa</a></div>
       <table><thead><tr><th>#</th><th style="text-align:left">Clube</th><th>P</th><th>J</th><th>SG</th></tr></thead>
       <tbody>${viz.map(l => `<tr class="${l.clube === ci ? 'meu' : ''}"><td class="pos">${l.n}</td><td class="clube-cel"><span>${imgEscudo(l.clube, 20, 22)}${esc(clube(l.clube).n)}</span></td><td class="p">${l.p}</td><td>${l.j}</td><td>${l.sg}</td></tr>`).join('')}</tbody></table></section></div>`;

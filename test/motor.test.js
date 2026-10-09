@@ -1215,12 +1215,14 @@ test('liga online: dois técnicos no mesmo mundo, cada um com a sua tática, fin
   const va = vistaDe(W, 'u1'), vb = vistaDe(W, 'u2');
   assert.equal(va.tecnico.clube, A); assert.ok(va.msgs.length >= 2 && va.caixa > 0 && vb.caixa > 0);
   assert.equal(W.tecnico.clube, -1); assert.ok(!('fin' in W) && !('msgs' in W), 'mundo sem campos de técnico');
+  // pré-temporada: os 3 primeiros horários são os amistosos de cada técnico (com reprise igual)
+  assert.equal(pendentes(base, va).find(e => e.meu).tipo, 'amistoso');
+  for (let k = 1; k <= 3; k++) assert.deepEqual(processarProximo(base, W), { amistoso: k });
+  assert.ok([va, vb].every(v => v.ultima.div === 'AMI' && v.amistosos.jogos.every(j => j.g)) && W.rodada === 0);
+  const FA = daFoto(va.ultimaVivo); assert.deepEqual(simular(FA.th, FA.ta, FA.seed, FA.opts).gols, va.ultima.gols);
   // proposta da Ana por um jogador do Beto (janela aberta na pré-temporada)
   const alvo = base.elencos[B].slice().sort((a, b) => a.ovr - b.ovr)[8];
   assert.equal(fazerProposta(base, va, alvo, { tipo: 'compra', valor: 2e6, salario: salarioPedido(base, va, alvo, 3, A), anos: 3 }), null);
-  // a Ana deixa o melhor jogador no banco
-  const melhor = base.elencos[A].slice().sort((a, b) => b.ovr - a.ovr)[0], xi = escalacao(base, va, A, 'L').xi.map(j => j.id), outro = base.elencos[A].find(j => !xi.includes(j.id) && j.pos === melhor.pos && j.id !== melhor.id) || base.elencos[A].find(j => !xi.includes(j.id) && j.pos !== 'GOL');
-  va.xi = xi.map(id => id === melhor.id ? outro.id : id);
   let n = 0;
   while (!vb.recebidas.some(x => x.humano) && n++ < 30) processarProximo(base, W);
   const x = vb.recebidas.find(y => y.humano);
@@ -1230,6 +1232,12 @@ test('liga online: dois técnicos no mesmo mundo, cada um com a sua tática, fin
   assert.equal(alvo.clube, A); assert.equal(va.caixa, ca - 2e6); assert.equal(vb.caixa, cb + 2e6);
   assert.equal(va.propostas.find(p => p.jogador === alvo.id).estado, 'concluida');
   while (W.rodada < 4 && n++ < 400) processarProximo(base, W);
+  // a Ana deixa o melhor jogador no banco: vale no próximo jogo dela
+  const livre = j => !indisponivel(W, j.id), xi = escalacao(base, va, A, 'L').xi.map(j => j.id), melhor = base.elencos[A].filter(j => xi.includes(j.id)).sort((a, b) => b.ovr - a.ovr)[0];
+  const outro = base.elencos[A].find(j => !xi.includes(j.id) && livre(j) && j.pos === melhor.pos) || base.elencos[A].find(j => !xi.includes(j.id) && livre(j) && j.pos !== 'GOL');
+  va.xi = xi.map(id => id === melhor.id ? outro.id : id);
+  const antes = va.ultima;
+  while (va.ultima === antes && n++ < 420) processarProximo(base, W);
   for (const v of [va, vb]) { assert.ok(v.ultima?.gols && v.fin.extrato.some(e => e.tipo === 'salarios') && v.ultimaVivo, 'súmula, salários e replay de cada um'); }
   const lado = va.ultima.casa === A ? 0 : 1;
   if (!va.ultima.xi[lado].includes(outro.id)) assert.fail('a escalação da Ana não foi usada');
@@ -1245,11 +1253,12 @@ test('liga online: dois técnicos no mesmo mundo, cada um com a sua tática, fin
   const L2 = adiantar(L, W2, L.inicio + 60e3); assert.equal(proximoHorario(L2, W2), L.inicio + 60e3);
   // merge de 3 vias: dinheiro soma as duas mudanças, chave mexida só de um lado entra
   assert.deepEqual(merge3({ caixa: 100, a: 1, l: [1] }, { caixa: 90, a: 2, l: [1, 2] }, { caixa: 130, a: 1, l: [1, 3] }), { caixa: 120, a: 2, l: [1, 3, 2] });
+  assert.deepEqual(merge3({}, { am: { jogos: [{ g: null }] } }, { am: { jogos: [{ g: [1, 0] }] } }), { am: { jogos: [{ g: [1, 0] }] } }, 'lista criada dos dois lados não duplica');
   // virada com os dois
   while (W.ano === 2026 && n++ < 600) processarProximo(base, W);
   assert.equal(W.ano, 2027); assert.equal(va.historico[0].clube, A); assert.equal(vb.historico[0].clube, B);
-  // sem amistosos na liga (o mundo não tem como jogar os de cada um) e o Beto sai: o Flamengo volta para a IA com o caixa
-  assert.ok(!pendentes(base, vb).some(e => e.tipo === 'amistoso'));
+  // a temporada nova começa pelos amistosos; o Beto sai: o Flamengo volta para a IA com o caixa
+  assert.equal(pendentes(base, vb).find(e => e.meu).tipo, 'amistoso');
   const caixaB = vb.caixa; liberarMesa(base, W, 'u2');
   assert.ok(!mesas.u2 && clubeLivre(base, W, B) && W.caixaIA[B] === caixaB);
   processarProximo(base, W);

@@ -3,15 +3,17 @@
 // - Relógio: os compromissos dos técnicos acontecem em horários fixos (Normal: 3 por dia; Turbo: 12 por dia); o ADM
 //   pode adiantar o próximo. Na hora, o mundo anda até a data do próximo jogo de algum técnico, com todos os jogos
 //   simulados (cada técnico com a escalação, a tática e os planos que deixou), e o resultado é gravado para todos.
-import { novoJogo, mundoAte, pendentes, TATICA_PADRAO, caixaInicial, aplicarSave } from './mundo.js';
-import { separar, vista, MESA, mundoDe } from './humanos.js';
+import { novoJogo, mundoAte, pendentes, TATICA_PADRAO, caixaInicial, aplicarSave, amistosoSimulado, garantirAmistosos } from './mundo.js';
+import { separar, vista, MESA, mundoDe, humanos } from './humanos.js';
 import { virarTemporada, fimDeTemporada } from './temporada.js';
 import { garantirMercado } from './mercado.js';
 import { garantirCarreira } from './carreira.js';
 import { financasIniciais } from './financas.js';
 import { cartasDeInicio } from './correio.js';
 
-export const MAX_TECNICOS = 8;
+export const MAX_TECNICOS = 8, N_AMISTOSOS = 3;
+// pré-temporada (como no Treineiros): os 3 primeiros horários de cada temporada são os amistosos de todos os técnicos
+export const amistososFaltando = W => W.pre?.ano === W.ano ? Math.max(0, N_AMISTOSOS - W.pre.n) : 0;
 // horários do dia (hora de Brasília, sem horário de verão)
 export const RITMOS = {
   normal: { nome: 'Normal', horas: [12, 17, 21], txt: '3 jogos por dia (12h, 17h e 21h), cerca de um mês por temporada' },
@@ -28,6 +30,7 @@ export function novoMundo(base, seed) {
   W.tecnico = { clube: -1, nome: '' };
   W.noticias = [];
   W.slot = 0;
+  W.pre = { ano: W.ano, n: 0 };
   return W;
 }
 // junta o mundo e as mesas (só em memória) e devolve o mundo pronto para o motor
@@ -49,6 +52,7 @@ export function novaMesa(base, W, ci, tecnico, dificuldade = 'normal') {
   v.carreira = [{ clube: ci, ano: W.ano, rodada: W.rodada }];
   v.msgs = []; v.msgsVistas = [];
   cartasDeInicio(base, v, true);
+  if (amistososFaltando(W)) garantirAmistosos(base, v); // criados aqui (e na virada), não na tela de quem só olha: senão os dois lados "criam" e o merge duplica
   delete W.tecnicos?.[ci];
   W.noticias.unshift({ rodada: W.rodada, tipo: 'clube', clube: ci, div: base.clubes[ci].div, texto: `${tecnico.nome} é o novo técnico do ${base.clubes[ci].n}.` });
   return mesa;
@@ -66,12 +70,13 @@ export function liberarMesa(base, W, id) {
 // ---------- o calendário andando ----------
 // próximo compromisso de algum técnico (sem técnico: o próximo evento do mundo)
 export function proximoCompromisso(base, W) { const L = pendentes(base, W); return L.find(e => e.meu) || L[0] || null; }
-// processa um horário: o mundo anda até a data do próximo jogo de técnico (todos os jogos até ali); acabado o
-// calendário, vira a temporada. Devolve o que aconteceu (para o aviso na tela).
+// processa um horário: na pré-temporada, um amistoso de cada técnico; depois, o mundo anda até a data do próximo jogo
+// de técnico (todos os jogos até ali); acabado o calendário, vira a temporada. Devolve o que aconteceu (para o aviso na tela).
 export function processarProximo(base, W) {
   aplicarSave(base, W);
   W.slot = (W.slot || 0) + 1;
-  if (fimDeTemporada(W)) { virarTemporada(base, W); return { virada: true, ano: W.ano }; }
+  if (fimDeTemporada(W)) { virarTemporada(base, W); W.pre = { ano: W.ano, n: 0 }; for (const [, v] of humanos(W)) garantirAmistosos(base, v); return { virada: true, ano: W.ano }; }
+  if (amistososFaltando(W)) { W.pre.n++; for (const [, v] of humanos(W)) amistosoSimulado(base, v); return { amistoso: W.pre.n }; }
   const ev = proximoCompromisso(base, W);
   if (!ev) { mundoAte(base, W, Infinity, true); return { fim: true }; }
   mundoAte(base, W, ev.data, true);
@@ -120,7 +125,8 @@ export function merge3(b, m, t, p = '') {
     return out;
   }
   if (Array.isArray(m) && Array.isArray(t)) {
-    const bArr = Array.isArray(b) ? b : [], bk = new Set(bArr.map(chaveDe)), mk = new Set(m.map(chaveDe));
+    if (!Array.isArray(b)) return t;   // os dois lados criaram a lista (um deles só inicializou): fica a do servidor
+    const bArr = b, bk = new Set(bArr.map(chaveDe)), mk = new Set(m.map(chaveDe));
     const tirei = new Set(bArr.filter(x => !mk.has(chaveDe(x))).map(chaveDe)), pus = m.filter(x => !bk.has(chaveDe(x)));
     let out = t.filter(x => !tirei.has(chaveDe(x)));
     const tk = new Set(out.map(chaveDe)), novos = pus.filter(x => !tk.has(chaveDe(x)));

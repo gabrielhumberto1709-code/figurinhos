@@ -2,7 +2,7 @@
 // O aparelho guarda o mundo e as mesas como vieram do servidor (srv, em texto) e grava só o que mudou; versão velha
 // leva 409: baixa de novo, junta (merge3) e tenta outra vez. Na hora do jogo, quem estiver online processa o horário
 // (o ADM primeiro, depois os outros pela ordem de entrada, com uns segundos de folga entre um e outro).
-import { novoMundo, montar, vistaDe, clubeLivre, novaMesa, liberarMesa, processarProximo, proximoHorario, horario, devido, adiantar, mundoParaGravar, merge3, RITMOS, MAX_TECNICOS } from './motor/online.js';
+import { novoMundo, montar, vistaDe, clubeLivre, novaMesa, liberarMesa, processarProximo, proximoHorario, horario, amistososFaltando, devido, adiantar, mundoParaGravar, merge3, RITMOS, MAX_TECNICOS } from './motor/online.js';
 import { aplicarSave, pendentes } from './motor/mundo.js';
 
 let H; // { app, api, compacta, descompacta, carregarBase, esc, clube, imgEscudo, estrelas, rostoAleatorio, aviso, render, ir, desenhaTopo }
@@ -211,7 +211,7 @@ const falta = t => { const m = Math.ceil((t - Date.now()) / 60e3); return m <= 0
 // horário em que o jogo ev acontece: cada horário leva o mundo até a próxima data com jogo de algum técnico
 function horarioDo(ev) {
   const L = Lg(), datas = [...new Set(pendentes(H.app.base, L.W).filter(e => e.meu).map(e => +e.data))].sort((a, b) => a - b), i = datas.indexOf(+ev.data);
-  return i < 0 ? null : horario(L.meta, (L.W.slot || 0) + i);
+  return ev.tipo === 'amistoso' ? null : i < 0 ? null : horario(L.meta, (L.W.slot || 0) + amistososFaltando(L.W) + i);
 }
 // linha do relógio (ingresso, fim de temporada, lobby): quando é, e o botão do ADM
 export function relogio(rotulo, ev) {

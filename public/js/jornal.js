@@ -20,7 +20,7 @@ const FILTROS = [['tudo', 'Tudo'], ['clube', 'Meu clube'], ['jogos', 'Jogos'], [
 const doInsider = n => ['rumor', 'mercado'].includes(n.tipo) || n.para != null;
 const ehMercado = n => doInsider(n) || n.mercado;
 const CATS = {
-  clube: (n, ci) => (n.tipo || 'clube') === 'clube' || [n.clube, n.de, n.para].includes(ci),
+  clube: (n, ci) => ((n.tipo || 'clube') === 'clube' && (n.clube == null || n.clube === ci)) || [n.clube, n.de, n.para].includes(ci),
   jogos: n => ['resultado', 'destaque'].includes(n.tipo) || / \d+ × \d+/.test(n.texto),
   mercado: ehMercado,
   eventos: n => n.copa || n.evento || n.rodada === 0,
