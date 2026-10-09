@@ -629,7 +629,7 @@ import { contasDaRodada, dicasFinanceiras } from '../public/js/motor/financas.js
 test('finanças: atraso escalona (pedido de saída, Justiça, fama de mau pagador), projeção do fim da temporada e dicas', () => {
   const s = novoJogo(base, cfg(97)), ci = s.tecnico.clube; ate(s, 3);
   const alvo = [...base.jog.values()].find(j => j.clube !== ci && base.clubes[j.clube].div === 'A'), v0 = vontade(base, s, alvo, ci);
-  const o = orcamento(base, s); assert.equal(o.fim, Math.round(s.caixa + o.cota - o.folha * o.dias));
+  const o = orcamento(base, s); assert.equal(o.fim, Math.round(s.caixa + o.cota - o.custoDia * o.dias));
   s.caixa = -5e6; s.fin.temporada.compras = 1e7; s.fin.temporada.vendas = 0; s.fin.tvPagas = [0, 9, 19, 29];
   const n0 = base.elencos[ci].length, tab = tabela(base, s, base.clubes[ci].div);
   const N = []; let k = 0;
@@ -1038,6 +1038,7 @@ test('teto salarial da diretoria: recém-promovido ganha menos aporte, continent
   assert.equal(tetoSalarial(base, bah).teto, Math.round(tB.teto * 1.35 * 1.1 / 50) * 50);
   // proposta acima do teto é barrada; empréstimo em que o outro clube paga quase tudo passa pelo teto
   const alvo = [...base.jog.values()].filter(j => base.clubes[j.clube].div === 'A' && j.clube !== rem.tecnico.clube).sort((a, b) => b.ovr - a.ovr)[0];
+  rem.caixa = 50e6; // o Remo real quase não tem caixa: aqui o teste é só do teto
   assert.match(bloqueioProposta(base, rem, alvo, { tipo: 'compra', valor: 1e5, salario: tR.teto + 100, anos: 3 }), /teto salarial/);
   const livre = base.elencos[base.clubes.findIndex(c => c.div === 'L')][0];
   rem.fin.salarioBudget = 1e9; assert.equal(bloqueioProposta(base, rem, livre, { tipo: 'livre', salario: tR.teto, anos: 3 }), null);
@@ -1256,10 +1257,60 @@ test('liga online: dois técnicos no mesmo mundo, cada um com a sua tática, fin
   assert.deepEqual(merge3({}, { am: { jogos: [{ g: null }] } }, { am: { jogos: [{ g: [1, 0] }] } }), { am: { jogos: [{ g: [1, 0] }] } }, 'lista criada dos dois lados não duplica');
   // virada com os dois
   while (W.ano === 2026 && n++ < 600) processarProximo(base, W);
-  assert.equal(W.ano, 2027); assert.equal(va.historico[0].clube, A); assert.equal(vb.historico[0].clube, B);
-  // a temporada nova começa pelos amistosos; o Beto sai: o Flamengo volta para a IA com o caixa
-  assert.equal(pendentes(base, vb).find(e => e.meu).tipo, 'amistoso');
+  // (sem ninguém mexendo no time, um técnico pode cair no meio do caminho: aí ele fica sem clube e sem histórico)
+  assert.equal(W.ano, 2027);
+  const ativos = [[va, A], [vb, B]].filter(([v]) => !v.demitido);
+  assert.ok(ativos.length);
+  for (const [v, c] of ativos) { assert.equal(v.historico[0].clube, c); assert.equal(pendentes(base, v).find(e => e.meu).tipo, 'amistoso', 'a temporada nova começa pelos amistosos'); }
+  // o Beto sai: o Flamengo volta para a IA com o caixa
   const caixaB = vb.caixa; liberarMesa(base, W, 'u2');
-  assert.ok(!mesas.u2 && clubeLivre(base, W, B) && W.caixaIA[B] === caixaB);
+  assert.ok(!mesas.u2 && clubeLivre(base, W, B) && (vb.demitido || W.caixaIA[B] === caixaB));
   processarProximo(base, W);
+});
+
+import { pedirDemissao } from '../public/js/motor/carreira.js';
+import { ehHumano } from '../public/js/motor/humanos.js';
+import { donoDe } from '../public/js/motor/online.js';
+test('liga online: demitido larga o clube (IA assume com o caixa), proposta velha não cria dois técnicos, transfer ban do ADM, merge por id', () => {
+  const W = novoMundo(base, 77), mesas = {};
+  montar(W, mesas);
+  const A = base.clubes.findIndex(c => c.n === 'Santos'), B = base.clubes.findIndex(c => c.n === 'Grêmio'), X = base.clubes.findIndex(c => c.n === 'Vasco');
+  mesas.a = novaMesa(base, W, A, { nome: 'Ana' }); mesas.b = novaMesa(base, W, B, { nome: 'Beto' });
+  const va = vistaDe(W, 'a'), vb = vistaDe(W, 'b');
+  for (let k = 0; k < 5; k++) processarProximo(base, W);
+  // Beto pede demissão: o Grêmio volta para a IA com o caixa, e o mundo segue sem quebrar
+  const caixa = vb.caixa; pedirDemissao(base, vb);
+  assert.ok(vb.demitido && !ehHumano(W, B) && donoDe(W, B) == null && W.caixaIA[B] === caixa);
+  for (let k = 0; k < 6; k++) processarProximo(base, W);
+  // proposta velha para um clube que outro técnico assumiu: recusada
+  mesas.c = novaMesa(base, W, X, { nome: 'Caio' });
+  vb.ofertas = [{ clube: X, tipo: 'demitido', ano: W.ano }];
+  assert.match(aceitarOferta(base, vb, X), /outro técnico/);
+  assert.equal(vistaDe(W, 'c').tecnico.clube, X);
+  // transfer ban do ADM: não registra ninguém até a rodada marcada
+  va.banAdm = { ano: W.ano, ate: W.rodada + 5, motivo: 'teste' };
+  const alvo = base.elencos[X].slice().sort((p, q) => p.ovr - q.ovr)[5];
+  assert.match(fazerProposta(base, va, alvo, { tipo: 'compra', valor: 1e6, salario: 1000, anos: 2 }), /ADM da liga/);
+  // merge3: item com id mudado dos dois lados junta campo a campo
+  assert.deepEqual(merge3({ p: [{ id: 1, e: 'a', n: 0 }] }, { p: [{ id: 1, e: 'b', n: 0 }] }, { p: [{ id: 1, e: 'a', n: 1 }, { id: 2 }] }), { p: [{ id: 1, e: 'b', n: 1 }, { id: 2 }] });
+});
+
+import { dividaInicial, verbaIA, receitaAnual, amortizar, garantirFinancas as garantirFin, JUROS } from '../public/js/motor/financas.js';
+test('finanças reais de 2025: dívida, receita e verba de contratação no tamanho dos balanços', () => {
+  const c = n => base.clubes.find(x => x.n === n), mi = v => v / 1e6;
+  // dívida líquida (Sports Value 2025): Corinthians ~R$ 2,45 bi, Atlético ~R$ 2,3 bi, Flamengo ~R$ 473 mi; Mirassol zero
+  assert.ok(mi(dividaInicial(c('Corinthians'))) > 350 && mi(dividaInicial(c('Atlético-MG'))) > 330 && mi(dividaInicial(c('Flamengo'))) < 90 && dividaInicial(c('Mirassol')) === 0);
+  // receita recorrente: Flamengo a maior, depois Palmeiras; Flamengo perto de € 250 mi
+  const R = ['Flamengo', 'Palmeiras', 'Corinthians', 'Mirassol'].map(n => mi(receitaAnual(c(n))));
+  assert.ok(R[0] > R[1] && R[1] > R[2] && R[2] > R[3] && R[0] > 200 && R[0] < 300, R.join());
+  // verba de contratação da IA: Palmeiras e Flamengo gastam, Corinthians e São Paulo quase nada
+  assert.ok(verbaIA(c('Palmeiras')) > 30e6 && verbaIA(c('Flamengo')) > 25e6 && verbaIA(c('Corinthians')) < 3e6 && verbaIA(c('São Paulo')) < 4e6);
+  // carreira no Corinthians: começa devendo, paga juros por rodada e pode amortizar
+  const ci = base.clubes.findIndex(x => x.n === 'Corinthians'), s = novoJogo(base, { ...cfg(83), clube: ci });
+  garantirFin(base, s); s.caixa = 20e6;
+  const d0 = s.fin.divida; assert.ok(d0 > 350e6);
+  assert.match(amortizar(base, s, 5e6), /amortizada/); assert.equal(s.fin.divida, d0 - 5e6); assert.equal(s.caixa, 15e6);
+  while (s.rodada < 3) avancar(base, s);
+  assert.ok(s.fin.extrato.some(e => e.tipo === 'juros' && Math.abs(e.valor + s.fin.divida * JUROS / 38) < 1e4), 'juros por rodada');
+  assert.ok(s.fin.extrato.some(e => e.tipo === 'estrutura'), 'estrutura do clube');
 });

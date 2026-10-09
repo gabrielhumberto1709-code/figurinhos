@@ -27,9 +27,52 @@ export function salarioDia(base, s, j) {
 }
 export const folhaDia = (base, s, ci = s.tecnico.clube) => base.elencos[ci].reduce((t, j) => t + salarioDia(base, s, j), 0);
 
-// receitas de temporada do clube
-export function cotaTV(c) { return c.div === 'A' ? 1e6 + c.fan * 2.3e6 : c.div === 'B' ? 8e5 + c.fan * 3.5e5 : 2.5e5 + c.fan * 6e4; }
-export function patrocinio(c, ci) { return { marca: MARCAS[ci % MARCAS.length], valor: c.div === 'A' ? 8e5 + c.fan * 2.5e5 : c.div === 'B' ? 1.5e5 + c.fan * 5e4 : 5e4 + c.fan * 1e4 }; }
+// ---------- o dinheiro de verdade (balanços de 2025, publicados em 2026) ----------
+// Receita recorrente, dívida líquida e caixa em R$ milhões (Sports Value "Finanças TOP 20 2025", EY e balanços dos
+// clubes), divisão do balanço e gasto médio com contratações por ano (ge, janelas de 2025 e 2026). € a R$ 6,31 (PTAX
+// média de 2025). Bragantino: a dívida é empréstimo da Red Bull, sem juros. Clube fora da lista usa a fórmula da divisão.
+export const EURO = 6.31;
+const REAIS = {
+  Flamengo: [1570.7, 472.8, 192, 366, 'A'], Palmeiras: [1094.2, 1149.8, 118, 437, 'A'], Botafogo: [655, 1571.2, 26, 97, 'A'],
+  'São Paulo': [801.6, 858.2, 24, 26, 'A'], Fluminense: [789.1, 824.4, 35, 180, 'A'], Corinthians: [863.7, 2447, 26, 17, 'A'],
+  'Grêmio': [375.5, 778.4, 18, 107, 'A'], Santos: [489.9, 890, 0.3, 143, 'A'], Cruzeiro: [641.9, 1152.8, 0.7, 236, 'A'],
+  'Atlético-MG': [466.8, 2290.3, 17, 179, 'A'], Internacional: [469.9, 929.2, 2, 66, 'A'], Bragantino: [543, 0, 14, 126, 'A'],
+  Vasco: [446.4, 839.3, 60, 172, 'A'], Bahia: [393.3, 167.8, 34, 189, 'A'], 'Athletico-PR': [232.6, 83.1, 48, 55, 'B'],
+  Fortaleza: [203.3, 223.2, 4, 30, 'A'], 'Ceará': [198.4, 174.1, 2, 5, 'A'], 'Vitória': [147.2, 350.6, 0.1, 23, 'A'],
+  Sport: [176.2, 379.6, 2, 30, 'A'], Mirassol: [163.7, 0, 50, 10, 'A'], Juventude: [119, 0, 5, 2, 'A'], Coritiba: [132.8, 150, 21.3, 20, 'B'],
+  Remo: [82.9, 36.8, 5, 12, 'B'], 'Goiás': [45.4, 114, 10.2, 3, 'B'], 'Avaí': [41.5, 267.5, 0, 1, 'B'], Novorizontino: [69.5, 22, 1.5, 3, 'B'],
+  Guarani: [63.5, 320, 0, 1, 'C'],
+};
+const real = c => { const r = REAIS[c?.n]; return r && { rec: r[0] * 1e6 / EURO, divida: r[1] * 1e6 / EURO, caixa: r[2] * 1e6 / EURO, gasto: r[3] * 1e6 / EURO, serie: r[4] }; };
+// TV: cota do Brasileirão (parte igual + audiência; Flamengo perto de € 55 mi na A) e as das Séries B e C
+const TV_DIV = { A: f => 9e6 + f * f * 4.5e5, B: f => 1.2e6 + f * f * 4e4, C: f => 2.5e5 + f * f * 5e3 };
+const COM_DIV = { A: 1, B: 0.6, C: 0.35 };   // a marca vale menos fora da A, mas não some
+// bilheteria de uma temporada normal: 19 jogos do Brasileirão mais estadual e copas em casa (~1,6x), preço normal
+const bilEst = c => { const fan = Math.min(10, c.fan || 3), cap = c.est?.[1] || 8000 + fan * 5000; return 1.6 * 19 * Math.round(cap * clamp(0.3 + fan * 0.055, 0.08, 1) * Math.round((8 + fan * 1.5) * 100) / 100); };
+// a receita recorrente do balanço inclui as premiações; no jogo elas vêm à parte, pelo que o time ganhar
+const PREMIO_ESP = { A: 0.12, B: 0.05, C: 0.03 };
+export function cotaTV(c) { return Math.round(TV_DIV[c.div]?.(c.fan || 2) ?? 0); }
+// comercial: patrocínios, sócio-torcedor, licenciamento. Clube com balanço: o que sobra da receita real depois da TV e da
+// bilheteria; sem balanço, pelo tamanho da torcida
+function comercial(c) {
+  const r = real(c), f = c.fan || 2;
+  if (!COM_DIV[c.div]) return 0;
+  if (!r) return f * f * 3.5e5 * COM_DIV[c.div];
+  return Math.max(0.1 * r.rec, r.rec * (1 - PREMIO_ESP[r.serie]) - TV_DIV[r.serie](f) - bilEst(c)) * COM_DIV[c.div] / COM_DIV[r.serie];
+}
+export function patrocinio(c, ci) { return { marca: MARCAS[ci % MARCAS.length], valor: Math.round(comercial(c)) }; }
+// receita recorrente da temporada (sem prêmios nem vendas)
+export const receitaAnual = c => cotaTV(c) + comercial(c) + bilEst(c);
+// custos além dos salários: encargos, direitos de imagem e comissão técnica (sobre a folha); estrutura do clube
+// (administração, CT, base, viagens, impostos), uma fatia da receita; juros da dívida. Calibrado para que o resultado
+// antes de vendas e compras fique perto do real de 2025 (Flamengo e São Paulo no azul, Corinthians e Atlético no vermelho).
+export const ENCARGOS = 0.7, ESTRUTURA = 0.38, JUROS = 0.1;
+export const estruturaAnual = c => Math.round(ESTRUTURA * receitaAnual(c));
+export function dividaInicial(c) { const r = real(c); return Math.round(r ? r.divida : receitaAnual(c) * ({ A: 1, B: 2, C: 1 }[c.div] || 0)); }
+// caixa de quem assume: o do balanço (sem balanço, 3% da receita), mais uma folga no fácil
+export function caixaReal(c, dificuldade = 'normal') { const r = real(c), R = receitaAnual(c); return Math.round(((r ? r.caixa : 0.03 * R) + ({ facil: 0.15, normal: 0.03, dificil: 0 }[dificuldade] ?? 0.03) * R) / 1e4) * 1e4; }
+// verba de contratações da IA por temporada: o gasto real médio (o resto vem do que ela vende); sem balanço, pela receita e a dívida
+export function verbaIA(c) { const r = real(c), R = receitaAnual(c); return Math.round(Math.max(0, r ? 0.6 * r.gasto : 0.1 * R - 0.04 * dividaInicial(c)) / 1e4) * 1e4; }
 const PARCELAS_TV = [0, 9, 19, 29];
 export function premioLiga(div, pos) {
   if (div === 'A') return pos <= 16 ? Math.round((8e6 - (pos - 1) * 4e5)) : 1e6;
@@ -53,9 +96,11 @@ export function bilheteria(base, s, ci, adv, ultimos = [], pos = 10, nivel = 'no
 
 export function financasIniciais(base, s) {
   const ci = s.tecnico.clube, c = base.clubes[ci];
-  return { extrato: [], temporada: { ano: s.ano, compras: 0, vendas: 0, folha0: folhaDia(base, s) }, diretoria: 60, ultimaVerba: -99, verbasRecentes: [], tvPagas: [], ingresso: 'normal', salarioBudget: null, atraso: 0, socorro: 0, patrocinador: patrocinio(c, ci).marca };
+  return { divida: dividaInicial(c), extrato: [], temporada: { ano: s.ano, compras: 0, vendas: 0, folha0: folhaDia(base, s) }, diretoria: 60, ultimaVerba: -99, verbasRecentes: [], tvPagas: [], ingresso: 'normal', salarioBudget: null, atraso: 0, socorro: 0, patrocinador: patrocinio(c, ci).marca };
 }
-export const garantirFinancas = (base, s) => (s.fin = s.fin || financasIniciais(base, s));
+export const garantirFinancas = (base, s) => { s.fin = s.fin || financasIniciais(base, s); s.fin.divida ??= dividaInicial(base.clubes[s.tecnico.clube]); return s.fin; };
+// custos fixos por dia (estrutura e juros), para o orçamento
+export const fixosDia = (base, s) => (estruturaAnual(base.clubes[s.tecnico.clube]) + (s.fin?.divida || 0) * JUROS) / 365;
 
 // lança no extrato e mexe no caixa
 export function lancar(s, tipo, desc, valor, rodada = s.rodada) {
@@ -80,13 +125,13 @@ export function receitaPrevista(base, s) {
 // orçamento: quanto do caixa fica para salários até o fim da temporada e quanto sobra para compras
 export function orcamento(base, s) {
   garantirFinancas(base, s);
-  const folha = folhaDia(base, s), dias = diasRestantes(s), cota = receitaPrevista(base, s);
-  const maxSal = Math.max(folha, Math.floor((s.caixa + cota) / dias));
+  const folha = folhaDia(base, s), dias = diasRestantes(s), cota = receitaPrevista(base, s), k = 1 + ENCARGOS, fixos = fixosDia(base, s);
+  const maxSal = Math.max(folha, Math.floor(((s.caixa + cota) / dias - fixos) / k));
   const sal = clamp(s.fin.salarioBudget ?? Math.round(folha * 1.1), folha, Math.max(folha, maxSal));
-  const reserva = sal * dias - cota;
+  const reserva = (sal * k + fixos) * dias - cota, custoDia = folha * k + fixos;
   const compras = Math.max(0, Math.min(s.caixa, Math.round(s.caixa - reserva)));
-  const diasDeSalario = folha ? Math.floor((s.caixa + cota) / folha) : 999;
-  return { folha, salarios: sal, maxSal, folga: Math.max(0, sal - folha), compras, dias, cota, diasDeSalario, pagaAteFim: diasDeSalario >= dias, fim: Math.round(s.caixa + cota - folha * dias) };
+  const diasDeSalario = custoDia ? Math.floor((s.caixa + cota) / custoDia) : 999;
+  return { folha, salarios: sal, maxSal, folga: Math.max(0, sal - folha), compras, dias, cota, custoDia, diasDeSalario, pagaAteFim: diasDeSalario >= dias, fim: Math.round(s.caixa + cota - custoDia * dias) };
 }
 
 // regra da ANRESF: só tem socorro quem não comprou mais do que vendeu nem inchou a folha em mais de 10%
@@ -184,11 +229,13 @@ export function contasDaRodada(base, s, rd, jogoCasa, tab) {
   const f = s.fin, ci = s.tecnico.clube, c = base.clubes[ci], N = [];
   const dias = rd === 0 ? diasPre(s) : diasEntre(s, rd - 1, rd);
   const folha = folhaDia(base, s);
-  if (dias) lancar(s, 'salarios', `Salários (${dias} dias)`, -folha * dias, rd);
+  if (dias) lancar(s, 'salarios', `Salários, encargos e comissão técnica (${dias} dias)`, -folha * (1 + ENCARGOS) * dias, rd);
+  lancar(s, 'estrutura', 'Estrutura do clube (administração, CT, base, viagens)', -estruturaAnual(c) / 38, rd);
+  if (f.divida > 0) lancar(s, 'juros', `Juros da dívida (${fmt(f.divida)} a ${Math.round(JUROS * 100)}% ao ano)`, -f.divida * JUROS / 38, rd);
   if (jogoCasa) bilheteriaLiga(base, s, rd, jogoCasa.adv, tab);
   if (PARCELAS_TV.includes(rd) && !f.tvPagas.includes(rd)) { f.tvPagas.push(rd); lancar(s, 'tv', `Cota de TV (parcela ${PARCELAS_TV.indexOf(rd) + 1} de 4)`, cotaTV(c) / 4, rd); }
   lancar(s, 'patrocinio', `Patrocínio master · ${f.patrocinador}`, patrocinio(c, ci).valor / 38, rd);
-  const pos = tab.findIndex(x => x.clube === ci) + 1;
+  const pos = (tab || []).findIndex(x => x.clube === ci) + 1;
   if (rd === 37) { const p = premioLiga(c.div, pos); lancar(s, 'premio', `Premiação da Série ${c.div} (${pos}º lugar)`, p, rd); N.push(`Premiação: ${fmt(p)} pelo ${pos}º lugar.`); }
   // caixa negativo: socorro (adianta a TV) ou salários atrasados
   if (s.caixa < 0) {
@@ -276,7 +323,7 @@ export function fairPlay(base, s) {
   const curto = Math.max(0, -s.caixa), razaoCurto = curto / Math.max(1, receita);
   // resultado do ano com as compras amortizadas: nos 3 anos da conta, a compra do ano pesa 1/3 e a do ano passado 2/3
   // (a de dois anos atrás já pesou inteira)
-  const resultado = Object.values(bal).reduce((a, v) => a + v, 0), anoFim = resultado + falta;
+  const resultado = Object.entries(bal).reduce((a, [k, v]) => ['amortizacao', 'rolagem'].includes(k) ? a : a + v, 0), anoFim = resultado + falta; // pagar ou rolar dívida não é receita nem despesa
   const A = s.fpf?.anos || {}, ant = A[ano - 1], ant2 = A[ano - 2];
   const tri = anoFim + compras * 2 / 3 + (ant ? ant.r + ant.c / 3 : 0) + (ant2 ? ant2.r : 0), tol = tolerancia(c.div, receita);
   const limCusto = limiteCusto(ano, c.div), limCurto = limiteCurto(ano, c.div), falhas = [];
@@ -285,7 +332,8 @@ export function fairPlay(base, s) {
   if (tri < -tol) falhas.push(`déficit de ${fmt(-tri)} em três anos, acima da tolerância de ${fmt(tol)}`);
   return { receita, aporte, custo, razao, limCusto, curto, razaoCurto, limCurto, resultado, anoFim, tri, tol, falhas, divida: (s.fin.atraso || 0) > 0 };
 }
-export const registroBloqueado = s => s.fpf?.ban?.ano === s.ano && s.rodada < s.fpf.ban.ate ? s.fpf.ban.ate : 0;
+// registro de jogadores bloqueado (fair play da CBF ou transfer ban do ADM da liga): até qual rodada
+export const registroBloqueado = s => Math.max(0, ...[s.fpf?.ban, s.banAdm].map(b => b?.ano === s.ano && s.rodada < b.ate ? b.ate : 0));
 export const SANCOES = ['', 'advertência pública', 'multa', 'receitas retidas', 'transfer ban', 'perda de pontos'];
 // um degrau na escada de punições (devolve o texto da notícia). Antes de 2028 a CBF só adverte.
 export function punirFPF(base, s, motivo) {
@@ -313,6 +361,14 @@ export function fecharFPF(base, s) {
   return N;
 }
 
+// pagar parte da dívida com o caixa (corta os juros daqui pra frente)
+export function amortizar(base, s, v) {
+  garantirFinancas(base, s);
+  const x = Math.round(Math.min(v, s.caixa, s.fin.divida));
+  if (!(x > 0)) return s.fin.divida > 0 ? 'Não tem caixa para isso.' : 'O clube não tem dívida.';
+  lancar(s, 'amortizacao', 'Amortização da dívida', -x); s.fin.divida -= x;
+  return `Dívida amortizada em ${fmt(x)}: agora é ${fmt(s.fin.divida)} (${fmt(s.fin.divida * JUROS)} de juros por ano).`;
+}
 // balanço da temporada por categoria
 export function balanco(s) {
   const tot = {};

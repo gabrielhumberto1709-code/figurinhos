@@ -24,7 +24,7 @@ export function enviar(s, de, chave, assunto, texto, extra = {}) {
   s.msgsVistas ||= [];
   if (s.msgsVistas.includes(chave)) return;
   s.msgsVistas = [...s.msgsVistas, chave].slice(-300);
-  s.msgs = [{ id: `${s.ano}-${s.rodada}-${s.msgsVistas.length}`, de, ano: s.ano, rodada: s.rodada, assunto, texto, lida: false, ...extra }, ...(s.msgs || [])].slice(0, 60);
+  s.msgs = [{ id: `${s.ano}-${s.rodada}-${chave}`, de, ano: s.ano, rodada: s.rodada, assunto, texto, lida: false, ...extra }, ...(s.msgs || [])].slice(0, 60);
 }
 const lista = nomes => nomes.length <= 1 ? nomes.join('') : `${nomes.slice(0, -1).join(', ')} e ${nomes.at(-1)}`;
 
@@ -148,7 +148,7 @@ export function correio(base, s) {
     const fp = fairPlay(base, s), adapt = s.ano < ANO_FPF;
     if (fp.falhas.length) enviar(s, 'diretor', `fpf-${s.ano}-${Math.floor(rd / 10)}`, 'Fair play financeiro: fora das regras', `Se o ano fechasse hoje, estaríamos fora do fair play da CBF: ${fp.falhas.join('; ')}. ${adapt ? `Até ${ANO_FPF - 1} a CBF só adverte, mas em ${ANO_FPF} isso vira punição.` : 'No fechamento do ano vem punição, em escada: advertência, multa, retenção de receitas, transfer ban e perda de pontos.'} Vender, cortar folha ou pedir verba (aporte) resolve.`, { link: '#/financas' });
     else if (fp.razao > fp.limCusto - 0.1) enviar(s, 'diretor', `fpf-aten-${s.ano}`, 'Fair play financeiro: atenção', `O custo do elenco chegou a ${Math.round(fp.razao * 100)}% da receita. O limite da CBF é ${Math.round(fp.limCusto * 100)}%. Cuidado com contratação cara.`, { link: '#/financas' });
-    const ban = registroBloqueado(s); if (ban) enviar(s, 'diretor', `fpf-ban-${s.ano}-${ban}`, 'Registro bloqueado', `A CBF bloqueou o registro de jogadores até a ${ban + 1}ª rodada. Nada de contratação até lá.`, { link: '#/financas' });
+    const ban = s.fpf?.ban && registroBloqueado({ ano: s.ano, rodada: s.rodada, fpf: s.fpf }); if (ban) enviar(s, 'diretor', `fpf-ban-${s.ano}-${ban}`, 'Registro bloqueado', `A CBF bloqueou o registro de jogadores até a ${ban + 1}ª rodada. Nada de contratação até lá.`, { link: '#/financas' });
   }
   if (s.fin?.atraso === 1) enviar(s, 'diretor', `fpf-div-${s.ano}-${rd}`, 'Fair play financeiro: dívida', `Salário atrasado conta como dívida com credor relevante no fair play financeiro. A CBF confere as dívidas em 31/3, 31/7 e 30/11: se ainda estiver atrasado numa dessas datas, ${s.ano < ANO_FPF ? `vem advertência (de ${ANO_FPF} em diante, punição)` : 'vem punição: advertência, multa, retenção de receitas, transfer ban e perda de pontos'}.`, { link: '#/financas' });
   const T = tetoSalarial(base, s), teto = `€ ${T.teto.toLocaleString('pt-BR')}/dia`;

@@ -8,7 +8,7 @@ export const MESA = new Set(['tecnico', 'carreira', 'cargo', 'demitido', 'oferta
   'propostas', 'recebidas', 'listas', 'favoritos', 'observar', 'relatorios', 'olheiro', 'acordos', 'leilaoAtivo', 'recusas',
   'xi', 'banco', 'formacao', 'formPers', 'estilo', 'gatilhos', 'cobrador', 'capitao', 'vice', 'subsAuto', 'escSalvas', 'foco', 'treino',
   'prelecao', 'coletiva', 'coletivaPre', 'colAud', 'colUsados', 'tons', 'torcida', 'classicos', 'revolta', 'motim', 'ultima', 'ultimaVivo',
-  'h2h', 'tetoAviso', 'palavra', 'pedidosAumento', 'avisoPilar', 'galaVista', 'vivo', 'amistosos', 'julgamentos', 'fpf', 'historico', 'salvoEm']);
+  'h2h', 'tetoAviso', 'palavra', 'pedidosAumento', 'avisoPilar', 'galaVista', 'vivo', 'banAdm', 'amistosos', 'julgamentos', 'fpf', 'historico', 'salvoEm']);
 
 const cache = new WeakMap();
 export function vista(W, mesa) {
@@ -26,7 +26,8 @@ export function vista(W, mesa) {
   return p;
 }
 export const mundoDe = s => s._W || s;
-const mesas = s => Object.values(mundoDe(s)._mesas || {}).filter(m => m.tecnico?.clube >= 0);
+// técnico demitido não comanda nada: o clube dele volta para a IA enquanto ele procura emprego
+const mesas = s => Object.values(mundoDe(s)._mesas || {}).filter(m => m.tecnico?.clube >= 0 && !m.demitido);
 // [clube, vista] de cada técnico (offline: o save inteiro)
 export function humanos(s) {
   const W = mundoDe(s);

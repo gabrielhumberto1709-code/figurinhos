@@ -4,6 +4,10 @@
 // (o ADM primeiro, depois os outros pela ordem de entrada, com uns segundos de folga entre um e outro).
 import { novoMundo, montar, vistaDe, clubeLivre, novaMesa, liberarMesa, processarProximo, proximoHorario, horario, amistososFaltando, devido, adiantar, mundoParaGravar, merge3, RITMOS, MAX_TECNICOS } from './motor/online.js';
 import { aplicarSave, pendentes } from './motor/mundo.js';
+import { aceitarOferta as aceitarOfertaMotor } from './motor/carreira.js';
+import { lancar } from './motor/financas.js';
+import { fmtDinheiro } from './motor/util.js';
+import { enviar as carta } from './motor/correio.js';
 
 let H; // { app, api, compacta, descompacta, carregarBase, esc, clube, imgEscudo, estrelas, rostoAleatorio, aviso, render, ir, desenhaTopo }
 export const configurar = h => { H = h; };
@@ -39,12 +43,12 @@ async function enviar() {
   const L = Lg(), w = JSON.stringify(mundoParaGravar(L.W)), corpo = { mesas: {} }, novos = {};
   for (const [id, m] of Object.entries(L.mesas)) {
     const t = JSON.stringify(m);
-    if (t !== L.srv.m[id]) { novos[id] = t; corpo.mesas[id] = { ver: L.vers[id] ?? 0, dados: await H.compacta(t), clube: m.tecnico?.clube ?? null }; }
+    if (t !== L.srv.m[id]) { novos[id] = t; corpo.mesas[id] = { ver: L.vers[id] ?? 0, dados: await H.compacta(t), clube: m.demitido ? null : m.tecnico?.clube ?? null }; }
   }
   const ids = Object.keys(novos), mudouW = w !== L.srv.w;
   if (!mudouW && !ids.length) return true;
   if (mudouW) corpo.mundo = await H.compacta(w);
-  if (mudouW || ids.length > 1) corpo.ver = L.ver;
+  if (mudouW || ids.length > 1 || +ids[0] !== L.eu) corpo.ver = L.ver;
   try {
     const r = await H.api('POST', `/ligas/${L.codigo}/gravar`, corpo);
     if (r.ver) L.ver = r.ver;
@@ -89,7 +93,7 @@ function atualizarTela() {
 }
 function minhaVez(agora = Date.now()) {
   const L = Lg();
-  if (!L.W || L.sujo || !devido(L.meta, L.W, agora)) return false;
+  if (!L.W || L.sujo || L.travado === (L.W.slot || 0) || !devido(L.meta, L.W, agora)) return false;
   const ordem = L.membros.filter(m => m.id === L.eu || agora - m.visto < ATIVO).sort((a, b) => (b.id === L.adminId) - (a.id === L.adminId) || a.id - b.id);
   return agora >= proximoHorario(L.meta, L.W) + ordem.findIndex(m => m.id === L.eu) * FOLGA;
 }
@@ -128,13 +132,15 @@ async function processar() {
       for (let k = 0; k < 3; k++) {
         await subir();
         if (!devido(L.meta, L.W)) return;
-        for (let n = 0; n < 6 && devido(L.meta, L.W); n++) { await quadro(); processarProximo(H.app.base, L.W); }
+        // erro no meio: o mundo ficou pela metade aqui, então volta para o do servidor e não insiste neste horário
+        try { for (let n = 0; n < 6 && devido(L.meta, L.W); n++) { await quadro(); processarProximo(H.app.base, L.W); } }
+        catch (e) { await baixar(true); L.travado = L.W.slot || 0; throw e; }
         if (await enviar()) return;
         await baixar(true);
       }
     });
     estado('salvo');
-  } catch { estado('falhou'); }
+  } catch (e) { estado('falhou'); if (L.travado != null) H.aviso(`Não consegui rodar o horário da liga (${e.message}). O ADM pode voltar o último horário no lobby.`); }
   L.rodando = false;
   notificar(antes);
 }
@@ -165,20 +171,36 @@ async function criar(nome, ritmo, publica) {
   await abrir(codigo);
   H.ir('#/liga');
 }
-// assumir um clube: sempre a partir do mundo fresco (se outro técnico pegou antes, avisa)
-async function assumir(ci) {
+// ação que precisa do estado mais novo (assumir clube, aceitar proposta, decisão do ADM): sobe o que estava pendente,
+// baixa, aplica e grava; se alguém gravou no meio, desfaz e tenta de novo. fn devolve texto = não deu.
+async function transacao(fn) {
   const L = Lg();
-  await exclusivo(async () => {
+  return exclusivo(async () => {
+    await subir(); L.sujo = false;
     for (let k = 0; k < 3; k++) {
       await baixar(true);
-      if (!clubeLivre(H.app.base, L.W, ci)) throw new Error(`O ${H.clube(ci).n} acabou de ser escolhido por outro técnico.`);
-      const eu = L.membros.find(m => m.id === L.eu);
-      L.mesas[L.eu] = novaMesa(H.app.base, L.W, ci, { nome: eu.apelido, rosto: H.rostoAleatorio(), nat: 'BRA' });
-      if (await enviar()) { H.app.s = vistaDe(L.W, L.eu); return; }
+      const r = fn(L);
+      if (typeof r === 'string') throw new Error(r);
+      if (await enviar()) return r;
     }
     throw new Error('A liga está movimentada agora. Tente de novo.');
   });
 }
+// assumir um clube livre (técnico novo ou demitido sem proposta): leva o nome, o visual e a carreira
+const assumir = ci => transacao(L => {
+  const velha = L.mesas[L.eu], eu = L.membros.find(m => m.id === L.eu), W = L.W;
+  if (velha && !velha.demitido) return 'Você já tem clube.';
+  const nova = novaMesa(H.app.base, W, ci, velha?.tecnico ? { ...velha.tecnico } : { nome: eu.apelido, rosto: H.rostoAleatorio(), nat: 'BRA' });
+  if (!nova) return `O ${H.clube(ci).n} acabou de ser escolhido por outro técnico.`;
+  if (velha) {
+    const ult = velha.carreira?.at(-1); if (ult && ult.ateAno == null) Object.assign(ult, { ateAno: W.ano, ateRodada: W.rodada, saida: velha.demitido.pediu ? 'pediu demissão' : 'demitido' });
+    nova.carreira = [...(velha.carreira || []), ...nova.carreira]; nova.historico = velha.historico;
+  }
+  L.mesas[L.eu] = nova; H.app.s = vistaDe(W, L.eu);
+});
+// aceitar proposta (demitido ou não): confere no mundo mais novo se o clube ainda não tem técnico
+export const aceitarOferta = ci => transacao(() => aceitarOfertaMotor(H.app.base, H.app.s, ci) || null);
+
 async function mudarMeta(f) {
   const L = Lg();
   await exclusivo(async () => {
@@ -191,14 +213,8 @@ async function mudarMeta(f) {
 }
 async function sairDaLiga() {
   const L = Lg();
-  await exclusivo(async () => {
-    for (let k = 0; L.mesas[L.eu] && k < 3; k++) {
-      liberarMesa(H.app.base, L.W, L.eu);
-      if (await enviar()) break;
-      await baixar(true);
-    }
-    await H.api('POST', `/ligas/${L.codigo}/sair`);
-  });
+  if (L.mesas[L.eu]) await transacao(() => { liberarMesa(H.app.base, L.W, L.eu); });
+  await H.api('POST', `/ligas/${L.codigo}/sair`);
   fechar();
 }
 
@@ -245,10 +261,11 @@ export function tela() {
       <p class="mudo" style="font-size:.9rem">Na hora, os jogos são simulados com a escalação, a tática e os planos que cada técnico deixou. Depois dá para assistir ao seu jogo na súmula.</p></section>
     <section class="cartao"><h3>Técnicos</h3><ul class="tecnicos-liga">${membros.map(x => `<li>
       ${x.clube != null ? imgEscudo(x.clube, 28, 30) : '<span class="sem-clube" aria-hidden="true"></span>'}
-      <span><b>${esc(x.apelido)}</b>${x.id === L.adminId ? ' <small class="tag-adm">ADM</small>' : ''}<br><small>${x.clube != null ? esc(clube(x.clube).n) : 'escolhendo clube'}</small></span>
+      <span><b>${esc(x.apelido)}</b>${x.id === L.adminId ? ' <small class="tag-adm">ADM</small>' : ''}<br><small>${x.clube != null ? esc(clube(x.clube).n) : L.mesas[x.id]?.demitido ? 'sem clube (demitido)' : 'escolhendo clube'}${banDe(L, x.id) ? ` · transfer ban até a ${banDe(L, x.id) + 1}ª rodada` : ''}</small></span>
       <small class="${online(x) ? 'on' : ''}">${online(x) ? 'online' : ''}</small></li>`).join('')}</ul></section>
-    ${minha ? `<a class="botao grande" href="#/clube">Ir para o ${esc(clube(minha.tecnico.clube).n)}</a>` : escolhaHtml(dono)}
-    ${adm ? '' : '<div class="linha-botoes" style="margin-top:16px"><button class="botao perigo" type="button" data-acao="liga-sair">Sair da liga</button></div>'}`;
+    ${!minha ? escolhaHtml(dono) : !minha.demitido ? `<a class="botao grande" href="#/clube">Ir para o ${esc(clube(minha.tecnico.clube).n)}</a>`
+      : minha.ofertas?.length ? `<a class="botao grande" href="#/clube">Você está sem clube: ver propostas</a>` : `<p class="mudo">Você está sem clube e sem propostas: assuma um clube sem técnico.</p>${escolhaHtml(dono)}`}
+    ${adm ? painelAdm(membros) : '<div class="linha-botoes" style="margin-top:16px"><button class="botao perigo" type="button" data-acao="liga-sair">Sair da liga</button></div>'}`;
 }
 function escolhaHtml(dono) {
   const L = Lg(), { esc, clube, imgEscudo } = H, d = L.div || 'A';
@@ -259,6 +276,57 @@ function escolhaHtml(dono) {
     <p class="erro" role="alert"></p>
     <button class="botao grande" type="button" data-acao="liga-assumir" ${L.escolha == null ? 'disabled' : ''}>${L.escolha == null ? 'Escolha um clube' : `Assumir o ${esc(clube(L.escolha).n)}`}</button></section>`;
 }
+// ---------- ADM: multa, dinheiro, transfer ban, expulsar, passar o posto, voltar horário, excluir ----------
+const banDe = (L, id) => { const b = L.mesas[id]?.banAdm; return b && b.ano === L.W.ano && L.W.rodada < b.ate ? b.ate : 0; };
+const OPS = [['multa', 'Multar'], ['dinheiro', 'Dar dinheiro'], ['ban', 'Transfer ban'], ['expulsar', 'Expulsar'], ['passar', 'Passar ADM']];
+function painelAdm(membros) {
+  const L = Lg(), { esc } = H, A = (L.adm ||= { op: 'multa' }), alvo = membros.find(x => x.id === A.alvo), nome = alvo ? esc(alvo.apelido) : '';
+  const comClube = alvo && L.mesas[alvo.id] && !L.mesas[alvo.id].demitido;
+  const form = !alvo ? '<p class="mudo">Escolha um técnico.</p>'
+    : A.op === 'multa' || A.op === 'dinheiro' ? (comClube ? `<form data-form="liga-adm" class="adm-form" novalidate>
+        <label>Valor (€ milhões) <input type="number" name="valor" min="0.1" max="500" step="0.1" inputmode="decimal" required></label>
+        <label>Motivo <input type="text" name="motivo" maxlength="80" required placeholder="${A.op === 'multa' ? 'Ex.: atraso de salário combinado na liga' : 'Ex.: prêmio da rodada'}"></label>
+        <p class="erro" role="alert"></p><button class="botao ${A.op === 'multa' ? 'perigo' : ''}">${A.op === 'multa' ? `Multar ${nome}` : `Dar dinheiro a ${nome}`}</button></form>` : `<p class="mudo">${nome} está sem clube.</p>`)
+    : A.op === 'ban' ? (comClube ? `<form data-form="liga-adm" class="adm-form" novalidate>
+        <div class="chips" role="group" aria-label="Duração">${[[5, '5 rodadas'], [10, '10 rodadas'], [38, 'Até o fim da temporada'], [0, 'Tirar o ban']].map(([n, t]) => `<label class="chip"><input type="radio" name="rodadas" value="${n}" ${n === 5 ? 'checked' : ''}> ${t}</label>`).join('')}</div>
+        <label>Motivo <input type="text" name="motivo" maxlength="80" placeholder="Ex.: dívida com outro técnico"></label>
+        <p class="erro" role="alert"></p><button class="botao perigo">Aplicar a ${nome}</button></form>` : `<p class="mudo">${nome} está sem clube.</p>`)
+    : alvo.id === L.eu ? '<p class="mudo">Escolha outro técnico.</p>'
+    : A.op === 'expulsar' ? `<p>${nome} sai da liga e o clube volta para a IA, com o caixa.</p><button class="botao perigo" type="button" data-acao="adm-expulsar">Expulsar ${nome}</button>`
+    : `<p>${nome} vira o ADM e você continua na liga como técnico.</p><button class="botao" type="button" data-acao="adm-passar">Passar o ADM para ${nome}</button>`;
+  return `<section class="cartao painel-adm"><h3>Painel do ADM</h3>
+    <p class="mudo">Vale na hora, o técnico recebe uma carta e a liga fica sabendo pelo jornal.</p>
+    <div class="chips" role="group" aria-label="Técnico">${membros.map(x => `<button type="button" class="chip" data-acao="adm-alvo" data-id="${x.id}" aria-pressed="${A.alvo === x.id}">${esc(x.apelido)}</button>`).join('')}</div>
+    <div class="chips" role="group" aria-label="O que fazer">${OPS.map(([k, t]) => `<button type="button" class="chip" data-acao="adm-op" data-op="${k}" aria-pressed="${A.op === k}">${t}</button>`).join('')}</div>
+    ${form}
+    <div class="linha-botoes adm-liga"><button class="botao sec" type="button" data-acao="adm-restaurar">Voltar o último horário</button><button class="botao perigo" type="button" data-acao="adm-excluir">Excluir a liga</button></div></section>`;
+}
+// decisão do ADM numa mesa: carta para o técnico e nota no jornal
+function avisoAdm(L, v, assunto, texto, noticia) {
+  carta(v, 'diretor', `adm-${Date.now()}`, assunto, texto, { link: '#/financas' });
+  const ci = v.tecnico.clube;
+  L.W.noticias.unshift({ rodada: L.W.rodada, tipo: 'destaque', clube: ci, div: H.app.base.clubes[ci].div, texto: noticia });
+}
+const vistaAlvo = (L, id) => L.mesas[id] && !L.mesas[id].demitido ? vistaDe(L.W, id) : null;
+const admDinheiro = (id, valor, motivo) => transacao(L => {
+  const v = vistaAlvo(L, id); if (!v) return 'Esse técnico está sem clube.';
+  const multa = valor < 0, n = H.clube(v.tecnico.clube).n, txt = fmtDinheiro(Math.abs(valor));
+  lancar(v, 'adm', `${multa ? 'Multa' : 'Prêmio'} do ADM da liga: ${motivo}`, valor);
+  avisoAdm(L, v, multa ? 'Multa do ADM da liga' : 'Dinheiro do ADM da liga', `O ADM da liga ${multa ? 'tirou' : 'colocou'} ${txt} ${multa ? 'do' : 'no'} caixa do clube. Motivo: ${motivo}.`,
+    `ADM da liga ${multa ? `multa o ${n} em ${txt}` : `dá ${txt} ao ${n}`}: ${motivo}.`);
+});
+const admBan = (id, rodadas, motivo) => transacao(L => {
+  const v = vistaAlvo(L, id); if (!v) return 'Esse técnico está sem clube.';
+  const n = H.clube(v.tecnico.clube).n;
+  if (!rodadas) { if (!v.banAdm) return 'Esse técnico não tem transfer ban.'; delete v.banAdm; avisoAdm(L, v, 'Transfer ban retirado', 'O ADM da liga retirou o transfer ban. O clube pode registrar jogadores de novo.', `ADM da liga retira o transfer ban do ${n}.`); return; }
+  const ate = Math.min(38, L.W.rodada + rodadas);
+  v.banAdm = { ano: L.W.ano, ate, motivo };
+  for (const p of v.propostas || []) if (['aguardando', 'contraproposta'].includes(p.estado)) p.estado = 'cancelada';
+  const ateTxt = ate >= 38 ? 'até o fim da temporada' : `até a ${ate + 1}ª rodada`;
+  avisoAdm(L, v, 'Transfer ban do ADM da liga', `O ADM da liga proibiu o clube de registrar jogadores ${ateTxt}${motivo ? `. Motivo: ${motivo}` : ''}. Propostas em andamento foram canceladas. Vender continua liberado.`,
+    `ADM da liga aplica transfer ban ao ${n} ${ateTxt}${motivo ? `: ${motivo}` : ''}.`);
+});
+
 // menu inicial: minhas ligas, criar e entrar com código
 export function minhasLigas(ligas) {
   const { esc, clube, imgEscudo } = H;
@@ -289,6 +357,17 @@ export async function enviarForm(f) {
   const erro = f.querySelector('.erro'), bt = f.querySelector('button');
   bt.disabled = true; erro.textContent = '';
   try {
+    if (f.dataset.form === 'liga-adm') {
+      const A = Lg().adm, motivo = f.motivo.value.trim();
+      if (A.op === 'ban') await admBan(A.alvo, +f.rodadas.value, motivo);
+      else {
+        const v = Math.round(parseFloat(String(f.valor.value).replace(',', '.')) * 1e6);
+        if (!(v > 0)) throw new Error('Diga o valor em milhões de euros.');
+        if (!motivo) throw new Error('Diga o motivo.');
+        await admDinheiro(A.alvo, A.op === 'multa' ? -v : v, motivo);
+      }
+      H.aviso('Feito. O técnico recebeu a carta.'); H.render(); return;
+    }
     if (f.dataset.form === 'liga-criar') {
       const nome = f.nome.value.trim();
       if (!nome) throw new Error('Dê um nome para a liga.');
@@ -299,9 +378,11 @@ export async function enviarForm(f) {
       if (!/^[A-Z0-9]{4,8}$/.test(c)) throw new Error('O código tem 6 letras e números.');
       await entrar(c);
     }
-  } catch (e) { erro.textContent = e.message; bt.disabled = false; bt.textContent = f.dataset.form === 'liga-criar' ? 'Criar liga' : 'Entrar na liga'; }
+  } catch (e) { erro.textContent = e.message; bt.disabled = false; if (f.dataset.form !== 'liga-adm') bt.textContent = f.dataset.form === 'liga-criar' ? 'Criar liga' : 'Entrar na liga'; }
 }
 
+// botão perigoso: o primeiro toque pede confirmação
+const confirma = (el, txt, fn) => { if (el.dataset.confirma !== '1') { el.dataset.confirma = '1'; el.textContent = txt; return; } return tenta(fn)(el); };
 const tenta = fn => async el => { if (el) el.disabled = true; try { await fn(el); } catch (e) { H.aviso(e.message); } if (el?.isConnected) el.disabled = false; };
 export const acoes = {
   'liga-abrir': tenta(async el => { await abrir(el.dataset.c); H.ir(H.app.s ? '#/clube' : '#/liga'); }),
@@ -319,6 +400,27 @@ export const acoes = {
   'liga-publica': tenta(async () => { await mudarMeta(m => ({ ...m, publica: !m.publica })); H.render(); }),
   'liga-pausar': tenta(async () => { await mudarMeta(m => ({ ...m, pausa: true })); H.render(); }),
   'liga-agora': tenta(async () => { await mudarMeta((m, W) => adiantar(m, W)); H.aviso('O próximo horário começa agora.'); vigiar(); }),
+  'adm-alvo': el => { Lg().adm.alvo = +el.dataset.id; H.render(); },
+  'adm-op': el => { Lg().adm.op = el.dataset.op; H.render(); },
+  'adm-expulsar': el => confirma(el, 'Expulsar mesmo? Toque de novo', async () => {
+    const L = Lg(), id = L.adm.alvo;
+    await transacao(L2 => { liberarMesa(H.app.base, L2.W, id); });
+    await H.api('POST', `/ligas/${L.codigo}/expulsar`, { id });
+    L.adm.alvo = null; await exclusivo(() => baixar(true)); H.aviso('Técnico expulso. O clube voltou para a IA.'); H.render();
+  }),
+  'adm-passar': el => confirma(el, 'Passar mesmo? Toque de novo', async () => {
+    const L = Lg(); await H.api('POST', `/ligas/${L.codigo}/adm`, { id: L.adm.alvo });
+    await exclusivo(() => baixar(true)); H.aviso('Agora o ADM é outro técnico.'); H.render();
+  }),
+  'adm-restaurar': el => confirma(el, 'Voltar mesmo? Toque de novo', async () => {
+    const L = Lg(); await H.api('POST', `/ligas/${L.codigo}/restaurar`);
+    L.travado = null; await exclusivo(() => baixar(true)); H.aviso('A liga voltou para antes da última gravação.'); H.render();
+  }),
+  'adm-excluir': el => confirma(el, 'Excluir mesmo? Não tem volta', async () => {
+    const L = Lg(); await H.api('POST', `/ligas/${L.codigo}/excluir`);
+    fechar(); H.aviso('Liga excluída.'); H.ir('#/inicio');
+  }),
+  'aceitar-oferta-liga': tenta(async el => { const ci = +el.dataset.c; await aceitarOferta(ci); H.aviso(`Bem-vindo ao ${H.clube(ci).n}!`); H.ir('#/clube'); }),
   'liga-sair': async el => {
     if (el.dataset.confirma !== '1') { el.dataset.confirma = '1'; el.textContent = 'Sair mesmo? Seu clube volta para a IA'; return; }
     await tenta(async () => { await sairDaLiga(); H.ir('#/inicio'); })(el);

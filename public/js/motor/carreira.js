@@ -2,7 +2,7 @@
 // ultimato de 3 jogos, segunda chance se o grupo fechar com você, demissão. Técnicos da IA caem por má fase
 // e abrem vagas; quem vai bem recebe propostas. Trocar de clube leva o técnico, não o caixa.
 import { rng, pick, clamp } from './util.js';
-import { humanos, ehHumano } from './humanos.js';
+import { humanos, ehHumano, mundoDe } from './humanos.js';
 import { caixaInicial } from './mundo.js';
 import { metaDiretoria, financasIniciais } from './financas.js';
 import { cartasDeInicio } from './correio.js';
@@ -110,6 +110,7 @@ function demitir(base, s, motivo, add, pediu = false) {
   const ci = s.tecnico.clube, nome = base.clubes[ci].n, novo = nomeTecnico(rng(`int${s.seed}${s.ano}${s.rodada}${ci}`));
   s.tecnicos[ci] = { nome: novo, ano: s.ano, rodada: s.rodada };
   s.demitido = { de: ci, motivo, ano: s.ano, rodada: s.rodada, pediu };
+  if (mundoDe(s)._mesas) (s.caixaIA ||= {})[ci] = s.caixa; // liga online: o mundo segue e o caixa fica com o clube (a IA assume)
   s.cargo.st = pediu ? 'saiu' : 'demitido'; s.cargo.ult = null;
   s.ofertas = ofertasPraQuemSai(base, s, ci).map(c => ({ clube: c, tipo: 'demitido', ano: s.ano }));
   add(pediu ? `${s.tecnico.nome} pede demissão e deixa o ${nome}. ${novo} assume.` : `${nome} demite ${s.tecnico.nome}. ${motivo} ${novo} assume o time.`, { imprensa: true });
@@ -143,7 +144,7 @@ function ofertasPraQuemSai(base, s, de) {
 export function demissoesIA(base, s, tabs) {
   const N = [], hs = humanos(s).map(([ci, sv]) => {
     garantirCarreira(base, sv);
-    const minha = tabs[base.clubes[ci].div].findIndex(x => x.clube === ci) + 1;
+    const minha = (tabs[base.clubes[ci].div] || []).findIndex(x => x.clube === ci) + 1;
     return { ci, sv, bem: !sv.demitido && minha <= metaDiretoria(base, sv).pos && !sv.cargo.ult };
   });
   s.tecnicos ||= {};
@@ -182,14 +183,15 @@ export function recusarOferta(s, c) { s.ofertas = s.ofertas.filter(o => o.clube 
 export function aceitarOferta(base, s, novo) {
   garantirCarreira(base, s);
   if (!s.ofertas.some(o => o.clube === novo)) return 'Essa proposta não está mais de pé.';
+  if (ehHumano(s, novo)) { s.ofertas = s.ofertas.filter(o => o.clube !== novo); return `O ${base.clubes[novo].n} já acertou com outro técnico.`; }
   const velho = s.tecnico.clube, nomeVelho = base.clubes[velho].n, N = [];
   if (!s.demitido) { const subst = nomeTecnico(rng(`saida${s.seed}${s.ano}${s.rodada}${velho}`)); s.tecnicos[velho] = { nome: subst, ano: s.ano, rodada: s.rodada }; N.push(`${s.tecnico.nome} deixa o ${nomeVelho} e acerta com o ${base.clubes[novo].n}. ${subst} assume o ${nomeVelho}.`); }
   const ult = s.carreira[s.carreira.length - 1]; if (ult) Object.assign(ult, { ateAno: s.ano, ateRodada: s.rodada, saida: s.demitido ? (s.demitido.pediu ? 'pediu demissão' : 'demitido') : 'aceitou proposta' });
   s.carreira.push({ clube: novo, ano: s.ano, rodada: s.rodada });
   s.tecnico.clube = novo; delete s.tecnicos[novo];
   // o caixa fica com o clube: o antigo passa a ser da IA, o novo vem com o que a IA tinha (ou o inicial)
-  (s.caixaIA ||= {})[velho] = s.caixa;
-  s.caixa = s.caixaIA[novo] ?? caixaInicial(base, novo, s.dificuldade); delete s.caixaIA[novo];
+  if (!(s.demitido && mundoDe(s)._mesas)) (s.caixaIA ||= {})[velho] = s.caixa; // online o caixa já voltou ao clube na demissão
+  s.caixa = caixaInicial(base, novo, s.dificuldade); delete s.caixaIA[novo]; // o caixa e a dívida do balanço real do clube novo
   s.fin = financasIniciais(base, s);
   Object.assign(s, { xi: null, banco: null, capitao: null, vice: null, cobrador: null, escSalvas: [], listas: { venda: [], emprestimo: [] }, recebidas: [], torcida: 55, ofertas: [] });
   s.propostas = (s.propostas || []).filter(p => !['aguardando', 'contraproposta'].includes(p.estado));

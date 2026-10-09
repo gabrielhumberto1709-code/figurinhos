@@ -1,7 +1,7 @@
 // Virada de temporada: histórico, acesso e rebaixamento (4 sobem, 4 caem), contratos que acabam, empréstimos que
 // voltam, pré-contratos que se cumprem, aposentadorias, garotos da base e a Copa do Brasil do ano novo.
-import { rng, pick, clamp, PERFIL } from './util.js';
-import { tabela, aplicarSave, caixaInicial, acessoEQueda } from './mundo.js';
+import { rng, pick, clamp, PERFIL, fmtDinheiro } from './util.js';
+import { tabela, aplicarSave, caixaIAInicial, acessoEQueda } from './mundo.js';
 import { FASES_CONT } from './continental.js';
 import { saidaPorQueda } from './carreira.js';
 import { FASES, novaCopa, campanha } from './copa.js';
@@ -164,8 +164,8 @@ export function virarTemporada(base, s) {
   aplicarSave(base, s);
   for (const { ci, add } of eles) { const meus = jovens.filter(r => r[3] === ci); if (meus.length) add(`Subiram da base: ${meus.map(r => `${r[2]} (${r[4]}, ${r[5]} anos)`).join(', ')}.`); }
 
-  // clubes da IA fecham o ano: o orçamento novo é 70% o do tamanho do clube e 30% o que sobrou, entre 0,3x e 2x o normal
-  for (const [c, v] of Object.entries(s.caixaIA || {})) { const ini = caixaInicial(base, +c); s.caixaIA[c] = Math.round(clamp(0.7 * ini + 0.3 * v, 0.3 * ini, 2 * ini)); }
+  // clubes da IA fecham o ano: a verba nova é 70% a do clube e 30% o que sobrou, entre 0,3x e 2x a normal
+  for (const [c, v] of Object.entries(s.caixaIA || {})) { const ini = caixaIAInicial(base, +c); s.caixaIA[c] = Math.round(clamp(0.7 * ini + 0.3 * v, 0.3 * ini, 2 * ini)); }
   // temporada zerada
   viradaDM(base, s);
   s.forma = {}; s.afast = {};
@@ -174,11 +174,13 @@ export function virarTemporada(base, s) {
   for (const [, sv] of hs) Object.assign(sv, { ultima: null, ultimaVivo: null, xi: null, banco: null, recebidas: [], julgamentos: [] });
   for (const t of pedidosDeQueda(base, s, [...cai.A, ...cai.B])) addW(t, 'mercado'); // os melhores de quem caiu pedem para sair
   delete s._cal;
-  for (const { ci, sv } of eles) {
+  for (const { ci, sv, add } of eles) {
     const f = sv.fin;
     sv.propostas = sv.propostas.filter(p => !['aguardando', 'contraproposta'].includes(p.estado)).slice(0, 30);
     sv.listas = { venda: sv.listas.venda.filter(id => base.jog.get(id)?.clube === ci), emprestimo: sv.listas.emprestimo.filter(id => base.jog.get(id)?.clube === ci) };
     if (f.socorro) { lancar(sv, 'socorro', 'Desconto dos adiantamentos da TV', -cotaTV(base.clubes[ci]) / 8 * f.socorro, 0); f.socorro = 0; }
+    // caixa negativo no fim do ano vira dívida (o clube rola com bancos e credores; os juros continuam)
+    if (sv.caixa < 0) { const v = -sv.caixa; f.divida = (f.divida || 0) + v; lancar(sv, 'rolagem', 'Caixa negativo vira dívida', v, 0); add(`O ano fechou no vermelho: ${fmtDinheiro(v)} viraram dívida (agora ${fmtDinheiro(f.divida)}).`); }
     Object.assign(f, { temporada: { ano: s.ano, compras: 0, vendas: 0, folha0: folhaDia(base, sv) }, tvPagas: [], ultimaVerba: -99, verbasRecentes: [], atraso: 0, salarioBudget: null });
   }
   novaCopa(base, s);

@@ -36,7 +36,7 @@ export function novoMundo(base, seed) {
 // junta o mundo e as mesas (só em memória) e devolve o mundo pronto para o motor
 export function montar(W, mesas) { Object.defineProperty(W, '_mesas', { value: mesas, enumerable: false, configurable: true, writable: true }); return W; }
 export const vistaDe = (W, id) => W._mesas?.[id] ? vista(W, W._mesas[id]) : null;
-export const donoDe = (W, ci) => Object.entries(W._mesas || {}).find(([, m]) => m.tecnico?.clube === ci)?.[0] ?? null;
+export const donoDe = (W, ci) => Object.entries(W._mesas || {}).find(([, m]) => m.tecnico?.clube === ci && !m.demitido)?.[0] ?? null;
 export const clubeLivre = (base, W, ci) => ['A', 'B', 'C'].includes(base.clubes[ci]?.div) && donoDe(W, ci) == null;
 
 // mesa de quem assume o clube ci: caixa do clube (o que a IA tinha), finanças, carreira, cartas de boas-vindas
@@ -45,7 +45,7 @@ export function novaMesa(base, W, ci, tecnico, dificuldade = 'normal') {
   const T = TATICA_PADRAO(), mesa = { tecnico: { nome: tecnico.nome, rosto: tecnico.rosto, nat: tecnico.nat || 'BRA', reputacao: tecnico.reputacao ?? 1, clube: ci, modo: 'escolher' }, dificuldade, formacao: '4-3-3', xi: null, ultima: null };
   for (const k of Object.keys(T)) if (MESA.has(k)) mesa[k] = T[k];
   const v = vista(W, mesa);
-  v.caixa = W.caixaIA?.[ci] ?? caixaInicial(base, ci, dificuldade);
+  v.caixa = caixaInicial(base, ci, dificuldade); // o caixa do balanço real (a verba da IA não é dinheiro em banco)
   if (W.caixaIA) delete W.caixaIA[ci];
   v.fin = financasIniciais(base, v);
   garantirMercado(v); garantirCarreira(base, v);
@@ -62,7 +62,7 @@ export function liberarMesa(base, W, id) {
   const m = W._mesas?.[id], ci = m?.tecnico?.clube;
   if (!m) return;
   delete W._mesas[id];
-  if (!(ci >= 0)) return;
+  if (!(ci >= 0) || m.demitido) return; // demitido: o clube já voltou para a IA
   (W.caixaIA ||= {})[ci] = m.caixa;
   W.noticias.unshift({ rodada: W.rodada, tipo: 'clube', clube: ci, div: base.clubes[ci].div, texto: `${m.tecnico.nome} deixa o ${base.clubes[ci].n}.` });
 }
@@ -128,7 +128,9 @@ export function merge3(b, m, t, p = '') {
     if (!Array.isArray(b)) return t;   // os dois lados criaram a lista (um deles só inicializou): fica a do servidor
     const bArr = b, bk = new Set(bArr.map(chaveDe)), mk = new Set(m.map(chaveDe));
     const tirei = new Set(bArr.filter(x => !mk.has(chaveDe(x))).map(chaveDe)), pus = m.filter(x => !bk.has(chaveDe(x)));
-    let out = t.filter(x => !tirei.has(chaveDe(x)));
+    // item com id que eu mudei (proposta cancelada, mensagem lida): junta campo a campo com a versão deles
+    const bId = new Map(bArr.filter(x => x?.id != null).map(x => [chaveDe(x), x])), mId = new Map(m.filter(x => x?.id != null && bId.has(chaveDe(x)) && !igual(x, bId.get(chaveDe(x)))).map(x => [chaveDe(x), x]));
+    let out = t.filter(x => !tirei.has(chaveDe(x))).map(x => mId.has(chaveDe(x)) ? merge3(bId.get(chaveDe(x)), mId.get(chaveDe(x)), x, p) : x);
     const tk = new Set(out.map(chaveDe)), novos = pus.filter(x => !tk.has(chaveDe(x)));
     return m.length && novos.length && chaveDe(m[0]) === chaveDe(novos[0]) ? [...novos, ...out] : [...out, ...novos];
   }

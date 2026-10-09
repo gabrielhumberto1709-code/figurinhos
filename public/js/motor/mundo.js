@@ -18,7 +18,7 @@ import { resolverMercado, garantirMercado, acompanharPromessas } from './mercado
 import { dataFifa } from './selecao.js';
 import { registrarConfronto } from './confrontos.js';
 import { REGIONAIS, novaReg, fasesReg, dataFaseReg, jogosDaFaseReg, naReg, regDevida, decidirReg, avancarReg, agregadoReg, mataMataReg, finalReg, vivoReg } from './regionais.js';
-import { contasDaRodada, financasIniciais, bilheteria, bilheteriaLiga, lancar, folhaDia, garantirFinancas } from './financas.js';
+import { contasDaRodada, financasIniciais, bilheteria, bilheteriaLiga, lancar, folhaDia, garantirFinancas, caixaReal, verbaIA } from './financas.js';
 import { FASES, PREMIOS, novaCopa, copaDevida, copaAtiva, naCopa, mandoDe, dataCopa, decidir, avancarFase, agregadoIda, penaltis } from './copa.js';
 
 const DIVS = ['A', 'B', 'C'];
@@ -45,15 +45,16 @@ export function janelaAberta(ano, r) {
 export const feitas = (s, d) => d === 'A' ? s.rodada : s.feitas?.[d] || 0;
 export const ligaAcabou = (s, d) => feitas(s, d) >= (N_LIGA[d] || 38);
 
-// caixa inicial: parte do valor do elenco + tamanho da torcida, pesado pela divisão
-const PESO_DIV = { A: 1, B: 0.4, C: 0.15 }, PESO_DIF = { facil: 1.5, normal: 1, dificil: 0.6 };
+// caixa de quem assume um clube daqui: o do balanço real de 2025 (financas.js); de fora, pelo tamanho do clube
+const caixaFora = c => Math.round(4e6 * c.tier ** 2 * c.fan / 6 / 10000) * 10000;
 export function caixaInicial(base, ci, dificuldade = 'normal') {
   const c = base.clubes[ci];
-  if (c.div === 'L') return 0;
-  if (c.div === 'X') return Math.round(4e6 * c.tier ** 2 * c.fan / 6 / 10000) * 10000;
-  const elenco = base.elencos[ci].reduce((t, j) => t + j.valor, 0) * 1000;
-  const minimo = { A: 3e6, B: 1e6, C: 3e5 }[c.div];
-  return Math.round(Math.max(minimo, elenco * 0.12 + c.fan * c.fan * 150000 * PESO_DIV[c.div]) * (PESO_DIF[dificuldade] || 1) / 10000) * 10000;
+  return c.div === 'L' ? 0 : c.div === 'X' ? caixaFora(c) : caixaReal(c, dificuldade);
+}
+// verba da IA para contratar numa temporada (o gasto real médio de 2025-26); de fora, o caixa do tamanho do clube
+export function caixaIAInicial(base, ci) {
+  const c = base.clubes[ci];
+  return c.div === 'L' ? 0 : c.div === 'X' ? caixaFora(c) : verbaIA(c);
 }
 
 // alguns têm físico de atleta: caem bem devagar e jogam em alto nível até parar (mais comum entre os craques)

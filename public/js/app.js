@@ -7,7 +7,7 @@ import { campanha } from './motor/copa.js';
 import { F_MATA, tabelaGrupo } from './motor/continental.js';
 import { REGIONAIS, fasesReg, tabelaReg } from './motor/regionais.js';
 import * as Torneios from './torneios.js';
-import { garantirFinancas, orcamento, socorro, metaDiretoria, balanco, bilheteria, pedirVerba, dicasFinanceiras, fairPlay, registroBloqueado, tetoSalarial, ANO_FPF, SANCOES, PRECOS, NOME_PRECO } from './motor/financas.js';
+import { garantirFinancas, amortizar, JUROS, estruturaAnual, receitaAnual, orcamento, socorro, metaDiretoria, balanco, bilheteria, pedirVerba, dicasFinanceiras, fairPlay, registroBloqueado, tetoSalarial, ANO_FPF, SANCOES, PRECOS, NOME_PRECO } from './motor/financas.js';
 import { garantirMercado } from './motor/mercado.js';
 import * as Mercado from './mercado.js';
 import * as AoVivo from './aovivo.js';
@@ -351,10 +351,10 @@ const ROSTO_REM = { diretor: '3220100000', presidente: '1612200000', medico: '20
 const cartaMsg = (m, curta = false) => {
   const aut = m.de === 'jogador' && app.base.jog.get(m.autor), r = aut ? { nome: aut.curto, cargo: `${POS_NOME[aut.pos]} do elenco` } : remetente(app.s, m.de);
   const foto = aut ? urlRosto(aut.rosto, clube(aut.clube)) : urlRosto(ROSTO_REM[m.de] || ROSTO_REM.diretor, TERNO);
-  const resp = m.opcoes && !curta ? (m.resp ? `<p class="mudo msg-resp">Você respondeu: ${esc(m.opcoes.find(o => o[0] === m.resp)?.[1] || '')}</p>` : `<div class="linha-botoes">${m.opcoes.map(([k, rot], i) => `<button class="botao peq ${i ? 'sec' : ''}" type="button" data-acao="msg-resp" data-m="${m.id}" data-r="${k}">${rot}</button>`).join('')}${m.tipoJ === 'reforco' ? `<a class="botao peq sec" href="#/mercado" data-acao="msg-aba" data-a="buscar" data-setor="${m.setor || ''}">Abrir o Mercado</a>` : ''}</div>`) : '';
+  const resp = m.opcoes && !curta ? (m.resp ? `<p class="mudo msg-resp">Você respondeu: ${esc(m.opcoes.find(o => o[0] === m.resp)?.[1] || '')}</p>` : `<div class="linha-botoes">${m.opcoes.map(([k, rot], i) => `<button class="botao peq ${i ? 'sec' : ''}" type="button" data-acao="msg-resp" data-m="${esc(m.id)}" data-r="${esc(k)}">${esc(rot)}</button>`).join('')}${m.tipoJ === 'reforco' ? `<a class="botao peq sec" href="#/mercado" data-acao="msg-aba" data-a="buscar" data-setor="${esc(m.setor || '')}">Abrir o Mercado</a>` : ''}</div>`) : '';
   return `<article class="msg ${m.lida ? '' : 'nova'} ${aut ? 'de-jogador' : ''}" data-msg="${esc(m.id)}"><div class="msg-topo"><img class="px" src="${foto}" width="32" height="32" alt=""><span><b>${esc(r.nome)}</b><small>${esc(r.cargo)} · ${m.rodada ? `rodada ${m.rodada}` : 'pré-temporada'}</small></span></div>
     <h3>${esc(m.assunto)}</h3>${curta ? '' : `<p>${esc(m.texto)}</p>${resp}`}
-    ${curta ? '' : `<div class="linha-botoes">${m.jogador != null && app.base.jog.get(m.jogador) ? `<button class="botao peq sec" type="button" data-acao="ficha" data-id="${m.jogador}">Ver jogador</button>` : ''}${m.link ? `<a class="botao peq" href="${m.link}" ${m.aba ? `data-acao="msg-aba" data-a="${m.aba}"` : ''}>Resolver</a>` : ''}${m.aumento != null && (app.s.pedidosAumento || []).some(p => p.jogador === m.aumento) ? `<button class="botao peq" type="button" data-acao="aumento" data-id="${m.aumento}" data-sim="1">Dar aumento</button><button class="botao peq sec" type="button" data-acao="aumento" data-id="${m.aumento}">Negar</button>` : ''}</div>`}</article>`; };
+    ${curta ? '' : `<div class="linha-botoes">${m.jogador != null && app.base.jog.get(m.jogador) ? `<button class="botao peq sec" type="button" data-acao="ficha" data-id="${+m.jogador}">Ver jogador</button>` : ''}${/^#\/[a-z-]*$/.test(m.link || '') ? `<a class="botao peq" href="${m.link}" ${m.aba ? `data-acao="msg-aba" data-a="${esc(m.aba)}"` : ''}>Resolver</a>` : ''}${m.aumento != null && (app.s.pedidosAumento || []).some(p => p.jogador === m.aumento) ? `<button class="botao peq" type="button" data-acao="aumento" data-id="${+m.aumento}" data-sim="1">Dar aumento</button><button class="botao peq sec" type="button" data-acao="aumento" data-id="${+m.aumento}">Negar</button>` : ''}</div>`}</article>`; };
 function recados() {
   const novas = (app.s.msgs || []).filter(m => !m.lida);
   return novas.length ? `<a class="cartao recados" href="#/mensagens"><b>${novas.length} mensage${novas.length > 1 ? 'ns' : 'm'} do clube</b><span>${novas.slice(0, 3).map(m => esc(m.assunto)).join(' · ')}</span></a>` : '';
@@ -433,14 +433,18 @@ function esperaHtml(x) {
 }
 
 // ----- finanças -----
-const ROT_FIN = { bilheteria: 'Bilheteria', tv: 'Cota de TV', patrocinio: 'Patrocínio', premio: 'Prêmios', venda: 'Vendas', verba: 'Verba da diretoria', socorro: 'Socorro (adiantamentos)', salarios: 'Salários', compra: 'Compras', rescisao: 'Rescisões', emprestimo: 'Taxas de empréstimo', revenda: 'Percentual de revenda', minutagem: 'Multas de minutagem', medo: 'Cláusula do medo', multa: 'Multas de jogadores', investidor: 'Investidores', calote: 'Calotes', fpf: 'Fair play financeiro (CBF)', penhora: 'Penhoras', show: 'Shows no estádio', vaquinha: 'Vaquinha da torcida', reembolso: 'Reembolsos de empréstimo' };
+const ROT_FIN = { bilheteria: 'Bilheteria', tv: 'Cota de TV', patrocinio: 'Patrocínio', premio: 'Prêmios', venda: 'Vendas', verba: 'Verba da diretoria', socorro: 'Socorro (adiantamentos)', salarios: 'Salários, encargos e comissão', compra: 'Compras', rescisao: 'Rescisões', emprestimo: 'Taxas de empréstimo', revenda: 'Percentual de revenda', minutagem: 'Multas de minutagem', medo: 'Cláusula do medo', multa: 'Multas de jogadores', investidor: 'Investidores', calote: 'Calotes', fpf: 'Fair play financeiro (CBF)', penhora: 'Penhoras', adm: 'Decisões do ADM da liga', estrutura: 'Estrutura do clube', juros: 'Juros da dívida', amortizacao: 'Amortização da dívida', rolagem: 'Dívida nova (caixa negativo rolado)', show: 'Shows no estádio', vaquinha: 'Vaquinha da torcida', reembolso: 'Reembolsos de empréstimo' };
 telas.financas = () => {
   const s = app.s, ci = s.tecnico.clube, c = clube(ci), aba = app.abaFin || 'resumo';
   garantirFinancas(app.base, s);
   const f = s.fin, o = orcamento(app.base, s), sc = socorro(app.base, s), meta = metaDiretoria(app.base, s), bal = balanco(s);
   const topo = `<div class="titulo-linha"><h2>Finanças</h2><a href="#/clube">Voltar</a></div>
     <section class="cartao caixa-topo"><small>Caixa</small><b class="num">${fmtDinheiro(s.caixa)}</b>
-      <p class="fim-temp ${o.fim < 0 ? 'neg' : 'pos'}">${o.fim < 0 ? `Faltam <b>${fmtDinheiro(-o.fim)}</b> para fechar a temporada` : `Fecha a temporada com <b>${fmtDinheiro(o.fim)}</b>`} <small>(com TV, patrocínio e bilheteria que faltam, menos ${o.dias} dias de salário)</small></p></section>
+      <p class="fim-temp ${o.fim < 0 ? 'neg' : 'pos'}">${o.fim < 0 ? `Faltam <b>${fmtDinheiro(-o.fim)}</b> para fechar a temporada` : `Fecha a temporada com <b>${fmtDinheiro(o.fim)}</b>`} <small>(com TV, patrocínio e bilheteria que faltam, menos ${o.dias} dias de salários e custos)</small></p></section>
+    <section class="cartao divida-fin"><div class="titulo-linha"><h3>Dívida</h3><b class="num ${f.divida > 0 ? 'neg' : 'pos'}">${fmtDinheiro(f.divida || 0)}</b></div>
+      <p>${f.divida > 0 ? `Juros de ${Math.round(JUROS * 100)}% ao ano: <b>${fmtDinheiro(f.divida * JUROS)}</b> por temporada.` : 'O clube não deve nada.'} Estrutura do clube (administração, CT, base, viagens): <b>${fmtDinheiro(estruturaAnual(c))}</b> por temporada. Receita recorrente prevista: <b>${fmtDinheiro(receitaAnual(c))}</b>.</p>
+      ${f.divida > 0 && s.caixa > 0 ? `<div class="linha-botoes">${[1e6, 5e6, 20e6].filter(v => v < Math.min(s.caixa, f.divida)).map(v => `<button class="botao peq sec" type="button" data-acao="amortizar" data-v="${v}">Pagar ${fmtDinheiro(v)}</button>`).join('')}<button class="botao peq sec" type="button" data-acao="amortizar" data-v="${Math.min(s.caixa, f.divida)}">Pagar ${fmtDinheiro(Math.min(s.caixa, f.divida))}</button></div>` : ''}
+      <p class="mudo" style="font-size:.95rem">Valores do balanço real de 2025. Caixa negativo no fim do ano vira dívida nova; pagar a dívida corta os juros.</p></section>
     <div class="chips" role="group" aria-label="Seção">${[['resumo', 'Resumo'], ['extrato', 'Extrato'], ['balanco', `Balanço ${s.ano}`]].map(([k, t]) => `<button type="button" class="chip" data-acao="aba-fin" data-a="${k}" aria-pressed="${aba === k}">${t}</button>`).join('')}</div>`;
   if (aba === 'extrato') return topo + `<section class="cartao"><h3>Extrato</h3>${f.extrato.length ? `<ul class="extrato">${f.extrato.slice(0, 150).map(e => `<li><span class="rd">R${e.r + 1}</span><span>${esc(e.desc)}</span><b class="${e.valor < 0 ? 'neg' : 'pos'}">${e.valor < 0 ? '−' : '+'} ${fmtDinheiro(Math.abs(e.valor))}</b></li>`).join('')}</ul>` : '<p class="mudo">Nada lançado ainda. As contas fecham a cada rodada.</p>'}</section>`;
   if (aba === 'balanco') {
@@ -478,7 +482,7 @@ telas.financas = () => {
       <div class="chips" role="group" aria-label="Preço do ingresso">${Object.keys(PRECOS).map(k => `<button type="button" class="chip" data-acao="ingresso" data-p="${k}" aria-pressed="${f.ingresso === k}">${NOME_PRECO[k]} · ${fmtDinheiro(prev(k).preco)}</button>`).join('')}</div>
       ${advCasa != null ? `<p>Próximo jogo em casa (× ${esc(clube(advCasa).n)}): cerca de <b>${prev(f.ingresso).publico.toLocaleString('pt-BR')}</b> pagantes (${Math.round(prev(f.ingresso).occ * 100)}% de lotação), renda de <b>${fmtDinheiro(prev(f.ingresso).renda)}</b>.</p>` : '<p class="mudo">O próximo jogo é fora de casa.</p>'}
       <p class="mudo" style="font-size:.95rem">Ingresso caro com estádio cheio agrada a diretoria; abusivo com estádio vazio irrita.</p></section>
-    <section class="cartao"><h3>Na temporada</h3><ul class="linhas-fin">${['bilheteria', 'tv', 'patrocinio', 'premio', 'venda', 'verba', 'salarios', 'compra'].map(k => `<li><span>${ROT_FIN[k]}${k === 'patrocinio' ? ` · ${esc(f.patrocinador)}` : ''}</span><b class="${(bal[k] || 0) < 0 ? 'neg' : 'pos'}">${(bal[k] || 0) < 0 ? '−' : '+'} ${fmtDinheiro(Math.abs(bal[k] || 0))}</b></li>`).join('')}</ul></section>`;
+    <section class="cartao"><h3>Na temporada</h3><ul class="linhas-fin">${['bilheteria', 'tv', 'patrocinio', 'premio', 'venda', 'verba', 'salarios', 'estrutura', 'juros', 'compra'].map(k => `<li><span>${ROT_FIN[k]}${k === 'patrocinio' ? ` · ${esc(f.patrocinador)}` : ''}</span><b class="${(bal[k] || 0) < 0 ? 'neg' : 'pos'}">${(bal[k] || 0) < 0 ? '−' : '+'} ${fmtDinheiro(Math.abs(bal[k] || 0))}</b></li>`).join('')}</ul></section>`;
 };
 
 // ----- carreira -----
@@ -602,7 +606,9 @@ function migrar(s) {
   if (s.leilaoAtivo?.comecou) encerrarPendente(app.base, s); // leilão começado e largado quando o app fechou: a sala termina sem você (o que nem começou abre de novo)
   copaSemVoce(app.base, s); // saves de antes da copa ganham a edição do ano (fases atrasadas se resolvem sozinhas)
   if (s.caixa == null) s.caixa = caixaInicial(app.base, s.tecnico.clube, s.dificuldade);
+  const semDivida = s.fin && s.fin.divida == null;
   garantirFinancas(app.base, s);
+  if (semDivida) enviar(s, 'diretor', 'contas-reais-2025', 'As contas de verdade', `O clube agora segue o balanço real de 2025: dívida de ${fmtDinheiro(s.fin.divida)}, com juros de ${Math.round(JUROS * 100)}% ao ano, e receitas e custos do tamanho que são. Veja em Finanças.`, { link: '#/financas' });
   // base de jogadores atualizada depois que a carreira começou: avisa (o save segue por cima da base nova)
   if (s.dadosVersao !== app.base.dados.versao) {
     enviar(s, 'diretor', `base-${app.base.dados.versao}`, 'Base de jogadores atualizada', 'Os clubes da Argentina, Colômbia, Uruguai, Paraguai, Chile, Equador, Peru e Bolívia chegaram com o elenco completo: dá para contratar de lá, e nas copas eles jogam com os titulares reais. Suas contratações, contratos e resultados continuam valendo.');
@@ -757,6 +763,7 @@ const acoes = {
   'avancar-fim': async el => { el.disabled = true; el.textContent = 'Simulando o resto da temporada…'; await umQuadro(); for (let x; !proximoEvento(app.base, app.s) && (x = pendentes(app.base, app.s)[0]);) mundoAte(app.base, app.s, x.data); render(); salvar(); },
   'aba-fin': el => { app.abaFin = el.dataset.a; render(); },
   ingresso: el => { app.s.fin.ingresso = el.dataset.p; render(); salvar(); },
+  amortizar: el => { aviso(amortizar(app.base, app.s, +el.dataset.v)); render(); salvar(); },
   'pedir-verba': () => { const s = app.s, c = clube(s.tecnico.clube), tab = tabela(app.base, s, c.div); const r = pedirVerba(app.base, s, tab.findIndex(l => l.clube === s.tecnico.clube) + 1); aviso(r.txt); render(); salvar(); },
   ...AoVivo.acoes,
   ...Mercado.acoes,
@@ -777,7 +784,7 @@ const acoes = {
   aumento: el => { const m = responderAumento(app.base, app.s, el.dataset.id, el.dataset.sim === '1'); if (m) aviso(m); render(); salvar(); },
   'msg-aba': el => { app.abaMercado = el.dataset.a; if (el.dataset.setor) Mercado.filtroSetor(el.dataset.setor); ir(el.getAttribute('href')); },
   'msg-resp': el => { const m = responderJogador(app.base, app.s, el.dataset.m, el.dataset.r); if (m) aviso(m); render(); salvar(); },
-  'aceitar-oferta': el => { const m = aceitarOferta(app.base, app.s, +el.dataset.c); if (m) return aviso(m); aviso(`Bem-vindo ao ${clube(app.s.tecnico.clube).n}!`); salvar(); location.hash === '#/clube' ? render() : ir('#/clube'); },
+  'aceitar-oferta': el => { if (app.liga) return Liga.acoes['aceitar-oferta-liga'](el); const m = aceitarOferta(app.base, app.s, +el.dataset.c); if (m) return aviso(m); aviso(`Bem-vindo ao ${clube(app.s.tecnico.clube).n}!`); salvar(); location.hash === '#/clube' ? render() : ir('#/clube'); },
   'recusar-oferta': el => { recusarOferta(app.s, +el.dataset.c); render(); salvar(); },
   'pedir-demissao': el => { if (el.dataset.confirma !== '1') { el.dataset.confirma = '1'; el.textContent = 'Tem certeza? Toque de novo'; return; } pedirDemissao(app.base, app.s); salvar(); ir('#/clube'); },
   assistir: () => {

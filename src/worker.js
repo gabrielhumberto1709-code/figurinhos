@@ -38,6 +38,8 @@ const ipDe = req => req.headers.get('cf-connecting-ip') || 'local';
 const espera = min => erro(`Muitas tentativas. Tente de novo em ${min} min.`, 429);
 // o save é gzip+base64 ("gz:...") ou JSON de save antigo; nada além disso entra no banco
 const saveValido = d => typeof d === 'string' && d.length > 3 && (/^gz:[A-Za-z0-9+/]+={0,2}$/.test(d) || (d[0] === '{' && d.at(-1) === '}'));
+// na liga só entra gzip de verdade (o base64 do gzip começa com H4sI): um texto qualquer quebraria a liga de todos
+const ligaValida = d => saveValido(d) && d.startsWith('gz:H4sI');
 
 // código de liga: 6 letras/números sem os que confundem (0/O, 1/I)
 const codigoNovo = () => [...crypto.getRandomValues(new Uint8Array(6))].map(b => 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'[b % 32]).join('');
@@ -148,7 +150,7 @@ const rotas = {
     const n = String(nome || '').trim().slice(0, 30), m = metaValida(meta);
     if (!n) return erro('Dê um nome para a liga.');
     if (!m) return erro('Escolha o ritmo da liga.');
-    if (!saveValido(mundo) || mundo.length > MAX_MUNDO) return erro('Mundo inválido.');
+    if (!ligaValida(mundo) || mundo.length > MAX_MUNDO) return erro('Mundo inválido.');
     const tem = await env.DB.prepare('SELECT COUNT(*) AS n FROM ligas WHERE admin_id = ?').bind(u.id).first();
     if (tem.n >= 3) return erro('Você já administra 3 ligas.');
     const agora = Date.now();
@@ -173,9 +175,9 @@ const rotas = {
   async 'GET /api/ligas/abertas'(req, env, u) {
     const { results } = await env.DB.prepare(`SELECT l.codigo, l.nome, l.meta, (SELECT COUNT(*) FROM mesas x WHERE x.codigo = l.codigo) AS n,
       (SELECT apelido FROM mesas x WHERE x.codigo = l.codigo AND x.usuario_id = l.admin_id) AS adm
-      FROM ligas l WHERE json_extract(l.meta, '$.publica') = 1 AND NOT EXISTS (SELECT 1 FROM mesas x WHERE x.codigo = l.codigo AND x.usuario_id = ?)
-      ORDER BY l.atualizado DESC LIMIT 40`).bind(u.id).all();
-    return json(results.filter(r => r.n < MAX_MESAS).map(r => ({ ...r, meta: JSON.parse(r.meta) })));
+      FROM ligas l WHERE json_extract(l.meta, '$.publica') = 1 AND NOT EXISTS (SELECT 1 FROM mesas x WHERE x.codigo = l.codigo AND x.usuario_id = ?1)
+      AND (SELECT COUNT(*) FROM mesas x WHERE x.codigo = l.codigo) < ?2 ORDER BY l.atualizado DESC LIMIT 40`).bind(u.id, MAX_MESAS).all();
+    return json(results.map(r => ({ ...r, meta: JSON.parse(r.meta) })));
   },
 
   async 'POST /api/ligas/:c/entrar'(req, env, u, c) {
@@ -226,6 +228,42 @@ const rotas = {
     return json({ ver: l.results[0].ver, meta: JSON.parse(l.results[0].meta), mesas: m.results });
   },
 
+  // ---------- ADM ----------
+  // tira um técnico da liga (o aparelho do ADM já devolveu o clube à IA no mundo)
+  async 'POST /api/ligas/:c/expulsar'(req, env, u, c) {
+    const { id } = await corpo(req), l = await souAdm(env, c, u);
+    if (l instanceof Response) return l;
+    if (!Number.isInteger(id) || id === u.id) return erro('Escolha outro técnico.');
+    await env.DB.batch([
+      env.DB.prepare('DELETE FROM mesas WHERE codigo = ? AND usuario_id = ?').bind(c, id),
+      env.DB.prepare('UPDATE ligas SET ver = ver + 1, atualizado = ? WHERE codigo = ?').bind(Date.now(), c),
+    ]);
+    return json({ ok: true });
+  },
+  // passa o posto de ADM para outro técnico da liga
+  async 'POST /api/ligas/:c/adm'(req, env, u, c) {
+    const { id } = await corpo(req), l = await souAdm(env, c, u);
+    if (l instanceof Response) return l;
+    const r = await env.DB.prepare('UPDATE ligas SET admin_id = ?1, ver = ver + 1, atualizado = ?2 WHERE codigo = ?3 AND EXISTS (SELECT 1 FROM mesas WHERE codigo = ?3 AND usuario_id = ?1)').bind(id, Date.now(), c).run();
+    return r.meta.changes ? json({ ok: true }) : erro('Esse técnico não está na liga.');
+  },
+  async 'POST /api/ligas/:c/excluir'(req, env, u, c) {
+    const l = await souAdm(env, c, u);
+    if (l instanceof Response) return l;
+    await env.DB.batch([env.DB.prepare('DELETE FROM mesas WHERE codigo = ?').bind(c), env.DB.prepare('DELETE FROM ligas WHERE codigo = ?').bind(c)]);
+    return json({ ok: true });
+  },
+  // volta o mundo (e as mesas gravadas junto) para antes da última gravação do mundo
+  async 'POST /api/ligas/:c/restaurar'(req, env, u, c) {
+    const l = await souAdm(env, c, u);
+    if (l instanceof Response) return l;
+    const r = await env.DB.batch([
+      env.DB.prepare('UPDATE mesas SET dados = dados_ant, ver = ver + 1, dados_ant = NULL, ant_ver = NULL WHERE codigo = ?1 AND ant_ver = (SELECT ver_ant FROM ligas WHERE codigo = ?1)').bind(c),
+      env.DB.prepare('UPDATE ligas SET mundo = mundo_ant, ver = ver + 1, mundo_ant = NULL, ver_ant = NULL, atualizado = ? WHERE codigo = ? AND mundo_ant IS NOT NULL').bind(Date.now(), c),
+    ]);
+    return r[1].meta.changes ? json({ ok: true }) : erro('Não há uma versão anterior guardada.');
+  },
+
   // grava de uma vez: { ver, mundo?, meta?, mesas: { id: { ver, dados, clube } } }. Só a própria mesa: confere a versão
   // dela. Com mundo, meta ou mais de uma mesa: confere a versão do mundo e a de cada mesa; vale tudo ou nada.
   async 'POST /api/ligas/:c/gravar'(req, env, u, c) {
@@ -235,11 +273,12 @@ const rotas = {
     if (!l.eu) return erro('Você não está nessa liga.', 403);
     const m = meta != null ? metaValida(meta) : null;
     if (meta != null && (!m || l.admin_id !== u.id)) return erro('Só o ADM mexe no relógio da liga.', 403);
-    if (mundo != null && (!saveValido(mundo) || mundo.length > MAX_MUNDO)) return erro('Mundo inválido.');
-    for (const id of ids) { const x = mesas[id]; if (!Number.isInteger(id) || !saveValido(x?.dados) || x.dados.length > MAX_MESA || !Number.isInteger(x.ver)) return erro('Mesa inválida.'); }
+    if (mundo != null && (!ligaValida(mundo) || mundo.length > MAX_MUNDO)) return erro('Mundo inválido.');
+    for (const id of ids) { const x = mesas[id]; if (!Number.isInteger(id) || !ligaValida(x?.dados) || x.dados.length > MAX_MESA || !Number.isInteger(x.ver)) return erro('Mesa inválida.'); }
     const conflito = () => json({ erro: 'Outro aparelho gravou antes.', conflito: true }, 409);
     const novas = Object.fromEntries(ids.map(id => [id, mesas[id].ver + 1]));
-    if (mundo == null && m == null && ids.length === 1) {
+    // sozinha, só a própria mesa; mesa de outro técnico (proposta, processamento, decisão do ADM) vai junto com a versão do mundo
+    if (mundo == null && m == null && ids.length === 1 && ids[0] === u.id) {
       const [id] = ids, x = mesas[id];
       const r = await env.DB.prepare('UPDATE mesas SET dados = ?, ver = ver + 1, clube = ?, visto = CASE WHEN usuario_id = ? THEN ? ELSE visto END WHERE codigo = ? AND usuario_id = ? AND ver = ?')
         .bind(x.dados, Number.isInteger(x.clube) ? x.clube : null, u.id, agora, c, id, x.ver).run();
@@ -247,18 +286,24 @@ const rotas = {
     }
     if (!Number.isInteger(ver)) return erro('Versão do mundo faltando.');
     const tok = aleatorio(8), campos = ['ver = ver + 1', 'trava = ?', 'atualizado = ?'], args = [tok, agora];
-    if (mundo != null) { campos.push('mundo = ?'); args.push(mundo); }
+    if (mundo != null) { campos.push('mundo_ant = mundo', 'ver_ant = ver', 'mundo = ?'); args.push(mundo); }
     if (m) { campos.push('meta = ?'); args.push(JSON.stringify(m)); }
     const confere = ids.map(() => ' AND (SELECT ver FROM mesas WHERE codigo = ? AND usuario_id = ?) = ?').join('');
     const r = await env.DB.batch([
       env.DB.prepare(`UPDATE ligas SET ${campos.join(', ')} WHERE codigo = ? AND ver = ?${confere}`).bind(...args, c, ver, ...ids.flatMap(id => [c, id, mesas[id].ver])),
-      ...ids.map(id => env.DB.prepare(`UPDATE mesas SET dados = ?, ver = ver + 1, clube = ?, visto = CASE WHEN usuario_id = ? THEN ? ELSE visto END
-        WHERE codigo = ? AND usuario_id = ? AND (SELECT trava FROM ligas WHERE codigo = ?) = ?`).bind(mesas[id].dados, Number.isInteger(mesas[id].clube) ? mesas[id].clube : null, u.id, agora, c, id, c, tok)),
+      ...ids.map(id => env.DB.prepare(`UPDATE mesas SET ${mundo != null ? 'dados_ant = dados, ant_ver = ?, ' : ''}dados = ?, ver = ver + 1, clube = ?, visto = CASE WHEN usuario_id = ? THEN ? ELSE visto END
+        WHERE codigo = ? AND usuario_id = ? AND (SELECT trava FROM ligas WHERE codigo = ?) = ?`).bind(...(mundo != null ? [ver] : []), mesas[id].dados, Number.isInteger(mesas[id].clube) ? mesas[id].clube : null, u.id, agora, c, id, c, tok)),
     ]);
     return r[0].meta.changes ? json({ ok: true, ver: ver + 1, mesas: novas }) : conflito();
   },
 
 };
+// confere que quem chama é o ADM da liga (devolve a liga ou a resposta de erro)
+async function souAdm(env, c, u) {
+  const l = await env.DB.prepare('SELECT admin_id FROM ligas WHERE codigo = ?').bind(c).first();
+  if (!l) return erro('Liga não existe.', 404);
+  return l.admin_id === u.id ? l : erro('Só o ADM pode fazer isso.', 403);
+}
 const PUBLICAS = new Set(['POST /api/cadastro', 'POST /api/entrar', 'POST /api/sair']);
 
 export default {

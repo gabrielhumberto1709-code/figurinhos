@@ -888,3 +888,10 @@ b.pos { color: var(--gramado); } b.neg { color: var(--cartao); }
 .ligas-abertas li { display: flex; flex-direction: row; align-items: center; justify-content: space-between; gap: 12px; } .ligas-abertas li .botao { flex: 0 0 auto; }
 .ligas-abertas small { display: block; color: var(--texto-2); }
 .manual ul { margin: 8px 0 0; padding-left: 20px; display: grid; gap: 6px; } .manual p + p { margin-top: 8px; } .manual h3 { margin-bottom: 6px; }
+.painel-adm .adm-form { display: grid; gap: 10px; }
+.painel-adm label.chip { display: inline-flex; align-items: center; gap: 6px; }
+.painel-adm label.chip input { position: absolute; opacity: 0; pointer-events: none; }
+.painel-adm label.chip:has(input:checked) { background: var(--primario-bg); color: var(--primario-txt); }
+.painel-adm label.chip:has(input:focus-visible) { outline: 3px solid var(--carimbo); outline-offset: 2px; }
+.painel-adm .adm-liga { border-top: 2px dashed var(--linha-fraca); padding-top: 12px; }
+.divida-fin .num { font-size: 1.6rem; } .divida-fin .neg { color: var(--cartao); } .divida-fin .pos { color: var(--gramado); }

@@ -10,9 +10,9 @@ import { faseDe } from './forma.js';
 import { rng, clamp, pickW, shuffle, SETOR, nivelDiv, estrelas, continenteDe, fmtDinheiro } from './util.js';
 import { temperamento, tratar } from './vestiario.js';
 import { interessados, media } from './noticias.js';
-import { janelaAberta, caixaInicial, aplicarSave, evolucao, limiteEstrangeiros, naoJogaA } from './mundo.js';
+import { janelaAberta, caixaIAInicial, aplicarSave, evolucao, limiteEstrangeiros, naoJogaA } from './mundo.js';
 import { dataAmistoso, doAno } from './calendario.js';
-import { orcamento, lancar, garantirFinancas, salarioDia, salarioBase, diasRestantes, registroBloqueado, passaDoTeto } from './financas.js';
+import { orcamento, lancar, garantirFinancas, salarioDia, salarioBase, diasRestantes, registroBloqueado, passaDoTeto, dividaInicial, receitaAnual } from './financas.js';
 import { naSelecao } from './selecao.js';
 import { enviar } from './correio.js';
 import { abrirLeilaoCompra, encerrarPendente } from './leilao.js';
@@ -179,12 +179,14 @@ export function salarioPedido(base, s, j, anos = 3, destino = s.tecnico.clube, p
 export function folgaPara(base, s, j) { return orcamento(base, s).folga + (j.clube === s.tecnico.clube ? salarioDia(base, s, j) : 0); }
 
 // caixa de verdade dos clubes da IA: começa no caixa inicial, mexe a cada compra e venda e se refaz em parte na virada
-export const caixaDe = (base, s, ci) => { const v = vistaDo(s, ci); return v ? v.caixa : s.caixaIA?.[ci] ?? caixaInicial(base, ci); };
-// dinheiro que entra num clube da IA: só 40% fica para contratar (o resto vai para folha, dívida e impostos, como
-// nos clubes de verdade); o que sai, sai inteiro
+export const caixaDe = (base, s, ci) => { const v = vistaDo(s, ci); return v ? v.caixa : s.caixaIA?.[ci] ?? caixaIAInicial(base, ci); };
+// dinheiro que entra num clube da IA: parte fica para contratar (o resto vai para folha, dívida e impostos, como nos
+// clubes de verdade). Os daqui reinvestem até 75% do que vendem (Palmeiras e Botafogo gastaram quase o que venderam em
+// 2025); quem deve muito, menos. O que sai, sai inteiro.
 export function mexerCaixa(base, s, ci, v) {
   if (ci == null || ehHumano(s, ci) || base.clubes[ci].div === 'L' || !v) return; // técnico: o dinheiro entra pelo extrato
-  (s.caixaIA ||= {})[ci] = Math.round(caixaDe(base, s, ci) + (v > 0 ? v * 0.4 : v));
+  const c = base.clubes[ci], fica = c.div === 'X' ? 0.4 : clamp(0.75 - dividaInicial(c) / Math.max(1, receitaAnual(c)) * 0.12, 0.3, 0.75);
+  (s.caixaIA ||= {})[ci] = Math.round(caixaDe(base, s, ci) + (v > 0 ? v * fica : v));
 }
 
 // ---------- propostas do usuário ----------
@@ -201,7 +203,7 @@ export function tiposPossiveis(base, s, j) {
 export function bloqueioProposta(base, s, j, o) {
   const meu = s.tecnico.clube, janela = janelaAberta(s.ano, s.rodada);
   if (j.clube === meu) return 'Ele já é seu.';
-  const ban = registroBloqueado(s); if (ban) return `Registro de jogadores bloqueado pelo fair play financeiro até a ${ban + 1}ª rodada.`;
+  const ban = registroBloqueado(s); if (ban) return `Registro de jogadores bloqueado ${s.banAdm?.ate === ban && s.banAdm.ano === s.ano ? 'pelo ADM da liga' : 'pelo fair play financeiro'} ${ban >= 38 ? 'até o fim da temporada' : `até a ${ban + 1}ª rodada`}.`;
   if (s.propostas.some(p => p.jogador === j.id && ['aguardando', 'contraproposta'].includes(p.estado))) return 'Você já tem uma proposta por ele.';
   if (emAcordo(s, j.id)) return 'Já existe um acordo por ele.';
   const fx = conversaFechada(s, j.id);
@@ -247,6 +249,7 @@ export function fazerProposta(base, s, j, o) {
 // contraproposta: o clube pediu mais dinheiro e/ou o jogador pediu mais salário
 export function aceitarContraproposta(base, s, id) {
   const p = s.propostas.find(x => x.id === id && x.estado === 'contraproposta'); if (!p) return 'Proposta não existe mais.';
+  if (registroBloqueado(s)) return 'Registro de jogadores bloqueado: não dá para fechar agora.';
   const valor = p.contra ?? p.valor, salario = p.contraSal ?? p.salario;
   const teto = passaDoTeto(base, s, salario); if (teto) return `${teto} Ele pede € ${salario.toLocaleString('pt-BR')}/dia.`;
   if (valor > s.caixa) return 'Não tem dinheiro em caixa para isso.';
@@ -722,6 +725,8 @@ export function gigante(base, s, j, de, arabe, r) {
   return { valor, mult, salario: Math.round(atual * mult / 10) * 10, vontade: v, quer: v >= 60 ? (arabe ? `não resiste a ganhar ${mult.toFixed(1).replace('.', ',')}x mais na Arábia` : 'sonha em jogar na Europa') : null };
 }
 export const textoVontade = v => v >= 75 ? 'está decidido a ir' : v >= 60 ? 'quer ir' : v >= 45 ? 'está balançado' : v >= 35 ? 'prefere ficar, mas ouviria' : 'não quer ir de jeito nenhum';
+// para onde o Brasil vende (valor de 2025): Inglaterra 38%, Rússia 17%, Portugal 11%, Itália 7%, Arábia e Espanha 6%
+const DESTINO = { 'Premier League': 3, 'Premier Liga (RUS)': 4, 'Liga Portugal': 2, 'Serie A (ITA)': 1.2, LaLiga: 0.9, 'Premier Liga (UCR)': 2, MLS: 1, 'Liga MX': 0.6, Bundesliga: 0.45, 'Ligue 1': 0.45, Eredivisie: 0.5, 'Süper Lig': 0.3, 'Pro League (BEL)': 0.35, 'Saudi Pro League': 1 };
 const GIGANTE = c => c.div === 'X' && ((c.tier >= 5 && c.fan >= 9) || (c.liga === 'Saudi Pro League' && c.fan >= 6));
 const POS_CHAVE = ['GOL', 'ZAG', 'LD', 'LE', 'VOL', 'MC', 'MEI', 'PE', 'PD', 'CA'];
 function vendedorAguenta(base, s, j) {
@@ -756,14 +761,27 @@ function negociosIA(base, s, rd, r, add) {
   };
   montarElencos(base, s, rd, r, add, mover);
   for (const ci of base.clubes.map((c, i) => i).filter(i => BR.includes(base.clubes[i].div) && !ehHumano(s, i))) {
-    if (r() > 0.09 || base.elencos[ci].length >= 38) continue;
+    if (r() > (base.clubes[ci].div === 'A' ? 0.14 : 0.09) || base.elencos[ci].length >= 38) continue;
     const el = base.elencos[ci], f = base.forca(ci), melhorNa = p => el.filter(x => x.pos === p).reduce((m, x) => Math.max(m, x.ovr), 0);
-    const pos = POS_CHAVE.slice().sort((a, b) => melhorNa(a) - melhorNa(b))[0], min = melhorNa(pos) + 2, caixa = caixaDe(base, s, ci) * 0.5;
+    const pos = POS_CHAVE.slice().sort((a, b) => melhorNa(a) - melhorNa(b))[0], min = melhorNa(pos) + 2, caixa = caixaDe(base, s, ci) * 0.7;
     const cands = [...base.jog.values()].filter(j => j.pos === pos && j.clube !== ci && j.ovr >= min && j.ovr <= f + 5 && !s.emprestimos[j.id] && !preContratoDe(s, j.id)
       && vendedorAguenta(base, s, j) && !naoJogaA(base, s, j.id, ci) && (ehLivre(base, j.clube) || base.elencos[j.clube].length > 28) && precoPedido(base, s, j, ci) <= caixa && vontade(base, s, j, ci) >= 50 && (!rivais(base, j.clube, ci) || r() < 0.03));
     if (!cands.length) continue;
     const j = pickW(r, cands, x => x.ovr - min + 1), valor = precoPedido(base, s, j, ci), de = mover(j, ci, valor);
     add(ehLivre(base, de) ? `Mercado: ${nome(ci)} contrata ${j.curto}, que estava sem clube.` : `${valor >= 5e6 ? 'HERE WE GO! ' : 'Mercado: '}${j.curto} deixa o ${nome(de)} e acerta com o ${nome(ci)} por ${fmt(valor)}.`, 'mercado', base.clubes[ci].div, { jogador: j.id });
+  }
+  // reforço de peso: clube da A com verba vai atrás de um titular melhor que a média do time, daqui ou de fora (Paquetá,
+  // Gerson, Vitor Roque, Arias...). É onde está a maior parte do dinheiro que os grandes gastam.
+  for (const ci of base.clubes.map((c, i) => i).filter(i => base.clubes[i].div === 'A' && ia(i))) {
+    const caixa = caixaDe(base, s, ci);
+    if (caixa < 6e6 || r() > 0.12 || base.elencos[ci].length >= 36) continue;
+    const f = base.forca(ci), el = base.elencos[ci];
+    const cands = [...base.jog.values()].filter(j => j.clube !== ci && j.ovr >= f + 1 && j.ovr <= f + 9 && j.idade <= 30 && !s.emprestimos[j.id] && !preContratoDe(s, j.id)
+      && (base.clubes[j.clube].div === 'X' ? !recente(s, j.id) : vendedorAguenta(base, s, j)) && el.filter(x => x.pos === j.pos && x.ovr >= j.ovr).length < 1
+      && !naoJogaA(base, s, j.id, ci) && !rivais(base, j.clube, ci) && precoPedido(base, s, j, ci) <= caixa * 0.8 && vontade(base, s, j, ci) >= 50);
+    if (!cands.length) continue;
+    const j = pickW(r, cands, x => (x.ovr - f) * (x.nat === 'BRA' ? 2 : 1)), valor = precoPedido(base, s, j, ci), de = mover(j, ci, valor);
+    add(`${valor >= 5e6 ? 'HERE WE GO! ' : 'Mercado: '}${j.curto} deixa o ${nome(de)} e acerta com o ${nome(ci)} por ${fmt(valor)}.`, 'mercado', base.clubes[ci].div, { jogador: j.id });
   }
   // quem está em fase boa num clube menor é disputado pelos maiores
   let quentes = 0;
@@ -781,7 +799,8 @@ function negociosIA(base, s, rd, r, add) {
   // B ~1, C quase nunca). Potencial 80+ vai para liga forte; o resto para MLS, México, Argentina, Portugal, Bélgica...
   // Veterano de nível (27+, 76+) às vezes vai para a Arábia. Quem vendeu repõe com um livre da posição, se houver.
   const fora = base.clubes.map((c, i) => i).filter(i => base.clubes[i].div === 'X'), livres = base.elencos[base.clubes.findIndex(c => c.div === 'L')] || [];
-  const pesoIdade = i => i <= 20 ? 4 : i <= 23 ? 2.5 : i <= 26 ? 1.2 : 0.4;
+  // metade do dinheiro que o Brasil fez exportando em 2015-25 veio de garotos de até 20 anos (CIES)
+  const pesoIdade = i => i <= 20 ? 8 : i <= 23 ? 3 : i <= 26 ? 1 : 0.3;
   for (const ci of base.clubes.map((c, i) => i).filter(i => BR.includes(base.clubes[i].div) && !ehHumano(s, i))) {
     if (r() > { A: 0.16, B: 0.06, C: 0.015 }[base.clubes[ci].div] || base.elencos[ci].length <= 24) continue;
     const cands = base.elencos[ci].filter(j => j.idade <= 31 && j.pot >= 66 && !s.emprestimos[j.id] && !preContratoDe(s, j.id) && vendedorAguenta(base, s, j));
@@ -790,26 +809,28 @@ function negociosIA(base, s, rd, r, add) {
     const ops = fora.filter(c => {
       const k = base.clubes[c], saudita = k.liga === 'Saudi Pro League';
       if (arabia !== saudita || base.elencos[c].length >= 40 || rivais(base, c, ci)) return false;
-      return (arabia || (j.pot >= 80 ? k.tier >= 3 : k.tier <= 3)) && j.ovr >= base.forca(c) - (j.idade <= 21 ? 14 : 6);
+      return (arabia || (j.pot >= 80 ? k.tier >= 3 : k.tier <= 3)) && j.ovr >= base.forca(c) - (j.idade <= 20 ? 18 : j.idade <= 21 ? 14 : 6);
     });
     if (!ops.length) continue;
-    const para = pickW(r, ops, c => base.clubes[c].fan), valor = precoExterior(base, s, j, r, para);
+    const para = pickW(r, ops, c => base.clubes[c].fan * (DESTINO[base.clubes[c].liga] ?? 0.5)), valor = precoExterior(base, s, j, r, para);
     if (caixaDe(base, s, para) * 3 < valor) continue;
     mover(j, para, valor);
     add(`${valor >= 5e6 ? 'HERE WE GO! ' : ''}Venda para o exterior: ${j.curto} (${j.idade} anos) troca o ${nome(ci)} pelo ${nome(para)} (${base.clubes[para].liga}) por ${fmt(valor)}.`, 'mercado', base.clubes[ci].div, { jogador: j.id });
     const rep = livres.filter(x => x.pos === j.pos && x.ovr >= base.forca(ci) - 10 && x.ovr <= base.forca(ci) + 3).sort((a, b) => b.ovr - a.ovr)[0];
     if (rep) { mover(rep, ci, 0); add(`Para o lugar de ${j.curto}, o ${nome(ci)} contrata ${rep.curto}, que estava sem clube.`, 'mercado', base.clubes[ci].div, { jogador: rep.id }); }
   }
-  // repatriação: brasileiro lá fora com 27 a 34 anos volta para clube daqui que precisa da posição (veterano sai barato)
-  for (let k = 0; k < 2; k++) {
+  // repatriação: brasileiro lá fora volta para clube daqui que precisa da posição. As compras mais caras do Brasil em
+  // 2025-26 foram assim (Paquetá, Gerson, Danilo, Samuel Lino, Wendel): 24 a 29 anos, € 15-40 mi, por quem tem verba.
+  // O veterano (29+) sai mais barato.
+  for (let k = 0; k < 3; k++) {
     if (r() > 0.4) continue;
-    const volta = [...base.jog.values()].filter(j => j.nat === 'BRA' && base.clubes[j.clube].div === 'X' && j.idade >= 27 && j.idade <= 34 && j.ovr >= 68 && !s.emprestimos[j.id] && !preContratoDe(s, j.id) && !recente(s, j.id));
-    const j = volta.length ? pickW(r, volta, x => x.idade - 25) : null;
+    const volta = [...base.jog.values()].filter(j => j.nat === 'BRA' && base.clubes[j.clube].div === 'X' && j.idade >= 23 && j.idade <= 34 && j.ovr >= 68 && !s.emprestimos[j.id] && !preContratoDe(s, j.id) && !recente(s, j.id));
+    const j = volta.length ? pickW(r, volta, x => x.idade <= 29 ? 3 : x.idade - 27) : null;
     const ops = j ? base.clubes.map((c, i) => i).filter(ci => ['A', 'B'].includes(base.clubes[ci].div) && ia(ci) && base.elencos[ci].length < 36
       && j.ovr >= base.forca(ci) - 2 && j.ovr <= base.forca(ci) + 10 && base.elencos[ci].filter(x => x.pos === j.pos && x.ovr >= j.ovr).length < 2) : [];
     if (!ops.length) continue;
-    const para = pickW(r, ops, ci => base.clubes[ci].fan), valor = arred(j.valor * 1000 * (j.idade >= 29 ? 0.75 : 1) * fatorContrato(mesesDeContrato(s, j)) * (0.9 + r() * 0.2));
-    if (caixaDe(base, s, para) * 0.6 < valor) continue;
+    const para = pickW(r, ops, ci => Math.max(1e5, caixaDe(base, s, ci))), valor = arred(j.valor * 1000 * (j.idade >= 29 ? 0.75 : 1.1) * fatorContrato(mesesDeContrato(s, j)) * (0.9 + r() * 0.2));
+    if (caixaDe(base, s, para) * 0.8 < valor) continue;
     const de = mover(j, para, valor);
     add(`${valor >= 5e6 ? 'HERE WE GO! ' : ''}De volta ao Brasil: ${j.curto} (${j.idade} anos) deixa o ${nome(de)} e acerta com o ${nome(para)} por ${fmt(valor)}.`, 'mercado', base.clubes[para].div, { jogador: j.id });
   }
