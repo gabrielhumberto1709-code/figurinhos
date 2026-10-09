@@ -12,7 +12,7 @@ import { novaCont, campanhaCont } from './continental.js';
 import { novaReg, campanhaReg, regsDe, REGIONAIS } from './regionais.js';
 import { gala, arquivarGala, moralDosPremiados } from './gala.js';
 import { revisarPotencial } from './potencial.js';
-import { enviar } from './correio.js';
+import { enviar, cartasDeInicio } from './correio.js';
 import { estrelas } from './util.js';
 
 const DIVS = ['A', 'B', 'C'];
@@ -188,6 +188,7 @@ export function virarTemporada(base, s) {
   add(`Começa a temporada ${s.ano}. Sobem para a Série A: ${h.sobem.A.map(nome).join(', ')}. Caem para a B: ${h.caem.B.map(nome).join(', ')}.`, 'resultado');
   for (const r of s.repasses || []) add(`Vaga repassada: o ${nome(r.de)} já estava na Libertadores pela tabela e a vaga de ${r.por} ficou com o ${nome(r.clube)} (${r.pos}º da Série A).`, 'resultado');
   if (caiuParaD) saidaPorQueda(base, s);
+  cartasDeInicio(base, s);
   s.noticias = [...N, ...s.noticias].slice(0, 220);
   return h;
 }

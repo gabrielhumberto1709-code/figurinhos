@@ -15,6 +15,7 @@ import { dataAmistoso, doAno } from './calendario.js';
 import { orcamento, lancar, garantirFinancas, salarioDia, salarioBase, diasRestantes, registroBloqueado, passaDoTeto } from './financas.js';
 import { naSelecao } from './selecao.js';
 import { enviar } from './correio.js';
+import { abrirLeilaoCompra, encerrarPendente } from './leilao.js';
 
 const arred = v => Math.max(50000, Math.round(v / 10000) * 10000);
 const arredSal = v => Math.max(10, Math.round(v / 10) * 10);
@@ -163,7 +164,7 @@ function motivoRecusa(base, s, j) {
 export function salarioPedido(base, s, j, anos = 3, destino = s.tecnico.clube, promessa = false) {
   const atual = ehLivre(base, j.clube) ? 0 : salarioDia(base, s, j);
   const v = vontade(base, s, j, destino, promessa);
-  let pede = Math.max(atual, salarioBase(base.clubes[destino].div, j.valor)) * (1.1 + clamp((60 - v) / 100, -0.1, 0.6));
+  let pede = Math.max(atual, salarioBase(base.clubes[destino], j)) * (1.1 + clamp((60 - v) / 100, -0.1, 0.6));
   if (j.idade >= 30) pede *= 1 + 0.06 * Math.max(0, 3 - anos);
   if (ehLivre(base, j.clube)) pede *= 0.9;
   return arredSal(pede);
@@ -389,6 +390,8 @@ export function aceitarRecebida(base, s, id) {
 }
 export function recusarRecebida(base, s, id) {
   const p = s.recebidas.find(x => x.id === id); if (!p) return null;
+  const j = base.jog.get(p.jogador);
+  if (p.tipo !== 'emprestimo' && j && p.quer && pagouClausula(base, s, j, p.de, p.valor)) return `O ${base.clubes[p.de].n} pagou a multa rescisória e ${j.curto} quer ir: o clube não pode segurar.`;
   s.recebidas = s.recebidas.filter(x => x.id !== id);
   return p.quer ? barrarSaida(base, s, p) : null;
 }
@@ -449,18 +452,41 @@ export function chamarDeVolta(base, s, id) {
   s.noticias.unshift({ rodada: s.rodada, tipo: 'clube', mercado: true, jogador: j.id, div: base.clubes[meu].div, texto: `${j.curto} volta antes do fim do empréstimo ao ${base.clubes[e.para].n}. O clube paga ${fmt(v)} de reembolso.` });
   return null;
 }
-export const multaRescisao = (base, s, j) => Math.round(salarioDia(base, s, j) * (diasRestantes(s) + 365 * Math.max(0, j.contrato - s.ano)) * 0.5 / 1000) * 1000;
-export function rescindir(base, s, id) {
+// cláusula compensatória (Lei Geral do Esporte, art. 86): o clube que dispensa paga todos os salários até o fim do
+// contrato, no máximo 400 salários mensais. Distrato (acordo) sai por 60%, mas só se ele aceitar: veterano, reserva,
+// quem quer sair ou anda insatisfeito.
+const salarioMes = (base, s, j) => salarioDia(base, s, j) * 30.44;
+export const multaRescisao = (base, s, j) => Math.round(Math.min(salarioDia(base, s, j) * (diasRestantes(s) + 365 * Math.max(0, j.contrato - s.ano)), 400 * salarioMes(base, s, j)) / 1000) * 1000;
+export const valorDistrato = (base, s, j) => Math.round(multaRescisao(base, s, j) * 0.6 / 1000) * 1000;
+export function recusaDistrato(base, s, j) {
+  const rank = base.elencos[s.tecnico.clube].slice().sort((a, b) => b.ovr - a.ovr).indexOf(j), jogos = s.est?.[j.id]?.[0] || 0;
+  const reserva = rank >= 18 || (s.rodada >= 5 && jogos < 0.2 * s.rodada);
+  return j.idade >= 31 || reserva || s.querSair?.[j.id] || (s.mor[j.id] ?? 62) < 45 ? null : `${j.curto} não aceita o distrato: joga, está bem e quer receber o contrato até o fim.`;
+}
+export function rescindir(base, s, id, acordo = false) {
   const j = base.jog.get(+id), meu = s.tecnico.clube;
   if (!j || j.clube !== meu) return 'Só dá para rescindir com jogador seu.';
   if (s.emprestimos[j.id]) return 'Ele está emprestado ao seu clube.';
   const e = elencoAguenta(base, s, j); if (e) return e;
-  const v = multaRescisao(base, s, j); if (v > s.caixa) return `A multa (${fmt(v)}) passa do que tem em caixa.`;
-  lancar(s, 'rescisao', `Rescisão de ${j.curto}`, -v);
+  if (acordo) { const nao = recusaDistrato(base, s, j); if (nao) return nao; }
+  const v = acordo ? valorDistrato(base, s, j) : multaRescisao(base, s, j); if (v > s.caixa) return `${acordo ? 'O distrato' : 'A multa'} (${fmt(v)}) passa do que tem em caixa.`;
+  lancar(s, 'rescisao', `${acordo ? 'Distrato' : 'Rescisão'} de ${j.curto}`, -v);
   liberar(base, s, j, v);
-  s.noticias.unshift({ rodada: s.rodada, tipo: 'clube', mercado: true, jogador: j.id, div: base.clubes[meu].div, texto: `Rescisão: ${j.curto} deixa o ${base.clubes[meu].n}. A multa custou ${fmt(v)}.` });
+  s.noticias.unshift({ rodada: s.rodada, tipo: 'clube', mercado: true, jogador: j.id, div: base.clubes[meu].div, texto: acordo ? `Distrato: ${j.curto} e o ${base.clubes[meu].n} se acertam e ele sai por ${fmt(v)}.` : `Rescisão: ${j.curto} deixa o ${base.clubes[meu].n}. O clube pagou ${fmt(v)}, o resto do contrato.` });
   return null;
 }
+
+// cláusula indenizatória (multa rescisória, art. 86): quem paga leva o jogador sem o clube poder recusar; só ele
+// decide. Para clube daqui, até 2.000 salários mensais (na A, 2 a 4 vezes o valor; na B e na C, 1,5 a 3); para o
+// exterior não há limite (3 a 5 vezes o valor até 23 anos, 1,8 a 3 depois). Sorteio fixo por contrato.
+export function clausula(base, s, j) {
+  const d = base.clubes[j.clube].div;
+  if (!BR.includes(d)) return null;
+  const r = rng(`cid${j.id}-${j.contrato}`), a = r(), b = r(), v = (j.valor || 30) * 1000;
+  const nac = arred(Math.min(2000 * salarioMes(base, s, j), v * (d === 'A' ? 2 + a * 2 : 1.5 + a * 1.5)));
+  return { nac, int: Math.max(nac, arred(v * (j.idade <= 23 ? 3 + b * 2 : 1.8 + b * 1.2))) };
+}
+const pagouClausula = (base, s, j, comprador, valor) => { const c = clausula(base, s, j); return !!c && valor >= (base.clubes[comprador].div === 'X' ? c.int : c.nac); };
 
 // jogador do seu clube vira livre (rescisão paga ou ganha na Justiça)
 export function liberar(base, s, j, valor = 0) {
@@ -523,7 +549,7 @@ export const emNovela = (s, id) => s.novela?.[id]?.ano === s.ano;
 export function renovacaoPossivel(s, j) { return j.contrato <= s.ano + 1 && !preContratoDe(s, j.id) && !s.emprestimos[j.id]; }
 export function pedidoRenovacao(base, s, j, anos = 3) {
   const ficar = emNovela(s, j.id) ? 0 : vontadeRenovar(base, s, j).v;
-  let pede = Math.max(salarioDia(base, s, j), salarioBase(base.clubes[j.clube].div, j.valor)) * (1.05 + clamp((60 - ficar) / 100, -0.1, 0.5));
+  let pede = Math.max(salarioDia(base, s, j), salarioBase(base.clubes[j.clube], j)) * (1.05 + clamp((60 - ficar) / 100, -0.1, 0.5));
   if (j.idade >= 30) pede *= 1 + 0.06 * Math.max(0, 3 - anos);
   return { ficar, pede: arredSal(pede) };
 }
@@ -831,6 +857,8 @@ function novelas(base, s, rd, add) {
 // roda depois de cada rodada; na pré-temporada e nos regionais (rodada 0), uma vez por semana ("semana" = 1, 2, ...)
 export function resolverMercado(base, s, rd, semana = 0) {
   garantirMercado(s);
+  // leilão que ninguém abriu em duas passadas do mercado (avanço rápido, motor sem tela): a sala termina sem você
+  if (s.leilaoAtivo && (s.leilaoAtivo.comecou || s.rodada * 100 + (s.semanaBloco?.n || 0) - (s.leilaoAtivo.criado ?? -1e9) >= 2)) encerrarPendente(base, s);
   const r = rng(`mercado${s.seed}-${rd}${semana ? `-s${semana}` : ''}`), meu = s.tecnico.clube, N = [];
   const aberta = x => !!semana || janelaAberta(s.ano, x);
   const nome = ci => base.clubes[ci].n;
@@ -844,6 +872,9 @@ export function resolverMercado(base, s, rd, semana = 0) {
 
   for (const p of s.propostas.filter(x => x.estado === 'aguardando' && x.rodada <= rd)) {
     const j = base.jog.get(p.jogador), tipo = p.tipo || 'compra', t = p.troca && base.jog.get(p.troca);
+    if (p.leilao === 'vivo') continue;                       // esperando o leilão
+    // de surpresa: na hora da resposta, outro clube aparece e o vendedor abre leilão (a tela vem sozinha)
+    if (tipo === 'compra' && j.clube === p.de && abrirLeilaoCompra(base, s, p.id, true)) { add(`Leilão! Outro clube também quer ${j.curto} e o ${nome(j.clube)} abriu a disputa. A sala está esperando você.`); continue; }
     const falha = (motivo, txt) => {
       p.estado = 'recusada'; p.motivo = motivo; if (txt) add(txt);
       const x = s.recusas[j.id]?.ano === s.ano ? s.recusas[j.id] : { n: 0, ate: 0 }, n = x.n + 1;
@@ -855,6 +886,7 @@ export function resolverMercado(base, s, rd, semana = 0) {
     if (p.troca && (!t || t.clube !== meu)) { p.estado = 'cancelada'; p.motivo = 'o jogador da troca não está mais no elenco'; continue; }
     if (t && vontade(base, s, t, j.clube) < 35) { falha(`${t.curto} não quer ir para o ${nome(j.clube)}`, `${t.curto} não aceita ir para o ${nome(j.clube)} na troca por ${j.curto}.`); continue; }
     const fechada = ['compra', 'emprestimo'].includes(tipo) && !aberta(rd + 1), vt = t ? valorNaTroca(base, s, t, j.clube) : 0;
+    if (tipo === 'compra' && !p.clubeOk && pagouClausula(base, s, j, meu, p.valor + vt)) { p.clubeOk = true; add(`Multa rescisória paga: o ${nome(j.clube)} não pode segurar ${j.curto}. Agora a conversa é com ele.`); }
     if (tipo !== 'livre' && !p.clubeOk && rivais(base, j.clube, meu) && r() < 0.9) { falha('o clube não negocia com o rival', `O ${nome(j.clube)} nem abre conversa: não negocia ${j.curto} com o rival.`); continue; }
     if (tipo === 'compra' && !p.clubeOk && !p.aceitouContra) {
       const pedido = Math.min(precoPedido(base, s, j), p.pedido || Infinity); // o clube honra o preço que pediu na hora da proposta

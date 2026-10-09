@@ -504,9 +504,9 @@ test('mercado agressivo: jogador em fase excelente num clube da B recebe propost
 import { naoLidas } from '../public/js/motor/correio.js';
 test('caixa de mensagens: boas-vindas, meta, desfalques e propostas chegam uma vez só', () => {
   const s = novoJogo(base, cfg(91)), ci = s.tecnico.clube;
-  assert.equal(naoLidas(s), 1);
+  assert.equal(naoLidas(s), 2); // boas-vindas e teto salarial
   ate(s, 3);
-  assert.ok(s.msgs.some(m => m.assunto.startsWith('A meta')));
+  assert.ok(s.msgs.some(m => m.assunto.startsWith('Teto salarial') && m.texto.includes('meta')));
   const j = base.elencos[ci].slice().sort((a, b) => b.ovr - a.ovr)[0];
   s.dm[j.id] = { k: 'adutor', n: 3, tot: 3 };
   rodada(s);
@@ -591,7 +591,7 @@ test('mercado extras: troca, trava de 14 jogos, acordo com janela fechada, 3 rec
   for (let k = 0; k < 3; k++) { assert.equal(fazerProposta(base, s, c3, proposta(base, s, c3, { valor: precoPedido(base, s, c3) * 0.4 })), null); rodada(s); }
   assert.equal(conversaFechada(s, c3.id), 2);
   assert.match(bloqueioProposta(base, s, c3, proposta(base, s, c3)), /fechou as conversas/);
-  // rescisão: paga metade do que falta e ele fica livre
+  // rescisão: paga todo o resto do contrato (cláusula compensatória) e ele fica livre
   const res = base.elencos[ci].slice().sort((a, b) => a.ovr - b.ovr).find(x => x.pos !== 'GOL' && !travado(s, x.id)), m = multaRescisao(base, s, res), cx1 = s.caixa;
   assert.ok(m > 0);
   assert.equal(rescindir(base, s, res.id), null);
@@ -630,10 +630,12 @@ test('finanças: atraso escalona (pedido de saída, Justiça, fama de mau pagado
   const o = orcamento(base, s); assert.equal(o.fim, Math.round(s.caixa + o.cota - o.folha * o.dias));
   s.caixa = -5e6; s.fin.temporada.compras = 1e7; s.fin.temporada.vendas = 0; s.fin.tvPagas = [0, 9, 19, 29];
   const n0 = base.elencos[ci].length, tab = tabela(base, s, base.clubes[ci].div);
-  const N = []; for (let k = 0; k < 3; k++) N.push(...contasDaRodada(base, s, s.rodada + k, null, tab));
-  assert.equal(s.fin.atraso, 3);
+  const N = []; let k = 0;
+  for (; k < 30 && !N.some(t => t.includes('Justiça')); k++) N.push(...contasDaRodada(base, s, s.rodada + k, null, tab));
+  const dias = (+diaLiga(s.ano, s.rodada + k - 1) - +diaLiga(s.ano, s.rodada)) / 864e5;
+  assert.ok(dias >= 60 && dias < 75, `Justiça com ${dias} dias de atraso`);
   assert.ok(N.some(t => t.includes('pede')) && Object.values(s.querSair).some(q => q.motivo.includes('atrasado')));
-  assert.ok(N.some(t => t.includes('Justiça')) && base.elencos[ci].length === n0 - 1);
+  assert.ok(N.some(t => t.includes('Justiça') && t.includes('cláusula compensatória')) && base.elencos[ci].length === n0 - 1);
   assert.ok(vontade(base, s, alvo, ci) <= v0 - 10, 'mau pagador afasta reforço');
   const D = dicasFinanceiras(base, s);
   assert.ok(D.some(d => d.includes('faltam')) && D.some(d => d.includes('mau pagador')));
@@ -1002,7 +1004,7 @@ test('teto salarial da diretoria: recém-promovido ganha menos aporte, continent
   const ini = n => { const ci = base.clubes.findIndex(c => c.n === n); return [novoJogo(base, { ...cfg(61), clube: ci }), ci]; };
   const [rem] = ini('Remo'), [fla] = ini('Flamengo'), [bah, ciB] = ini('Bahia');
   const tR = tetoSalarial(base, rem), tB = tetoSalarial(base, bah);
-  assert.ok(tR.partes.some(([t]) => t.startsWith('recém')) && tR.teto < 3500, `Remo ${tR.teto}`);
+  assert.ok(tR.partes.some(([t]) => t.startsWith('recém')) && tR.teto < 5000, `Remo ${tR.teto}`);
   assert.ok(tetoSalarial(base, fla).teto > tB.teto && tB.teto > tR.teto);
   // Bahia entra na Libertadores e chega às quartas da Copa do Brasil: o teto sobe 35% e mais 10%
   bah.cont.LIB.grupos[0][3] = ciB; bah.copa.jogos.push({ fase: FASES.findIndex(f => f.k === 'qua'), h: ciB, a: 0, gols: [1, 0] });
@@ -1122,4 +1124,28 @@ test('IA monta elenco: na temporada, livres, empréstimos e compras mantêm os e
   assert.ok(ia.some(h => h.tipo === 'emprestimo') && ia.some(h => h.tipo === 'livre'));
   assert.ok(A.reduce((a, b) => a + b, 0) / A.length >= 30 && Math.min(...A) >= 24, A.join(','));
   assert.ok(base.elencos[base.clubes.findIndex(c => c.div === 'L')].length <= 150);
+});
+
+import { clausula, recusaDistrato, valorDistrato } from '../public/js/motor/mercado.js';
+import { salarioBase as salBase } from '../public/js/motor/financas.js';
+test('salário pela idade, multa rescisória paga leva o jogador, distrato só com acordo, cartas de início e leilão-surpresa', () => {
+  const s = novoJogo(base, cfg(12)), ci = s.tecnico.clube, c = base.clubes[ci];
+  // veterano ganha mais que garoto do mesmo valor; garoto valorizado ganha bem menos que 30% do valor
+  const jov = { idade: 21, ovr: 78, valor: 20000 }, vet = { idade: 33, ovr: 78, valor: 20000 };
+  assert.ok(salBase(c, vet) > salBase(c, jov) * 1.8 && salBase(c, jov) * 365 < 0.2 * 20e6);
+  // cartas de início: boas-vindas e teto
+  assert.ok(s.msgs.some(m => m.assunto.startsWith('Bem-vindo')) && s.msgs.some(m => m.assunto.startsWith('Teto salarial')));
+  // multa rescisória: proposta no valor da multa, o clube não recusa (nem abre leilão)
+  s.caixa = 2e8; s.fin.salarioBudget = null;
+  const j = [...base.jog.values()].find(x => base.clubes[x.clube].div === 'B' && x.ovr >= 64 && vontade(base, s, x, ci) >= 70);
+  const cid = clausula(base, s, j); assert.ok(cid && cid.int >= cid.nac && cid.nac >= j.valor * 1000 * 1.5 - 1e4);
+  assert.equal(fazerProposta(base, s, j, { tipo: 'compra', valor: cid.nac, salario: Math.min(tetoSalarial(base, s).teto, salarioPedido(base, s, j, 3) * 2), anos: 3 }), null);
+  const p = s.propostas[0]; resolverMercado(base, s, s.rodada);
+  assert.ok(p.clubeOk && p.leilao !== 'vivo', `${p.estado} ${p.motivo || ''}`);
+  // distrato: titular jovem recusa, veterano aceita
+  const el = base.elencos[ci].slice().sort((a, b) => b.ovr - a.ovr), tit = el.find(x => x.idade <= 27), velho = el.find(x => x.idade >= 31);
+  assert.ok(recusaDistrato(base, s, tit) && !recusaDistrato(base, s, velho) && valorDistrato(base, s, velho) < multaRescisao(base, s, velho));
+  // leilão-surpresa sem ninguém na tela: depois de duas passadas do mercado, a sala termina sozinha
+  s.leilaoAtivo = { ...novoLeilao({ id: 'x', modo: 'compra', jogador: j.id, vendedor: j.clube, valor: 1e6, lider: ci, participantes: [{ ci, humano: true, max: 1e7 }, { ci: 3, max: 2e6 }], seed: 1 }), criado: -5 };
+  resolverMercado(base, s, s.rodada); assert.ok(!s.leilaoAtivo);
 });

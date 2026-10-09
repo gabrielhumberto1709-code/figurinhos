@@ -20,7 +20,7 @@ function abertura(L) {
   const j = B().jog.get(L.jogador), meu = S().tecnico.clube, outros = Object.keys(L.P).map(Number).filter(ci => ci !== meu && ci !== L.lider);
   if (L.modo === 'compra') {
     const rv = Object.keys(L.P).map(Number).filter(ci => ci !== meu);
-    return `Dr. Arremate na casa! ${juntar(rv.map((ci, i) => i ? O(ci) : Oo(ci)))} também ${rv.length > 1 ? 'querem' : 'quer'} ${j.curto}: vai a leilão. Sua proposta (${Lm.fmtLance(L.valor)}) abre a sala. Cada lance volta o relógio a 30 s; zerou, bato o martelo e leva quem deu mais. O salário você acerta depois, com ele. Quem pisca, perde!`;
+    return `${L.tarde ? `Parem tudo! Enquanto o ${H.clube(L.vendedor).n} pensava na sua proposta, ` : 'Dr. Arremate na casa! '}${juntar(rv.map((ci, i) => i || L.tarde ? O(ci) : Oo(ci)))} também ${rv.length > 1 ? 'querem' : 'quer'} ${j.curto}: vai a leilão. Sua proposta (${Lm.fmtLance(L.valor)}) abre a sala. Cada lance volta o relógio a 30 s; zerou, bato o martelo e leva quem deu mais. O salário você acerta depois, com ele. Quem pisca, perde!`;
   }
   return outros.length
     ? `${Oo(L.lider)} ofereceu ${Lm.fmtLance(L.valor)} por ${j.curto} e chamei a concorrência: ${juntar(outros.map(O))}. Cada lance volta o relógio a 30 s. Bati o martelo, você decide se vende pelo maior lance. Quem pisca, perde!`

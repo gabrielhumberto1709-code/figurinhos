@@ -4,6 +4,7 @@
 import { rng, pick, clamp } from './util.js';
 import { caixaInicial } from './mundo.js';
 import { metaDiretoria, financasIniciais } from './financas.js';
+import { cartasDeInicio } from './correio.js';
 
 const DIVS = ['A', 'B', 'C'];
 const PRIMEIROS = ['Renato', 'Marcelo', 'Paulo', 'Luiz', 'Roberto', 'Sérgio', 'Carlos', 'Márcio', 'Ricardo', 'Fábio', 'Eduardo', 'Jorge', 'Antônio', 'Cláudio', 'Gilson', 'Wagner', 'Adilson', 'Hélio', 'Marcos', 'Celso', 'Dário', 'Osvaldo', 'Nelson', 'Toninho', 'Vadão', 'Joel', 'Zé Carlos', 'Mário', 'Gustavo', 'Rui'];
@@ -186,6 +187,7 @@ export function aceitarOferta(base, s, novo) {
   s.propostas = (s.propostas || []).filter(p => !['aguardando', 'contraproposta'].includes(p.estado));
   s.cargo = { st: 'ok', desde: s.rodada, anoDesde: s.ano, ano: s.ano, ults: [] };
   delete s.demitido;
+  cartasDeInicio(base, s, true);
   N.push(`${s.tecnico.nome} é o novo técnico do ${base.clubes[novo].n}.`);
   s.noticias.unshift(...N.map(texto => ({ rodada: s.rodada, tipo: 'clube', clube: novo, div: base.clubes[novo].div, texto })));
 }

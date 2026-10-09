@@ -7,7 +7,7 @@ import { garantirCarreira, torcidaAposJogo, aposRodada, tituloDeCopa } from './c
 import { evoluir } from './treino.js';
 import { rivais } from './rivais.js';
 import { registrarForma, bonusFase } from './forma.js';
-import { correio } from './correio.js';
+import { correio, cartasDeInicio } from './correio.js';
 import { arbitroDo } from './arbitros.js';
 import { vestiarioAposRodada } from './vestiario.js';
 import { eventosAposRodada } from './eventos.js';
@@ -164,7 +164,7 @@ export function novoJogo(base, cfg) {
   novaCont(base, s);
   novaCopa(base, s);
   novaReg(base, s);
-  s.msgs = [{ id: 'boas-vindas', de: 'presidente', ano: s.ano, rodada: 0, lida: false, assunto: 'Bem-vindo', texto: `${cfg.tecnico.nome}, seja bem-vindo ao ${base.clubes[clube].n}. A partir de agora o diretor de futebol vai te escrever por aqui sempre que precisar de uma decisão sua: desfalques, propostas, contratos, dinheiro. Boa sorte.` }];
+  s.msgs = []; cartasDeInicio(base, s, true); // boas-vindas e teto salarial na hora
   return s;
 }
 

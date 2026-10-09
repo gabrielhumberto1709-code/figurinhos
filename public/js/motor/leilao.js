@@ -11,7 +11,7 @@ import { faseDe } from './forma.js';
 import { janelaAberta } from './mundo.js';
 import { orcamento } from './financas.js';
 import { interessados } from './noticias.js';
-import { caixaDe, precoPedido, vontade, transferir, querIr } from './mercado.js';
+import { caixaDe, precoPedido, vontade, transferir, querIr, clausula } from './mercado.js';
 
 export const RELOGIO = 30, UMA = 10, DUAS = 5;
 const r10 = v => Math.round(v / 1e4) * 1e4;
@@ -107,8 +107,8 @@ const noticia = (base, s, texto, jogador) => s.noticias.unshift({ rodada: s.roda
 // quem também quer o jogador: clube com nível para ele, vaga na posição, dinheiro e um jogador topando ir.
 // A chance de ter concorrência sobe com o overall, a fase e a juventude (de ~10% num 64 a ~65% num craque em fase
 // excelente). Sorteio fixo por rodada: refazer a proposta não muda a sala.
-export function concorrentes(base, s, j, valor) {
-  const meu = s.tecnico.clube, ped = precoPedido(base, s, j), f = faseDe(s, j.id), r = rng(`leilao${s.seed}-${s.ano}-${s.rodada}-${j.id}`);
+export function concorrentes(base, s, j, valor, sal = '') {
+  const meu = s.tecnico.clube, ped = precoPedido(base, s, j), f = faseDe(s, j.id), r = rng(`leilao${s.seed}-${s.ano}-${s.rodada}-${j.id}${sal}`);
   if (r() >= clamp(0.12 + (j.ovr - 64) * 0.025 + f.d * 0.08 + (j.idade <= 22 ? 0.08 : 0), 0.08, 0.65)) return [];
   const chance = 0.5, piso = Math.max(ped, minimo({ valor, reserva: 0 }));
   const out = [];
@@ -124,15 +124,22 @@ export function concorrentes(base, s, j, valor) {
   return out.sort((a, b) => b.peso - a.peso).slice(0, 3).map(({ ci, max }) => ({ ci, max }));
 }
 
-// logo depois de enviar a proposta de compra: se tem concorrência, o leilão abre na hora
-export function abrirLeilaoCompra(base, s, pid) {
+// logo depois de enviar a proposta de compra (ou, de surpresa, quando a resposta ia sair: tarde = true): se tem
+// concorrência, o leilão abre e a tela vem sozinha
+export function abrirLeilaoCompra(base, s, pid, tarde = false) {
   const p = s.propostas.find(x => x.id === pid && x.estado === 'aguardando');
-  if (!p || (p.tipo || 'compra') !== 'compra' || p.troca || s.leilaoAtivo || !janelaAberta(s.ano, s.rodada)) return null;
-  const j = base.jog.get(p.jogador), rv = concorrentes(base, s, j, p.valor);
+  if (!p || (p.tipo || 'compra') !== 'compra' || p.troca || p.leilao || s.leilaoAtivo || !janelaAberta(s.ano, s.rodada)) return null;
+  const j = base.jog.get(p.jogador), cid = clausula(base, s, j);
+  if (cid && p.valor >= cid.nac) return null;              // multa paga: o vendedor não escolhe comprador
+  if (tarde && p.valor < precoPedido(base, s, j) * 0.85) return null; // proposta baixa o vendedor só recusa
+  const rv = concorrentes(base, s, j, p.valor, tarde ? `-tarde-${s.semanaBloco?.n || 0}` : '');
   if (!rv.length) return null;
   const meu = s.tecnico.clube;
-  return (s.leilaoAtivo = novoLeilao({ id: pid, modo: 'compra', jogador: j.id, vendedor: j.clube, valor: p.valor, lider: meu, reserva: precoPedido(base, s, j),
-    participantes: [{ ci: meu, humano: true, max: Math.min(s.caixa, orcamento(base, s).compras) }, ...rv], seed: `${s.seed}-${pid}` }));
+  p.leilao = 'vivo';
+  const L = novoLeilao({ id: pid, modo: 'compra', jogador: j.id, vendedor: j.clube, valor: p.valor, lider: meu, reserva: precoPedido(base, s, j),
+    participantes: [{ ci: meu, humano: true, max: Math.min(s.caixa, orcamento(base, s).compras) }, ...rv], seed: `${s.seed}-${pid}${tarde ? '-t' : ''}` });
+  Object.assign(L, { tarde, criado: s.rodada * 100 + (s.semanaBloco?.n || 0) });
+  return (s.leilaoAtivo = L);
 }
 // o botão Leilão numa oferta recebida: quem ofereceu e até 3 interessados (teto de 190% do valor)
 export function abrirLeilaoVenda(base, s, id) {
@@ -157,6 +164,7 @@ export function fecharLeilao(base, s) {
   const j = base.jog.get(L.jogador), meu = s.tecnico.clube, rivaisNaSala = Object.keys(L.P).length - 1;
   if (L.modo === 'compra') {
     const p = s.propostas.find(x => x.id === L.id);
+    if (p && p.leilao === 'vivo') p.leilao = true;
     if (!p || p.estado !== 'aguardando' || j.clube !== L.vendedor) return { modo: 'compra', erro: 'A proposta não existe mais.' };
     if (L.lider === meu) {
       Object.assign(p, { valor: L.valor, leilao: true, ...(L.valor >= L.reserva ? { clubeOk: true } : {}) });

@@ -2,7 +2,7 @@
 import { clamp, rng, fmtDinheiro } from './util.js';
 import { rivais } from './rivais.js';
 import { dataRodada, tabela } from './mundo.js';
-import { liberar } from './mercado.js';
+import { liberar, multaRescisao } from './mercado.js';
 import { dataAmistoso } from './calendario.js';
 import { FASES } from './copa.js';
 
@@ -12,10 +12,18 @@ export const PRECOS = { barato: 0.65, normal: 1, caro: 1.4, abusivo: 2 };
 export const NOME_PRECO = { barato: 'Barato', normal: 'Normal', caro: 'Caro', abusivo: 'Abusivo' };
 const MARCAS = ['ApostaBet', 'Banco Cordial', 'Pix&Vai', 'Supermercados Boa Praça', 'TeleGol', 'Cimentos Rocha Firme', 'Café Arretado', 'Seguros Tá Tranquilo', 'Auto Peças Turbinão', 'Farmácia Saúde Já'];
 
-// salário por dia: ~30% do valor de mercado por ano, com piso da divisão (ou o que foi acertado no contrato)
-export const salarioBase = (div, valorK) => Math.round(Math.max(PISO[div] || PISO.C, valorK * 1000 * 0.3) / 365);
+// salário por dia (ou o que foi acertado no contrato). Uma fatia do valor de mercado que cresce com a idade: o garoto
+// valorizado ganha pouco perto do que vale, o veterano ganha pelo nome (no mínimo 28% do que valeria no auge com o
+// mesmo overall). Clube de torcida grande paga mais. Piso e teto por divisão. Calibrado nas folhas reais de 2025-26.
+const TETO_ANUAL = { A: 8.5e6, B: 1.2e6, C: 3e5, X: 25e6 };
+const FATIA = i => i <= 23 ? 0.14 : i <= 27 ? 0.2 : i <= 29 ? 0.22 : i <= 31 ? 0.28 : i <= 34 ? 0.35 : 0.5;
+const noAuge = ovr => 150e3 * 1.16 ** (ovr - 50);
+export function salarioBase(c, j) {
+  const anual = Math.max(FATIA(j.idade) * (j.valor || 0) * 1000, j.idade >= 30 ? 0.28 * noAuge(j.ovr) : 0) * (0.9 + 0.035 * (c?.fan ?? 4));
+  return Math.round(clamp(anual, PISO[c?.div] || PISO.C, TETO_ANUAL[c?.div] || TETO_ANUAL.C) / 365);
+}
 export function salarioDia(base, s, j) {
-  return s.salarios?.[j.id] || salarioBase(base.clubes[j.clube].div, j.valor);
+  return s.salarios?.[j.id] || salarioBase(base.clubes[j.clube], j);
 }
 export const folhaDia = (base, s, ci = s.tecnico.clube) => base.elencos[ci].reduce((t, j) => t + salarioDia(base, s, j), 0);
 
@@ -104,9 +112,9 @@ export function metaDiretoria(base, s) {
 // ---------- teto salarial da diretoria ----------
 // Salário máximo por jogador em contrato novo (compra, livre, pré-contrato, empréstimo, renovação e aumento), no
 // offline e no online. Base pela divisão e pelo tamanho da torcida; quem acabou de subir ganha bem menos aporte
-// (um recém-promovido à A fica perto de € 2,5 mil/dia). Sobe com Libertadores ou Sul-Americana, com a campanha na
+// (um recém-promovido à A fica perto de € 4 mil/dia; o Flamengo, perto de € 16 mil). Sobe com Libertadores ou Sul-Americana, com a campanha na
 // Copa do Brasil, com título regional e com a confiança da diretoria. Quem já ganha acima continua, mas não renova acima.
-const TETO_DIV = { A: 6000, B: 1800, C: 700 };
+const TETO_DIV = { A: 9000, B: 1800, C: 700 };
 // quem subiu para 2026 (Série B 2025 → A; Série C 2025 → B), para a primeira temporada
 const SUBIU_2026 = ['Coritiba', 'Athletico-PR', 'Chapecoense', 'Remo', 'Ponte Preta', 'Londrina', 'São Bernardo', 'Náutico'];
 export function recemPromovido(base, s, ci = s.tecnico.clube) {
@@ -189,28 +197,32 @@ export function contasDaRodada(base, s, rd, jogoCasa, tab) {
       if (prox != null) { f.tvPagas.push(prox); lancar(s, 'socorro', 'Socorro: cota de TV adiantada', cotaTV(c) / 4, rd); }
       else { f.socorro++; lancar(s, 'socorro', 'Socorro: adiantamento da TV (desconta na próxima temporada)', cotaTV(c) / 8, rd); }
       N.push('Caixa negativo: a TV adiantou a cota e os salários foram pagos.');
-      f.atraso = 0;
+      f.atraso = 0; f.atrasoDesde = null;
     } else {
       f.atraso++;
+      const hoje = +dataRodada(s.ano, rd); f.atrasoDesde ??= hoje;
+      const dias = (hoje - f.atrasoDesde) / DIA;                  // a lei conta em meses de atraso, não em rodadas
       f.diretoria = Math.max(0, f.diretoria - 2);
       for (const j of base.elencos[ci]) s.mor[j.id] = Math.max(0, (s.mor[j.id] ?? 62) - Math.min(4, 1 + f.atraso));
       N.push(`Salários atrasados: a ANRESF negou socorro porque ${sc.motivo}. O elenco está irritado.`);
-      // atraso que se arrasta: os mais bem pagos pedem pra sair; depois um deles vai à Justiça e sai de graça
+      // atraso que se arrasta: com 1 mês os mais bem pagos pedem pra sair; com 2 meses (Lei Geral do Esporte, art. 90)
+      // um deles vai à Justiça, sai livre e o clube ainda deve a cláusula compensatória (o resto do contrato)
       const caros = base.elencos[ci].filter(j => !s.emprestimos?.[j.id]).sort((a, b) => salarioDia(base, s, b) - salarioDia(base, s, a));
-      if (f.atraso >= 2) {
+      if (dias >= 30) {
         const pedem = caros.filter(j => !s.querSair?.[j.id]).slice(0, 2);
         for (const j of pedem) (s.querSair ||= {})[j.id] = { de: ci, rodada: rd, motivo: 'está com o salário atrasado' };
         if (pedem.length) N.push(`Com o salário atrasado, ${pedem.map(j => j.curto).join(' e ')} ${pedem.length > 1 ? 'pedem' : 'pede'} para ser negociado${pedem.length > 1 ? 's' : ''}.`);
       }
       if (f.atraso >= 2) N.push(punirFPF(base, s, 'salários atrasados são dívida com credor relevante'));
-      if (f.atraso >= 3 && base.elencos[ci].length > 18 && caros[0]) {
-        const j = caros[0];
+      if (dias >= 60 && base.elencos[ci].length > 18 && caros[0]) {
+        const j = caros[0], v = multaRescisao(base, s, j);
         f.mauPagador = s.ano;
-        liberar(base, s, j);
-        N.push(`${j.curto} vai à Justiça pelos salários atrasados, ganha a rescisão e sai de graça. O clube fica com fama de mau pagador.`);
+        lancar(s, 'rescisao', `Rescisão indireta de ${j.curto} na Justiça (cláusula compensatória)`, -v, rd);
+        liberar(base, s, j, v);
+        N.push(`${j.curto} vai à Justiça com dois meses de salário atrasado, ganha a rescisão indireta e sai livre. O clube ainda deve a cláusula compensatória: ${fmt(v)}. Fica a fama de mau pagador.`);
       }
     }
-  } else if (f.atraso) { f.atraso = 0; for (const j of base.elencos[ci]) s.mor[j.id] = Math.min(100, (s.mor[j.id] ?? 62) + 4); N.push('Salários em dia de novo. O vestiário respirou.'); }
+  } else if (f.atraso) { f.atraso = 0; f.atrasoDesde = null; for (const j of base.elencos[ci]) s.mor[j.id] = Math.min(100, (s.mor[j.id] ?? 62) + 4); N.push('Salários em dia de novo. O vestiário respirou.'); }
   // diretoria acompanha a campanha depois da 5ª rodada
   if (rd >= 4 && pos) f.diretoria = clamp(f.diretoria + clamp((metaDiretoria(base, s).pos - pos) * 0.35 + 0.3, -2, 2), 0, 100);
   return N;

@@ -556,7 +556,7 @@ function migrar(s) {
   s.anoInicial ??= s.ano;
   aplicarSave(app.base, s);
   s.est ||= {};
-  encerrarPendente(app.base, s); // leilão que ficou aberto quando o app fechou: a sala termina sem você
+  if (s.leilaoAtivo?.comecou) encerrarPendente(app.base, s); // leilão começado e largado quando o app fechou: a sala termina sem você (o que nem começou abre de novo)
   copaSemVoce(app.base, s); // saves de antes da copa ganham a edição do ano (fases atrasadas se resolvem sozinhas)
   if (s.caixa == null) s.caixa = caixaInicial(app.base, s.tecnico.clube, s.dificuldade);
   garantirFinancas(app.base, s);
@@ -614,6 +614,8 @@ async function render() {
   const precisaJogo = ['clube', 'elenco', 'torneios', 'calendario', 'partida', 'noticias', 'mercado', 'financas', 'carreira', 'coletiva', 'mensagens', 'gala', 'leilao'].includes(rota);
   if (!app.conta && rota !== 'entrar') { location.hash = '#/entrar'; return; }
   if (precisaJogo && !app.s) { location.hash = '#/saves'; return; }
+  // leilão por jogador que você quer: a sala abre sozinha, por cima do que estiver fazendo (menos no meio do jogo e da coletiva)
+  if (precisaJogo && rota !== 'leilao' && rota !== 'coletiva' && app.s.leilaoAtivo && !app.s.leilaoAtivo.fim && !app.s.demitido) { location.hash = '#/leilao'; return; }
   if (rota === 'novo' && !app.novo) { location.hash = '#/saves'; return; }
   if (!telas[rota]) { location.hash = app.s ? '#/clube' : '#/saves'; return; }
   if (app.aba !== rota) { app.vaga = null; if ($('#ficha').open) $('#ficha').close(); }

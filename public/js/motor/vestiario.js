@@ -134,7 +134,7 @@ export function vestiarioAposRodada(base, s, tabs) {
   for (const j of el) {
     if ((s.pedidosAumento || []).some(p => p.jogador === j.id) || s.aumentoPedido?.[j.id] === s.ano) continue;
     const quer = faseDe(s, j.id).k === 'excelente' || ((s.est?.[j.id]?.[1] || 0) >= 8 && temperamento(j) !== 'profissional');
-    if (!quer || salarioDia(base, s, j) > salarioBase(base.clubes[ci].div, j.valor) * 1.4 || r() > 0.12) continue;
+    if (!quer || salarioDia(base, s, j) > salarioBase(base.clubes[ci], j) * 1.4 || r() > 0.12) continue;
     const valor = Math.round(salarioDia(base, s, j) * (1.25 + r() * 0.2) / 10) * 10;
     (s.pedidosAumento ||= []).push({ jogador: j.id, valor, rodada: s.rodada });
     (s.aumentoPedido ||= {})[j.id] = s.ano;
