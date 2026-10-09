@@ -38,7 +38,7 @@ function opiniaoGigante(base, s, j, x) {
   return `O ${c.n} (${c.liga}) oferece ${fm(x.valor)} por ${j.curto} e quer pagar a ele ${fm(x.salario)} por dia, ${String(x.mult).replace('.', ',')}x o que ganha hoje (${fm(salarioDia(base, s, j))}). ${fase} ${quer} ${conselho}`;
 }
 function opiniao(base, s, j, x) {
-  const el = base.elencos[s.tecnico.clube].slice().sort((a, b) => b.ovr - a.ovr), rank = el.indexOf(j), ref = precoPedido(base, s, j), r = x.valor / Math.max(1, ref);
+  const el = base.elencos[s.tecnico.clube].slice().sort((a, b) => b.ovr - a.ovr), rank = el.indexOf(j), ref = precoPedido(base, s, j, x.de), r = x.valor / Math.max(1, ref);
   const papel = rank < 11 ? 'é titular' : rank < 18 ? 'é peça de rotação' : 'quase não joga';
   const conta = r >= 1.15 ? 'É dinheiro acima do que ele vale.' : r >= 0.95 ? 'O valor é justo.' : 'Está abaixo do que ele vale.';
   const conselho = r >= 1.15 && rank >= 11 ? 'Eu venderia sem pensar.' : r >= 1.15 ? 'Dá pra vender e repor com folga, mas a decisão é sua.' : r >= 0.95 && rank >= 18 ? 'Vale vender e aliviar a folha.' : rank < 5 ? 'Ele é dos nossos melhores. Eu seguraria.' : r < 0.95 ? 'Eu recusaria ou esperaria uma oferta melhor.' : 'Depende do que você planeja pra ele.';

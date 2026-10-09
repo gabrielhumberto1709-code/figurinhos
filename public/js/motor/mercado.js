@@ -7,10 +7,11 @@
 import { rivais } from './rivais.js';
 import { premiado } from './gala.js';
 import { faseDe } from './forma.js';
-import { rng, clamp, pickW, shuffle, SETOR, nivelDiv, estrelas, continenteDe } from './util.js';
+import { rng, clamp, pickW, shuffle, SETOR, nivelDiv, estrelas, continenteDe, fmtDinheiro } from './util.js';
 import { temperamento, tratar } from './vestiario.js';
 import { interessados, media } from './noticias.js';
 import { janelaAberta, caixaInicial, aplicarSave, evolucao } from './mundo.js';
+import { dataAmistoso, doAno } from './calendario.js';
 import { orcamento, lancar, garantirFinancas, salarioDia, salarioBase, diasRestantes, registroBloqueado, passaDoTeto } from './financas.js';
 import { naSelecao } from './selecao.js';
 import { enviar } from './correio.js';
@@ -20,7 +21,7 @@ const arredSal = v => Math.max(10, Math.round(v / 10) * 10);
 export const LIMITE_ELENCO = 45, MINIMO_ELENCO = 18, ABRE_PRE = 19, MAX_PRE = 5, TRAVA = 14;
 const ehLivre = (base, ci) => base.clubes[ci].div === 'L';
 const BR = ['A', 'B', 'C'];
-const fmt = v => v >= 1e6 ? `€ ${(v / 1e6).toFixed(1).replace('.', ',').replace(',0', '')} mi` : `€ ${Math.round(v / 1000)} mil`;
+const fmt = v => fmtDinheiro(v);
 
 // campos do mercado no save (saves antigos ganham os que faltam)
 export function garantirMercado(s) {
@@ -74,22 +75,24 @@ export function situacao(base, s, j) {
 }
 
 // ---------- preço e salário ----------
-export function precoPedido(base, s, j) {
+// preço pedido ao comprador (por padrão, você). Contrato acabando barateia mês a mês: nos últimos 6 meses ele já
+// pode assinar pré-contrato de graça. O resto dos fatores fica entre 0,35x e 2,2x o valor de mercado.
+const hoje = s => s.ultimaData ?? +dataAmistoso(s.ano, 0);
+export const mesesDeContrato = (s, j) => (+doAno(j.contrato, '12-31') - hoje(s)) / (30.44 * 864e5);
+export const fatorContrato = m => m >= 24 ? 1 : m >= 12 ? 0.8 + 0.2 * (m - 12) / 12 : m >= 6 ? 0.5 + 0.3 * (m - 6) / 6 : Math.max(0.15, 0.5 * m / 6);
+export function precoPedido(base, s, j, comprador = s.tecnico.clube) {
   if (ehLivre(base, j.clube)) return 0;
-  let v = j.valor * 1000 || 30000;
-  const el = base.elencos[j.clube].slice().sort((a, b) => b.ovr - a.ovr), rank = el.indexOf(j);
-  v *= rank < 11 ? 1.35 : rank < 18 ? 1.1 : 0.85;
-  const anos = j.contrato - s.ano;
-  v *= anos <= 0 ? 0.5 : anos === 1 ? 0.8 : 1;
-  if (j.idade <= 21 && j.pot >= j.ovr + 8) v *= 1.4;
-  if (media(s.est?.[j.id]) >= 7) v *= 1.2;
-  if (premiado(s, j.id)) v *= 1.15;                                     // premiado na última gala
-  v *= 1 + faseDe(s, j.id).d * 0.05;                                   // fase excelente encarece 15%, péssima barateia
-  if (base.clubes[j.clube].div === 'X') v *= 1.15;                      // clube de fora não vende barato
-  if (rank < 3 && base.clubes[j.clube].div === base.clubes[s.tecnico.clube].div) v *= 1.3; // não vende craque pra rival direto
-  if (listasIA(base, s).venda.has(j.id)) v *= 0.7;                       // está à venda: o clube quer se livrar
-  if (rivais(base, j.clube, s.tecnico.clube)) v *= 1.6;                  // vender pro rival só se for muito bom
-  return arred(v);
+  const el = base.elencos[j.clube].slice().sort((a, b) => b.ovr - a.ovr), rank = el.indexOf(j), daqui = base.clubes[j.clube];
+  let f = rank < 11 ? 1.35 : rank < 18 ? 1.1 : 0.85;
+  if (j.idade <= 21 && j.pot >= j.ovr + 8) f *= 1.4;
+  if (media(s.est?.[j.id]) >= 7) f *= 1.2;
+  if (premiado(s, j.id)) f *= 1.15;                                     // premiado na última gala
+  f *= 1 + faseDe(s, j.id).d * 0.05;                                   // fase excelente encarece 15%, péssima barateia
+  if (daqui.div === 'X') f *= 1.15;                                     // clube de fora não vende barato
+  if (rank < 3 && j.clube !== comprador && daqui.div === base.clubes[comprador].div) f *= 1.3; // não vende craque pra concorrente direto
+  if (listasIA(base, s).venda.has(j.id)) f *= 0.7;                       // está à venda: o clube quer se livrar
+  if (rivais(base, j.clube, comprador)) f *= 1.6;                        // vender pro rival só se for muito bom
+  return arred((j.valor * 1000 || 30000) * clamp(f, 0.35, 2.2) * fatorContrato(mesesDeContrato(s, j)));
 }
 
 // quanto o jogador quer vir (0-100). Clube maior, divisão, chance de ser titular, idade e nome do técnico pesam.
@@ -604,8 +607,8 @@ function rebaixadosIA(base, s, rd, r, aberta, add) {
     if (!j || q.ano !== s.ano || j.clube !== q.de) { delete s.quedaIA[id]; continue; }
     if (aberta) {
       if (r() > 0.2) continue;
-      const ops = interessados(base, j).filter(ci => ci !== meu && base.elencos[ci].length < 38 && vontade(base, s, j, ci) >= 45), valor = precoPedido(base, s, j);
-      const para = ops.length ? pickW(r, ops, ci => base.clubes[ci].fan) : null;
+      const ops = interessados(base, j).filter(ci => ci !== meu && base.elencos[ci].length < 38 && vontade(base, s, j, ci) >= 45);
+      const para = ops.length ? pickW(r, ops, ci => base.clubes[ci].fan) : null, valor = para == null ? 0 : precoPedido(base, s, j, para);
       if (para == null || caixaDe(base, s, para) * (base.clubes[para].div === 'X' ? 3 : 0.6) < valor) continue;
       transferir(base, s, j, para, valor); s.historicoTransf[0].ia = true; delete s.quedaIA[id];
       add(`Depois da queda, o ${base.clubes[q.de].n} perde ${j.curto}: ele acerta com o ${base.clubes[para].n} por ${fmt(valor)}.`, 'mercado', base.clubes[para].div, { jogador: j.id });
@@ -623,7 +626,7 @@ function rebaixadosIA(base, s, rd, r, aberta, add) {
 const FATOR_FASE = { pessima: 1, ruim: 1.15, normal: 1.35, boa: 1.6, excelente: 1.9 };
 export function gigante(base, s, j, de, arabe, r) {
   const f = faseDe(s, j.id), atual = salarioDia(base, s, j);
-  const valor = arred(precoPedido(base, s, j) / (1 + f.d * 0.05) * FATOR_FASE[f.k] * (0.95 + r() * 0.15));
+  const valor = arred(precoPedido(base, s, j, de) / (1 + f.d * 0.05) * FATOR_FASE[f.k] * (0.95 + r() * 0.15));
   const mult = Math.round((arabe ? 3 + r() + (f.k === 'excelente' ? 0.3 : 0) : 1.5 + r() * 0.7) * 10) / 10;
   const t = temperamento(j), mor = s.mor[j.id] ?? 62;
   let v = 40 + (mult - 1) * 9 + (arabe ? (j.idade >= 30 ? 15 : j.idade <= 24 ? -20 : 0) : 25 + (j.idade <= 27 ? 8 : j.idade >= 31 ? -12 : 0));
@@ -654,9 +657,9 @@ function negociosIA(base, s, rd, r, add) {
     const el = base.elencos[ci], f = base.forca(ci), melhorNa = p => el.filter(x => x.pos === p).reduce((m, x) => Math.max(m, x.ovr), 0);
     const pos = POS_CHAVE.slice().sort((a, b) => melhorNa(a) - melhorNa(b))[0], min = melhorNa(pos) + 2, caixa = caixaDe(base, s, ci) * 0.5;
     const cands = [...base.jog.values()].filter(j => j.pos === pos && j.clube !== ci && j.ovr >= min && j.ovr <= f + 5 && !s.emprestimos[j.id] && !preContratoDe(s, j.id)
-      && vendedorAguenta(base, s, j) && precoPedido(base, s, j) <= caixa && vontade(base, s, j, ci) >= 50 && (!rivais(base, j.clube, ci) || r() < 0.03));
+      && vendedorAguenta(base, s, j) && precoPedido(base, s, j, ci) <= caixa && vontade(base, s, j, ci) >= 50 && (!rivais(base, j.clube, ci) || r() < 0.03));
     if (!cands.length) continue;
-    const j = pickW(r, cands, x => x.ovr - min + 1), valor = precoPedido(base, s, j), de = mover(j, ci, valor);
+    const j = pickW(r, cands, x => x.ovr - min + 1), valor = precoPedido(base, s, j, ci), de = mover(j, ci, valor);
     add(ehLivre(base, de) ? `Mercado: ${nome(ci)} contrata ${j.curto}, que estava sem clube.` : `${valor >= 5e6 ? 'HERE WE GO! ' : 'Mercado: '}${j.curto} deixa o ${nome(de)} e acerta com o ${nome(ci)} por ${fmt(valor)}.`, 'mercado', base.clubes[ci].div, { jogador: j.id });
   }
   // quem está em fase boa num clube menor é disputado pelos maiores
@@ -666,7 +669,7 @@ function negociosIA(base, s, rd, r, add) {
     if (r() > (faseDe(s, j.id).k === 'excelente' ? 0.12 : 0.05)) continue;
     const ops = interessados(base, j).filter(ci => ci !== meu && base.elencos[ci].length < 38 && vontade(base, s, j, ci) >= 45);
     if (!ops.length) continue;
-    const para = pickW(r, ops, ci => base.clubes[ci].fan), valor = arred(precoPedido(base, s, j) * (1 + r() * 0.2));
+    const para = pickW(r, ops, ci => base.clubes[ci].fan), valor = arred(precoPedido(base, s, j, para) * (1 + r() * 0.2));
     if (caixaDe(base, s, para) * (base.clubes[para].div === 'X' ? 3 : 0.6) < valor) continue;
     const de = mover(j, para, valor); quentes++;
     add(`${valor >= 5e6 ? 'HERE WE GO! Em' : 'Mercado: em'} grande fase, ${j.curto} deixa o ${nome(de)} e acerta com o ${nome(para)} por ${fmt(valor)}.`, 'mercado', base.clubes[de].div, { jogador: j.id });
@@ -676,7 +679,7 @@ function negociosIA(base, s, rd, r, add) {
     const j = destaques.length && pickW(r, destaques, x => x.ovr - 72);
     const fora = j && interessados(base, j).filter(ci => base.clubes[ci].div === 'X');
     if (fora?.length) {
-      const para = pickW(r, fora, ci => base.clubes[ci].fan), valor = arred(precoPedido(base, s, j) * (1 + r() * 0.3)), de = mover(j, para, valor);
+      const para = pickW(r, fora, ci => base.clubes[ci].fan), valor = arred(precoPedido(base, s, j, para) * (1 + r() * 0.3)), de = mover(j, para, valor);
       add(`HERE WE GO! Venda para o exterior: ${j.curto} troca o ${nome(de)} pelo ${nome(para)} (${base.clubes[para].liga}) por ${fmt(valor)}.`, 'mercado', base.clubes[de].div, { jogador: j.id });
     }
   }
@@ -872,7 +875,7 @@ export function resolverMercado(base, s, rd, semana = 0) {
       let opcoes = interessados(base, j);
       if ((listado || queda) && !opcoes.length) opcoes = base.clubes.map((c, i) => i).filter(ci => BR.includes(base.clubes[ci].div) && ci !== meu && !rivais(base, ci, meu) && Math.abs(base.forca(ci) - j.ovr) <= 5);
       if (!opcoes.length) continue;
-      const de = pickW(r, opcoes, ci => base.clubes[ci].fan + (naContinental(s, ci) ? 4 : 0)), valor = queda ? arred(j.valor * 1000 * (0.7 + r() * 0.3)) : arred(precoPedido(base, s, j) * (listado ? 0.7 + r() * 0.25 : 0.85 + r() * 0.3 + f.d * 0.04));
+      const de = pickW(r, opcoes, ci => base.clubes[ci].fan + (naContinental(s, ci) ? 4 : 0)), valor = queda ? arred(j.valor * 1000 * (0.7 + r() * 0.3)) : arred(precoPedido(base, s, j, de) * (listado ? 0.7 + r() * 0.25 : 0.85 + r() * 0.3 + f.d * 0.04));
       if (caixaDe(base, s, de) < valor) continue;
       const motivo = queda ? `não quer jogar a Série ${queda.div}` : querIr(base, s, j, de), quer = motivo && (queda || r() < 0.8) ? motivo : null;
       s.recebidas.push({ id: `${j.id}-${de}-${rd}`, tipo: 'compra', jogador: j.id, de, valor, rodada: rd, quer });

@@ -1,5 +1,5 @@
 // Finanças do seu clube: salários por dia, bilheteria, TV, patrocínio, prêmios, extrato, diretoria e socorro.
-import { clamp, rng } from './util.js';
+import { clamp, rng, fmtDinheiro } from './util.js';
 import { rivais } from './rivais.js';
 import { dataRodada, tabela } from './mundo.js';
 import { liberar } from './mercado.js';
@@ -88,7 +88,7 @@ export function socorro(base, s) {
   if (t.folha0 && folha > t.folha0 * 1.1) return { ok: false, motivo: `a folha subiu ${Math.round((folha / t.folha0 - 1) * 100)}% desde o começo da temporada` };
   return { ok: true };
 }
-const fmt = v => v >= 1e6 ? `€ ${(v / 1e6).toFixed(1).replace('.', ',')} mi` : `€ ${Math.round(v / 1000)} mil`;
+const fmt = v => fmtDinheiro(v);
 
 // meta da diretoria pelo tamanho do elenco na divisão
 export function metaDiretoria(base, s) {

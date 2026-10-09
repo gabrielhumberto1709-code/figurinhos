@@ -17,7 +17,7 @@ export const RELOGIO = 30, UMA = 10, DUAS = 5;
 const r10 = v => Math.round(v / 1e4) * 1e4;
 // lance mínimo: 3% acima do atual (pelo menos € 10 mil), e nunca abaixo do preço pedido pelo vendedor
 export const minimo = L => Math.max(L.reserva || 0, r10(L.valor + Math.max(1e4, L.valor * 0.03)));
-export const fmtLance = v => v >= 1e6 ? `€ ${(v / 1e6).toFixed(2).replace('.', ',')} mi` : `€ ${Math.round(v / 1e3)} mil`;
+export const fmtLance = v => fmtDinheiro(v, 2);
 const sorte = L => rng(`${L.seed}-${L.k++}`)();
 
 // ---------- núcleo ----------
@@ -118,7 +118,7 @@ export function concorrentes(base, s, j, valor) {
     const el = base.elencos[ci];
     if (el.length >= 38 || j.ovr < base.forca(ci) - 4 || el.filter(x => x.pos === j.pos && x.ovr >= j.ovr).length >= 2) return;
     if (r() >= chance || vontade(base, s, j, ci) < 45) return;
-    const max = r10(Math.min(caixaDe(base, s, ci) * (c.div === 'X' ? 3 : 0.6), ped * (1.05 + r() * 0.5 + f.d * 0.06)));
+    const max = r10(Math.min(caixaDe(base, s, ci) * (c.div === 'X' ? 3 : 0.6), precoPedido(base, s, j, ci) * (1.05 + r() * 0.5 + f.d * 0.06)));
     if (max >= piso) out.push({ ci, max, peso: c.fan + r() * 4 });
   });
   return out.sort((a, b) => b.peso - a.peso).slice(0, 3).map(({ ci, max }) => ({ ci, max }));

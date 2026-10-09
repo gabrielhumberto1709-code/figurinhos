@@ -3,7 +3,7 @@
 // tudo, para o relógio correr liso no celular. Martelo batido: carimbo "Arrematado" na figurinha e o resultado.
 import * as Lm from './motor/leilao.js';
 import { aceitarRecebida, recusarRecebida } from './motor/mercado.js';
-import { cartaDe } from './motor/util.js';
+import { cartaDe, valorCurto, lerValor } from './motor/util.js';
 import { urlRosto, urlEscudo, urlLeiloeiro } from './pixel.js';
 import { SOM } from './sons.js';
 
@@ -60,7 +60,7 @@ function status(L) {
   if (L.modo === 'venda') return `Maior lance: <b>${Lm.fmtLance(L.valor)}</b>, ${H.esc(O(L.lider))}`;
   return L.lider === meu ? `Você lidera com <b>${Lm.fmtLance(L.valor)}</b>` : `${H.esc(Oo(L.lider))} lidera com <b>${Lm.fmtLance(L.valor)}</b>`;
 }
-const emMi = v => (v / 1e6).toFixed(2);
+const emMi = v => valorCurto(v, 2);
 
 export function tela() {
   const L = sala();
@@ -78,7 +78,7 @@ export function tela() {
       <button class="botao grande" type="button" data-acao="lei-comecar">Começar</button>
       ${L.modo === 'compra' ? `<p class="mudo">Você pode gastar até ${Lm.fmtLance(eu.max)} (caixa e orçamento de compras). Sair da sala conta como desistência: os outros seguem disputando.</p>` : '<p class="mudo">Você só assiste: os clubes disputam entre eles.</p>'}</section>`;
   const mesa = L.modo === 'compra' ? `<form class="lei-form" data-form="lance">
-      <label>Seu lance (€ milhões) <input type="number" name="valor" inputmode="decimal" step="0.01" min="${emMi(Lm.minimo(L))}" value="${emMi(Lm.minimo(L))}" ${eu.fora ? 'disabled' : ''}></label>
+      <label>Seu lance <input type="text" name="valor" inputmode="text" autocomplete="off" spellcheck="false" data-dinheiro value="${emMi(Lm.minimo(L))}" ${eu.fora ? 'disabled' : ''}><small class="dinheiro-prev">Ex.: 500 mil, 5M ou 5,5M</small></label>
       <div class="chips">${[['Mínimo', 0], ['+5%', 0.05], ['+10%', 0.1]].map(([t, f]) => `<button type="button" class="chip" data-acao="lei-sug" data-f="${f}" ${eu.fora ? 'disabled' : ''}>${t}</button>`).join('')}</div>
       <p class="erro" role="alert"></p>
       <div class="linha-botoes"><button class="botao" type="submit" id="lei-dar" ${eu.fora || L.lider === meu ? 'disabled' : ''}>Dar lance</button><button class="botao sec" type="button" data-acao="lei-desistir" id="lei-sair" ${eu.fora || L.lider === meu ? 'disabled' : ''}>Desistir</button></div>
@@ -113,8 +113,8 @@ function aplicar(L, e) {
     if (f) {
       const lidero = L.lider === meu, min = Lm.minimo(L);
       for (const id of ['#lei-dar', '#lei-sair']) { const b = $(id); if (b) b.disabled = lidero || L.P[meu].fora; }
-      if (!lidero && !(parseFloat(String(f.valor.value).replace(',', '.')) * 1e6 >= min)) f.valor.value = emMi(min);
-      f.valor.min = emMi(min); f.querySelector('.erro').textContent = '';
+      if (!lidero && !(lerValor(f.valor.value) >= min)) f.valor.value = emMi(min);
+      f.querySelector('.erro').textContent = '';
     }
     falar(falaLance(L, e.ci, e.valor));
   } else if (e.tipo === 'sai') {
@@ -156,7 +156,7 @@ export function podeSair() {
 // ---------- ações ----------
 export function darLance(form) {
   const L = S().leilaoAtivo, meu = S().tecnico.clube; if (!L) return;
-  const v = Math.round(parseFloat(String(form.valor.value).replace(',', '.')) * 1e6);
+  const v = lerValor(form.valor.value);
   const e = Lm.lanceLeilao(L, meu, v);
   if (e) { form.querySelector('.erro').textContent = e; return; }
   aplicar(L, { tipo: 'lance', ci: meu, valor: L.valor }); H.salvar();

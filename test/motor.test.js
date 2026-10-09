@@ -1086,3 +1086,16 @@ test('rebaixado: os melhores com perfil pedem para sair e, sem venda até a jane
   assert.ok(s.caixa - cx > -5e6 && s.historicoTransf.some(h => h.tipo === 'rescisao' && h.de === meu && h.valor > 0) || multas === 0);
   assert.ok(!Object.keys(s.quedaIA).length, 'na IA, quem sobrou rescindiu');
 });
+
+import { lerValor, fmtDinheiro as fmtD } from '../public/js/motor/util.js';
+test('preço: negócio entre clubes da IA não depende do seu clube; contrato acabando barateia mês a mês; dinheiro em 500 mil e 5M', () => {
+  const ci = n => base.clubes.findIndex(c => c.n === n), j = [...base.jog.values()].find(x => x.curto === 'Arrascaeta'), pal = ci('Palmeiras');
+  const precos = ['Athletico-PR', 'Fortaleza', 'Fluminense'].map(n => precoPedido(base, novoJogo(base, { ...cfg(3), clube: ci(n) }), j, pal));
+  assert.equal(new Set(precos).size, 1);
+  const s = novoJogo(base, cfg(4)), k = [...base.jog.values()].find(x => base.clubes[x.clube].div === 'A' && x.contrato === s.ano && x.clube !== s.tecnico.clube);
+  const fim = precoPedido(base, s, k); s.ultimaData = Date.UTC(s.ano, 7, 1); const agosto = precoPedido(base, s, k);
+  s.ultimaData = null; s.contratos[k.id] = s.ano + 3; aplicarSave(base, s); const renovado = precoPedido(base, s, k);
+  assert.ok(agosto < fim * 0.7 && renovado / fim < 1.35, `${fim} ${agosto} ${renovado}`);
+  assert.deepEqual(['500mil', '500 mil', '5M', '5,5m', '1.500.000', '12,5', '500'].map(lerValor), [5e5, 5e5, 5e6, 5.5e6, 1.5e6, 12.5e6, 5e5]);
+  assert.deepEqual([4.5e5, 5e6, 12.4e6].map(v => fmtD(v)), ['€ 450 mil', '€ 5M', '€ 12,4M']);
+});

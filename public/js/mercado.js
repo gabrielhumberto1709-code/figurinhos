@@ -5,7 +5,7 @@ import * as M from './motor/mercado.js';
 import { abrirLeilaoCompra, abrirLeilaoVenda } from './motor/leilao.js';
 import { orcamento, salarioDia, salarioBase, tetoSalarial } from './motor/financas.js';
 import { faseDe } from './motor/forma.js';
-import { POS_NOME, POS_ORDEM, SETOR, cartaDe, estrelas, fmtDinheiro, CONTINENTES, continenteDe } from './motor/util.js';
+import { POS_NOME, POS_ORDEM, SETOR, cartaDe, estrelas, fmtDinheiro, valorCurto, lerValor, CONTINENTES, continenteDe } from './motor/util.js';
 import { urlRosto } from './pixel.js';
 import { dataAmistoso, JANELAS, doAno } from './motor/calendario.js';
 
@@ -228,15 +228,17 @@ export function potencialTxt(j) {
 const anosSelect = (nome, v = 3) => `<label>Contrato <select name="${nome}">${[1, 2, 3, 4, 5].map(n => `<option value="${n}" ${n === v ? 'selected' : ''}>${n} ${n > 1 ? 'anos' : 'ano'}</option>`).join('')}</select></label>`;
 
 // cláusulas do empréstimo: taxa, salário, compra (opção ou obrigação com gatilho), minutagem, medo e revenda
-const mi = v => (v / 1e6).toFixed(2);
+// campos de dinheiro aceitam 500mil, 5M, 5,5M (lerValor) e mostram embaixo quanto entendeu
+const txt = v => valorCurto(v, 2), DICA = 'Ex.: 500 mil, 5M ou 5,5M';
+const campoDinheiro = (nome, v) => `<input type="text" name="${nome}" inputmode="text" autocomplete="off" spellcheck="false" data-dinheiro value="${txt(v)}"><small class="dinheiro-prev">${DICA}</small>`;
 function formEmprestimo(j) {
   const s = S(), b = B(), c = M.limpaCl(b, s, j), opt = (nome, l, v) => `<select name="${nome}">${l.map(([k, t]) => `<option value="${k}" ${String(k) === String(v) ? 'selected' : ''}>${t}</option>`).join('')}</select>`;
   return `<div class="so-emprestimo clausulas">
     <p class="mudo">Empréstimo até o fim da temporada. Salário cheio: ${euro(salarioDia(b, s, j))}/dia.</p>
-    <div class="campos-2"><label>Taxa de empréstimo (€ milhões) <input type="number" name="taxa" inputmode="decimal" step="0.01" min="0" value="0"></label>
+    <div class="campos-2"><label>Taxa de empréstimo ${campoDinheiro('taxa', 0)}</label>
       <label>Você paga do salário ${opt('pct', [[100, '100%'], [75, '75%'], [50, '50%']], 100)}</label></div>
     <div class="campos-2"><label>Cláusula de compra ${opt('compra', [['nenhuma', 'Nenhuma'], ['opcao', 'Opção de compra'], ['obrigacao', 'Obrigação de compra']], 'nenhuma')}</label>
-      <label>Valor da compra (€ milhões) <input type="number" name="valorCompra" inputmode="decimal" step="0.01" min="0.05" value="${mi(c.valorCompra)}"></label></div>
+      <label>Valor da compra ${campoDinheiro('valorCompra', c.valorCompra)}</label></div>
     <div class="campos-2"><label>Obrigação vale ${opt('gatilho', Object.entries(M.GATILHOS), 'jogos')}</label>
       <label>N de jogos (gatilho) <input type="number" name="jogos" inputmode="numeric" min="1" max="38" value="15"></label></div>
     <div class="campos-2"><label>Jogos mínimos (senão multa) <input type="number" name="minimo" inputmode="numeric" min="0" max="30" value="0"></label>
@@ -244,7 +246,7 @@ function formEmprestimo(j) {
     <label class="check"><input type="checkbox" name="medo"> Cláusula do medo: ele não enfrenta o ${H.esc(H.clube(j.clube).n)}</label>
     <p class="chance-emp">${chanceEmp(j, c)}</p></div>`;
 }
-const lerCl = form => { const v = n => form[n]?.value; return { taxa: (parseFloat(String(v('taxa') || 0).replace(',', '.')) || 0) * 1e6, pct: v('pct'), compra: v('compra'), valorCompra: (parseFloat(String(v('valorCompra') || 0).replace(',', '.')) || 0) * 1e6, gatilho: v('gatilho'), jogos: v('jogos'), minimo: v('minimo'), medo: form.medo?.checked, revenda: v('revenda') }; };
+const lerCl = form => { const v = n => form[n]?.value; return { taxa: lerValor(v('taxa')) || 0, pct: v('pct'), compra: v('compra'), valorCompra: lerValor(v('valorCompra')) || 0, gatilho: v('gatilho'), jogos: v('jogos'), minimo: v('minimo'), medo: form.medo?.checked, revenda: v('revenda') }; };
 function chanceEmp(j, cl) {
   const n = M.notaEmprestimo(B(), S(), j, cl);
   return `Chance de o ${H.esc(H.clube(j.clube).n)} aceitar: <b>${n >= 62 ? 'alta' : n >= 50 ? 'boa' : n >= 40 ? 'baixa' : 'quase nenhuma'}</b>`;
@@ -292,8 +294,8 @@ export function blocoFicha(j) {
       : fixo ? `<p class="erro">${H.esc(geral)}</p>`
       : `<form class="proposta" data-form="proposta" data-id="${j.id}" data-pedido="${pedido}">
         ${tipos.length > 1 ? `<div class="chips tipos" role="radiogroup" aria-label="Tipo de proposta">${tipos.map(t => `<label class="chip"><input class="vh" type="radio" name="tipo" value="${t}" ${t === tipo0 ? 'checked' : ''}>${NOME_TIPO[t]}</label>`).join('')}</div>` : `<input type="hidden" name="tipo" value="${tipos[0]}">`}
-        ${tipos.includes('compra') ? `<div class="so-compra"><label>Valor da transferência (€ milhões) <input type="number" name="valor" inputmode="decimal" step="0.01" min="0.05" value="${(pedido / 1e6).toFixed(2)}"></label>
-          <div class="chips">${[0.85, 1, 1.15].map(f => `<button type="button" class="chip" data-acao="sugerir" data-v="${(pedido * f / 1e6).toFixed(2)}">${fmtDinheiro(Math.round(pedido * f / 1e4) * 1e4)}</button>`).join('')}</div>
+        ${tipos.includes('compra') ? `<div class="so-compra"><label>Valor da transferência ${campoDinheiro('valor', pedido)}</label>
+          <div class="chips">${[0.85, 1, 1.15].map(f => `<button type="button" class="chip" data-acao="sugerir" data-v="${txt(Math.round(pedido * f / 1e4) * 1e4)}">${fmtDinheiro(Math.round(pedido * f / 1e4) * 1e4)}</button>`).join('')}</div>
           <label>Jogador na troca <select name="troca"><option value="">Sem troca</option>${b.elencos[s.tecnico.clube].filter(t => !s.emprestimos[t.id] && !M.travado(s, t.id) && !M.preContratoDe(s, t.id)).sort((x, y) => y.ovr - x.ovr).map(t => `<option value="${t.id}" data-v="${M.valorNaTroca(b, s, t, j.clube)}">${H.esc(t.curto)} · ${t.pos} ${t.ovr} · abate ~${fmtDinheiro(M.valorNaTroca(b, s, t, j.clube))}</option>`).join('')}</select></label></div>` : ''}
         <div class="campos-2 nao-emprestimo"><label>Salário por dia (€) <input type="number" name="salario" inputmode="numeric" min="10" step="10" value="${pede}"></label>${anosSelect('anos')}</div>
         ${tipos.includes('emprestimo') ? formEmprestimo(j) : ''}${promessa}
@@ -313,7 +315,7 @@ export function enviar(form) {
     H.$('#ficha').close(); H.aviso(r.txt); H.render(); H.salvar(); return;
   }
   const tipo = form.querySelector('[name=tipo]:checked, [name=tipo][type=hidden]')?.value || 'compra';
-  const e = M.fazerProposta(b, s, j, { tipo, valor: Math.round((num('valor') || 0) * 1e6), salario: tipo === 'emprestimo' ? salarioDia(b, s, j) : Math.round(num('salario')), anos: Math.round(num('anos')), troca: tipo === 'compra' ? +form.troca?.value || 0 : 0, promessa: !!form.promessa?.checked, cl: tipo === 'emprestimo' ? lerCl(form) : null });
+  const e = M.fazerProposta(b, s, j, { tipo, valor: lerValor(form.valor?.value) || 0, salario: tipo === 'emprestimo' ? salarioDia(b, s, j) : Math.round(num('salario')), anos: Math.round(num('anos')), troca: tipo === 'compra' ? +form.troca?.value || 0 : 0, promessa: !!form.promessa?.checked, cl: tipo === 'emprestimo' ? lerCl(form) : null });
   if (e) { erro.textContent = e; return; }
   H.$('#ficha').close();
   if (abrirLeilaoCompra(b, s, s.propostas[0].id)) { H.salvar(); location.hash = '#/leilao'; return; } // outro clube também quer: vira leilão na hora
@@ -342,7 +344,7 @@ export const acoes = {
   lista: el => { const e = M.alternarLista(B(), S(), el.dataset.l, +el.dataset.id); if (e) return H.aviso(e); for (const c of el.parentElement.children) c.setAttribute('aria-pressed', S().listas[c.dataset.l].includes(+el.dataset.id)); H.salvar(); },
   observar: el => { const e = M.observar(S(), +el.dataset.id); H.aviso(e || 'O olheiro vai observá-lo na próxima rodada.'); if (!e) el.outerHTML = '<p class="mudo">O olheiro vai observá-lo na próxima rodada.</p>'; H.salvar(); },
   olheiro: re(el => { const o = S().olheiro, k = el.dataset.k; o[k] = k === 'jovens' ? el.dataset.v === '1' : el.dataset.v; }, true),
-  sugerir: el => { el.closest('form').valor.value = el.dataset.v; },
+  sugerir: el => { const c = el.closest('form').valor; c.value = el.dataset.v; aoDigitar(c); },
   'aceitar-contra': re(el => { H.aviso(M.aceitarContraproposta(B(), S(), el.dataset.id) || 'Topou. A resposta final sai na próxima rodada.'); }, true),
   desistir: re(el => { M.desistir(S(), el.dataset.id); }, true),
   'aceitar-recebida': re(el => { H.aviso(M.aceitarRecebida(B(), S(), el.dataset.id) || 'Negócio fechado.'); if (H.$('#ficha').open) H.$('#ficha').close(); }, true),
@@ -361,6 +363,7 @@ export const acoes = {
 // digitação e sliders: atualiza sem redesenhar a tela inteira (não perde o foco)
 export function aoDigitar(el) {
   if (!H?.app.s) return false;
+  if (el.dataset?.dinheiro != null) { const o = el.parentElement.querySelector('.dinheiro-prev'), v = lerValor(el.value); if (o) o.textContent = v > 0 ? `= ${fmtDinheiro(v, 2)}` : DICA; }
   const k = el.dataset?.filtro;
   if (k) { filtro()[k] = el.value; filtro().n = 50; refazerLista(); return true; }
   const fx = el.dataset?.faixa;
@@ -376,8 +379,8 @@ export function aoDigitar(el) {
   }
   if (el.name === 'tipo' && el.closest('[data-form=proposta]')) { H.app.tipoProposta = el.value; return true; }
   if (el.closest?.('.clausulas')) { const f = el.form, j = B().jog.get(+f.dataset.id), c = f.querySelector('.chance-emp'); if (j && c) c.innerHTML = chanceEmp(j, M.limpaCl(B(), S(), j, lerCl(f))); return true; }
-  if (el.name === 'troca') { const f = el.form; f.valor.value = (Math.max(0, f.dataset.pedido - (+el.selectedOptions[0]?.dataset.v || 0)) / 1e6).toFixed(2); return true; }
-  return false;
+  if (el.name === 'troca') { const f = el.form; f.valor.value = txt(Math.max(0, f.dataset.pedido - (+el.selectedOptions[0]?.dataset.v || 0))); return true; }
+  return el.dataset?.dinheiro != null;
 }
 // filtros fechados (botão ou toque fora): redesenha a lista
 export function aoFecharDialog() { if (H.app.filtrosAbertos) { H.app.filtrosAbertos = false; if (H.app.aba === 'mercado') H.render(); } }

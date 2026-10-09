@@ -51,4 +51,14 @@ export const PAISES = { BRA: 'Brasil', ARG: 'Argentina', ESP: 'Espanha', FRA: 'F
 export const CONTINENTES = { AMS: 'América do Sul', EUR: 'Europa', AFR: 'África', AMN: 'América do Norte e Central', ASI: 'Ásia e Oceania' };
 const CONT_DE = {}; for (const [k, l] of Object.entries(CONT)) for (const n of l.split(' ')) CONT_DE[n] = k;
 export const continenteDe = nat => CONT_DE[nat] || '';
-export const fmtDinheiro = v => v >= 1e6 ? `€ ${(v / 1e6).toFixed(v >= 1e7 ? 0 : 1).replace('.', ',')} mi` : v >= 1e3 ? `€ ${Math.round(v / 1e3)} mil` : `€ ${v}`;
+// dinheiro como se fala: € 500 mil, € 5M, € 12,4M (casas = decimais no milhão, sem zeros sobrando)
+const decimais = (v, casas) => String(parseFloat(v.toFixed(casas))).replace('.', ',');
+export const valorCurto = (v, casas = 1) => v >= 999500 ? `${decimais(v / 1e6, v >= 1e8 ? 0 : casas)}M` : v >= 1e3 ? `${Math.round(v / 1e3)} mil` : `${Math.round(v)}`;
+export const fmtDinheiro = (v, casas) => `€ ${valorCurto(v, casas)}`;
+// o que a pessoa digita: 500mil, 500 mil, 5M, 5,5m, 2.5M, 1.500.000; número solto vale milhões até 100, milhares até 100 mil
+export function lerValor(t) {
+  const x = String(t ?? '').toLowerCase().replace(/€|\s/g, '').replace(/\.(?=\d{3}(\D|$))/g, '').match(/^(\d+(?:[.,]\d+)?)(milh(?:ões|oes|ão|ao)|mi|m|mil|k)?$/);
+  if (!x) return NaN;
+  const n = parseFloat(x[1].replace(',', '.')), u = x[2] || '';
+  return Math.round(u === 'mil' || u === 'k' ? n * 1e3 : u ? n * 1e6 : n < 100 ? n * 1e6 : n < 1e5 ? n * 1e3 : n);
+}
