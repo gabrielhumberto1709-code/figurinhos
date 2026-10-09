@@ -5,7 +5,7 @@ import { tabela, aplicarSave, caixaInicial, acessoEQueda } from './mundo.js';
 import { FASES_CONT } from './continental.js';
 import { saidaPorQueda } from './carreira.js';
 import { FASES, novaCopa, campanha } from './copa.js';
-import { metaDiretoria, folhaDia, lancar, cotaTV, garantirFinancas, fairPlay, punirFPF, LIMITE_FPF, ANO_FPF, ANO_EQUILIBRIO } from './financas.js';
+import { metaDiretoria, folhaDia, lancar, cotaTV, garantirFinancas, fecharFPF } from './financas.js';
 import { garantirMercado, cumprirAcordos, fimDosEmprestimos, pedidosDeQueda } from './mercado.js';
 import { viradaDM } from './dm.js';
 import { novaCont, campanhaCont } from './continental.js';
@@ -72,12 +72,9 @@ export function virarTemporada(base, s) {
   const add = (texto, tipo = 'clube') => N.push({ rodada: 0, tipo, div: base.clubes[ci].div, texto });
   const tabs = Object.fromEntries(DIVS.map(d => [d, tabela(base, s, d)])), AQ = acessoEQueda(base, s);
   const pos = AQ.cl[div].indexOf(ci) + 1, meta = metaDiretoria(base, s);
-  // fair play financeiro fecha o ano: custo do elenco acima de 70% (a partir de 2029) ou temporada no vermelho (2028+)
-  const fp = fairPlay(base, s), fpN = [];
+  // fair play financeiro fecha o ano (custo do elenco, dívida de curto prazo e equilíbrio de três anos)
   s.puni = {}; // pontos perdidos valem só na temporada da punição (a tabela deste ano já foi fechada acima)
-  if (fp.razao > LIMITE_FPF && s.ano >= ANO_FPF) fpN.push(punirFPF(base, s, `custo do elenco em ${Math.round(fp.razao * 100)}% da receita`));
-  else if (fp.resultado < 0 && s.ano >= ANO_EQUILIBRIO) fpN.push(punirFPF(base, s, 'temporada fechou no vermelho'));
-  else if (s.fpf && fp.razao <= LIMITE_FPF && !fp.divida) s.fpf.degrau = Math.max(0, (s.fpf.degrau || 0) - 1); // ano limpo alivia a escada
+  const fpN = fecharFPF(base, s);
   const premiacao = arquivarGala(base, s, gala(base, s)); // antes de acesso, transferências e da estatística zerada
   const revisao = revisarPotencial(base, s), meusPot = revisao.filter(([j]) => j.clube === ci);
   // histórico de cada jogador no jogo: [ano, clube, jogos, gols, assistências, nota média × 10]
@@ -163,7 +160,7 @@ export function virarTemporada(base, s) {
   viradaDM(base, s);
   s.forma = {}; s.afast = {}; s.julgamentos = [];
   for (const id in s.trato || {}) s.trato[id] = Math.trunc(s.trato[id] / 2); // a mágoa diminui com o tempo
-  Object.assign(s, { rodada: 0, feitas: { ano: s.ano, B: 0, C: 0 }, f2: {}, res: { A: {}, B: {}, C: {} }, cart: {}, est: {}, ultima: null, lider: {}, rumores: {}, destaques: {}, ultimaData: null, recuperado: null, cond: {}, mor: {}, semJogar: {}, xi: null, banco: null, recebidas: [], preContratos: [], querSair: {}, quedaIA: {} });
+  Object.assign(s, { rodada: 0, feitas: { ano: s.ano, B: 0, C: 0 }, f2: {}, res: { A: {}, B: {}, C: {} }, cart: {}, est: {}, ultima: null, lider: {}, rumores: {}, destaques: {}, ultimaData: null, recuperado: null, cond: {}, mor: {}, semJogar: {}, xi: null, banco: null, recebidas: [], preContratos: [], querSair: {}, quedaIA: {}, jogosA: {}, passagens: {} });
   for (const t of pedidosDeQueda(base, s, [...cai.A, ...cai.B])) add(t, 'mercado'); // os melhores de quem caiu pedem para sair
   delete s._cal;
   s.propostas = s.propostas.filter(p => !['aguardando', 'contraproposta'].includes(p.estado)).slice(0, 30);

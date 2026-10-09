@@ -8,7 +8,7 @@
 import { rng, clamp, shuffle, fmtDinheiro } from './util.js';
 import { rivais } from './rivais.js';
 import { faseDe } from './forma.js';
-import { janelaAberta } from './mundo.js';
+import { janelaAberta, naoJogaA } from './mundo.js';
 import { orcamento } from './financas.js';
 import { interessados } from './noticias.js';
 import { caixaDe, precoPedido, vontade, transferir, querIr, clausula } from './mercado.js';
@@ -114,7 +114,7 @@ export function concorrentes(base, s, j, valor, sal = '') {
   const out = [];
   base.clubes.forEach((c, ci) => {
     if (ci === meu || ci === j.clube || !['A', 'B', 'C', 'X'].includes(c.div) || rivais(base, ci, j.clube)) return;
-    if (c.div === 'X' && (j.idade > 29 || c.tier < 2)) return;
+    if ((c.div === 'X' && (j.idade > 29 || c.tier < 2)) || naoJogaA(base, s, j.id, ci)) return;
     const el = base.elencos[ci];
     if (el.length >= 38 || j.ovr < base.forca(ci) - 4 || el.filter(x => x.pos === j.pos && x.ovr >= j.ovr).length >= 2) return;
     if (r() >= chance || vontade(base, s, j, ci) < 45) return;
@@ -149,7 +149,7 @@ export function abrirLeilaoVenda(base, s, id) {
   if (s.leilaoAtivo) return 'Já tem um leilão aberto.';
   const j = base.jog.get(x.jogador), meu = s.tecnico.clube, r = rng(`leilaoV${s.seed}-${x.id}`), teto = Math.max(x.valor, j.valor * 1000 * 1.9);
   const fol = ci => Math.min(teto, caixaDe(base, s, ci) * (base.clubes[ci].div === 'X' ? 3 : 0.6)) * (0.55 + r() * 0.45);
-  const outros = shuffle(r, interessados(base, j).filter(ci => ci !== x.de && ci !== meu && !rivais(base, ci, meu) && base.elencos[ci].length < 38))
+  const outros = shuffle(r, interessados(base, j, s).filter(ci => ci !== x.de && ci !== meu && !rivais(base, ci, meu) && base.elencos[ci].length < 38))
     .map(ci => ({ ci, max: r10(fol(ci)) })).filter(o => o.max >= minimo({ valor: x.valor })).slice(0, 3);
   x.leilao = 'vivo';
   s.leilaoAtivo = novoLeilao({ id, modo: 'venda', jogador: j.id, vendedor: meu, valor: x.valor, lider: x.de, participantes: [{ ci: x.de, max: r10(Math.max(x.valor, fol(x.de))) }, ...outros], seed: `${s.seed}-${id}` });

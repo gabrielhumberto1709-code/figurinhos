@@ -3,7 +3,7 @@ import { clamp, rng, fmtDinheiro } from './util.js';
 import { rivais } from './rivais.js';
 import { dataRodada, tabela } from './mundo.js';
 import { liberar, multaRescisao } from './mercado.js';
-import { dataAmistoso } from './calendario.js';
+import { dataAmistoso, doAno } from './calendario.js';
 import { FASES } from './copa.js';
 
 const DIA = 864e5;
@@ -213,7 +213,8 @@ export function contasDaRodada(base, s, rd, jogoCasa, tab) {
         for (const j of pedem) (s.querSair ||= {})[j.id] = { de: ci, rodada: rd, motivo: 'está com o salário atrasado' };
         if (pedem.length) N.push(`Com o salário atrasado, ${pedem.map(j => j.curto).join(' e ')} ${pedem.length > 1 ? 'pedem' : 'pede'} para ser negociado${pedem.length > 1 ? 's' : ''}.`);
       }
-      if (f.atraso >= 2) N.push(punirFPF(base, s, 'salários atrasados são dívida com credor relevante'));
+      const corte = rd > 0 && CONTROLE_FPF.find(md => { const x = +doAno(s.ano, md); return x > +dataRodada(s.ano, rd - 1) && x <= hoje; });
+      if (corte) N.push(punirFPF(base, s, `salário atrasado na data de controle (${corte.split('-').reverse().join('/')}) é dívida com credor relevante`));
       if (dias >= 60 && base.elencos[ci].length > 18 && caros[0]) {
         const j = caros[0], v = multaRescisao(base, s, j);
         f.mauPagador = s.ano;
@@ -243,36 +244,73 @@ export function dicasFinanceiras(base, s) {
   return D;
 }
 
-// ---------- fair play financeiro (Sistema de Sustentabilidade Financeira da CBF) ----------
-// Custo do elenco (salários do ano + compras) até 70% da receita: 2026-2028 é adaptação (só aviso), de 2029 em diante
-// pune. Dívida com credor relevante (salário atrasado) pune na hora, em escada: plano de correção, multa, registro de
-// jogadores bloqueado, perda de pontos. De 2028 em diante a temporada também não pode fechar no vermelho.
-export const LIMITE_FPF = 0.7, ANO_FPF = 2029, ANO_EQUILIBRIO = 2028;
+// ---------- fair play financeiro (Sistema de Sustentabilidade Financeira da CBF, 2026) ----------
+// Séries A e B, três indicadores; 2026 e 2027 só geram advertência, punição a partir de 2028.
+// 1) custo do elenco (salários + compras amortizadas em 3 anos) sobre receitas + transferências + aportes: até 80%;
+//    de 2029 em diante, 70% na A (a B segue em 80%).
+// 2) dívida de curto prazo (caixa negativo): até 60% da receita em 2028, 50% em 2029 e 45% de 2030 em diante.
+// 3) equilíbrio: a soma dos três últimos anos não pode passar do déficit tolerado (A: R$ 30 mi, ~€ 5,1M; B: R$ 10 mi,
+//    ~€ 1,7M; ou 2,5% da receita, o que for maior). Aporte da diretoria ou de investidor cobre o déficit.
+// Série C: só dívida em atraso. Salário atrasado é dívida com credor relevante, conferida em 31/3, 31/7 e 30/11.
+// Sanções em escada: advertência pública, multa, retenção de receitas, transfer ban e perda de pontos.
+export const ANO_FPF = 2028;
+export const limiteCusto = (ano, div) => div === 'C' ? Infinity : ano >= 2029 && div === 'A' ? 0.7 : 0.8;
+export const limiteCurto = (ano, div) => div === 'C' ? Infinity : ano <= 2028 ? 0.6 : ano === 2029 ? 0.5 : 0.45;
+const tolerancia = (div, receita) => div === 'A' ? Math.max(5.1e6, 0.025 * receita) : div === 'B' ? Math.max(1.7e6, 0.025 * receita) : Infinity;
+export const CONTROLE_FPF = ['3-31', '7-31', '11-30'];
 const RECEITAS = ['bilheteria', 'tv', 'patrocinio', 'premio', 'venda', 'show', 'vaquinha', 'investidor', 'emprestimo', 'reembolso', 'minutagem', 'medo', 'revenda'];
+const pct = v => `${Math.round(v * 100)}%`;
 export function fairPlay(base, s) {
   garantirFinancas(base, s);
-  const ci = s.tecnico.clube, c = base.clubes[ci], bal = balanco(s);
+  const ci = s.tecnico.clube, c = base.clubes[ci], bal = balanco(s), ano = s.ano;
   const pos = s.rodada ? tabela(base, s, c.div).findIndex(l => l.clube === ci) + 1 : base.clubes.map((x, i) => i).filter(i => base.clubes[i].div === c.div).sort((x, y) => base.forca(y) - base.forca(x)).indexOf(ci) + 1;
-  // receita = o que já entrou no extrato (bilheteria, TV, patrocínio, prêmios, vendas, eventos) + o que falta entrar até o fim;
-  // verba da diretoria e socorro não contam (são adiantamento e aporte, não receita do futebol)
+  // conta do ano até agora, como no balancete (a CBF julga o ano fechado): receitas que já entraram (bilheteria, TV,
+  // patrocínio, prêmios, vendas, eventos) + a parte da premiação da Série que já corresponde às rodadas jogadas.
+  // Aporte (verba da diretoria e investidor) entra na base do custo do elenco; socorro é adiantamento, não conta.
   const realizado = RECEITAS.reduce((a, k) => a + Math.max(0, bal[k] || 0), 0);
-  const premioPago = s.fin.extrato.some(e => e.a === s.ano && /Premiação da Série/.test(e.desc));
-  const receita = realizado + receitaPrevista(base, s) + (premioPago ? 0 : premioLiga(c.div, pos));
-  // custo do elenco: salários já pagos + os que faltam + compras amortizadas em 3 anos
-  const custo = -(bal.salarios || 0) + folhaDia(base, s) * (s.rodada >= 38 ? 0 : diasRestantes(s)) + (s.fin.temporada.compras || 0) / 3;
-  const resultado = Object.values(bal).reduce((a, v) => a + v, 0);
-  return { receita, custo, razao: custo / Math.max(1, receita), resultado, divida: (s.fin.atraso || 0) > 0 };
+  const premioPago = s.fin.extrato.some(e => e.a === ano && /Premiação da Série/.test(e.desc));
+  const falta = premioPago ? 0 : premioLiga(c.div, pos) * Math.min(1, s.rodada / 38), receita = realizado + falta;
+  const aporte = Math.max(0, bal.verba || 0) + Math.max(0, bal.investidor || 0), compras = s.fin.temporada.compras || 0;
+  const custo = -(bal.salarios || 0) + compras / 3;
+  const razao = custo / Math.max(1, receita + Math.max(0, bal.verba || 0));
+  const curto = Math.max(0, -s.caixa), razaoCurto = curto / Math.max(1, receita);
+  // resultado do ano com as compras amortizadas: nos 3 anos da conta, a compra do ano pesa 1/3 e a do ano passado 2/3
+  // (a de dois anos atrás já pesou inteira)
+  const resultado = Object.values(bal).reduce((a, v) => a + v, 0), anoFim = resultado + falta;
+  const A = s.fpf?.anos || {}, ant = A[ano - 1], ant2 = A[ano - 2];
+  const tri = anoFim + compras * 2 / 3 + (ant ? ant.r + ant.c / 3 : 0) + (ant2 ? ant2.r : 0), tol = tolerancia(c.div, receita);
+  const limCusto = limiteCusto(ano, c.div), limCurto = limiteCurto(ano, c.div), falhas = [];
+  if (razao > limCusto) falhas.push(`custo do elenco em ${pct(razao)} da receita, acima do limite de ${pct(limCusto)}`);
+  if (razaoCurto > limCurto) falhas.push(`dívida de curto prazo em ${pct(razaoCurto)} da receita, acima do limite de ${pct(limCurto)}`);
+  if (tri < -tol) falhas.push(`déficit de ${fmt(-tri)} em três anos, acima da tolerância de ${fmt(tol)}`);
+  return { receita, aporte, custo, razao, limCusto, curto, razaoCurto, limCurto, resultado, anoFim, tri, tol, falhas, divida: (s.fin.atraso || 0) > 0 };
 }
 export const registroBloqueado = s => s.fpf?.ban?.ano === s.ano && s.rodada < s.fpf.ban.ate ? s.fpf.ban.ate : 0;
-// um degrau na escada de punições (devolve o texto da notícia)
+export const SANCOES = ['', 'advertência pública', 'multa', 'receitas retidas', 'transfer ban', 'perda de pontos'];
+// um degrau na escada de punições (devolve o texto da notícia). Antes de 2028 a CBF só adverte.
 export function punirFPF(base, s, motivo) {
-  const ci = s.tecnico.clube, F = (s.fpf ||= { degrau: 0 }), f = fairPlay(base, s);
-  F.degrau = Math.min(4, (F.degrau || 0) + 1);
-  if (F.degrau === 1) { s.fin.diretoria = clamp(s.fin.diretoria - 3, 0, 100); return `Fair play financeiro: a CBF exige um plano de correção do ${base.clubes[ci].n} (${motivo}).`; }
-  if (F.degrau === 2) { const v = Math.round(f.receita * 0.02 / 10000) * 10000; lancar(s, 'multa', 'Multa do fair play financeiro', -v); return `Fair play financeiro: multa de ${fmt(v)} para o ${base.clubes[ci].n} (${motivo}).`; }
-  if (F.degrau === 3) { F.ban = { ano: s.ano, ate: Math.min(38, s.rodada + 10) }; return `Fair play financeiro: o ${base.clubes[ci].n} está proibido de registrar jogadores até a ${F.ban.ate + 1}ª rodada (${motivo}).`; }
+  const ci = s.tecnico.clube, n = base.clubes[ci].n;
+  if (s.ano < ANO_FPF) return `Fair play financeiro: advertência da CBF ao ${n} (${motivo}). A partir de ${ANO_FPF} isso dá punição.`;
+  const F = (s.fpf ||= { degrau: 0 }), rec = fairPlay(base, s).receita, arred = v => Math.round(v / 1e4) * 1e4;
+  F.degrau = Math.min(5, (F.degrau || 0) + 1);
+  if (F.degrau === 1) { s.fin.diretoria = clamp(s.fin.diretoria - 3, 0, 100); return `Fair play financeiro: advertência pública da CBF ao ${n} (${motivo}).`; }
+  if (F.degrau === 2) { const v = arred(rec * 0.02); lancar(s, 'fpf', 'Multa do fair play financeiro', -v); return `Fair play financeiro: multa de ${fmt(v)} para o ${n} (${motivo}).`; }
+  if (F.degrau === 3) { const v = arred(rec * 0.05); F.retido = (F.retido || 0) + v; lancar(s, 'fpf', 'Receitas retidas pela CBF (fair play)', -v); return `Fair play financeiro: a CBF retém ${fmt(v)} das receitas do ${n} até a situação se regularizar (${motivo}).`; }
+  if (F.degrau === 4) { const virada = s.rodada >= 38; F.ban = { ano: s.ano + virada, ate: virada ? 10 : Math.min(38, s.rodada + 10) }; return `Fair play financeiro: transfer ban, o ${n} não pode registrar jogadores até a ${F.ban.ate + 1}ª rodada${virada ? ` de ${F.ban.ano}` : ''} (${motivo}).`; }
   (s.puni ||= {})[ci] = (s.puni[ci] || 0) + 3;
-  return `Fair play financeiro: o ${base.clubes[ci].n} perde 3 pontos no Brasileirão (${motivo}).`;
+  return `Fair play financeiro: o ${n} perde 3 pontos no Brasileirão (${motivo}).`;
+}
+// fecha o ano: confere os indicadores, guarda o resultado para a conta de três anos e, se está tudo em ordem, alivia a
+// escada e devolve o que a CBF reteve. Chamada na virada, antes de zerar a temporada.
+export function fecharFPF(base, s) {
+  const fp = fairPlay(base, s), F = (s.fpf ||= { degrau: 0 }), N = [];
+  if (fp.falhas.length) N.push(punirFPF(base, s, fp.falhas.join('; ')));
+  else if (!fp.divida) {
+    F.degrau = Math.max(0, (F.degrau || 0) - 1);
+    if (F.retido) { lancar(s, 'fpf', 'CBF devolve as receitas retidas', F.retido); N.push(`Fair play financeiro em ordem: a CBF devolve ${fmt(F.retido)} retidos.`); F.retido = 0; }
+  }
+  F.anos = { [s.ano - 1]: F.anos?.[s.ano - 1], [s.ano]: { r: fp.anoFim, c: s.fin.temporada.compras || 0 } };
+  return N;
 }
 
 // balanço da temporada por categoria

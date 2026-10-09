@@ -1,5 +1,5 @@
 // Interface do Figurinhos: telas, navegação por hash e saves na nuvem.
-import { Base, novoJogo, iniciarRodada, concluirRodada, iniciarCopa, concluirCopa, iniciarCont, concluirCont, iniciarSup, concluirSup, iniciarReg, concluirReg, iniciarAmistoso, concluirAmistoso, iniciarLiga2, concluirLiga2, proximoEvento, pendentes, mundoAte, copaSemVoce, tabela, rodadasDe, feitas, acessoEQueda, escalacao, paraSalvar, resumo, REPUTACOES, DIFICULDADES, dataRodada, janelaAberta, caixaInicial, aplicarSave, compProxima, longevo, previa, barradoMedo, multaMedo } from './motor/mundo.js';
+import { Base, novoJogo, iniciarRodada, concluirRodada, iniciarCopa, concluirCopa, iniciarCont, concluirCont, iniciarSup, concluirSup, iniciarReg, concluirReg, iniciarAmistoso, concluirAmistoso, iniciarLiga2, concluirLiga2, proximoEvento, pendentes, mundoAte, copaSemVoce, tabela, rodadasDe, feitas, acessoEQueda, escalacao, paraSalvar, resumo, REPUTACOES, DIFICULDADES, dataRodada, janelaAberta, caixaInicial, aplicarSave, compProxima, longevo, previa, barradoMedo, multaMedo, barrado12 } from './motor/mundo.js';
 import { LESOES, COMP_DE, indisponivel, pendurado } from './motor/dm.js';
 import { garantirCarreira, pilares, aceitarOferta, recusarOferta, pedirDemissao } from './motor/carreira.js';
 import { virarTemporada, fimDeTemporada } from './motor/temporada.js';
@@ -7,7 +7,7 @@ import { campanha } from './motor/copa.js';
 import { F_MATA, tabelaGrupo } from './motor/continental.js';
 import { REGIONAIS, fasesReg, tabelaReg } from './motor/regionais.js';
 import * as Torneios from './torneios.js';
-import { garantirFinancas, orcamento, socorro, metaDiretoria, balanco, bilheteria, pedirVerba, dicasFinanceiras, fairPlay, registroBloqueado, tetoSalarial, LIMITE_FPF, ANO_FPF, PRECOS, NOME_PRECO } from './motor/financas.js';
+import { garantirFinancas, orcamento, socorro, metaDiretoria, balanco, bilheteria, pedirVerba, dicasFinanceiras, fairPlay, registroBloqueado, tetoSalarial, ANO_FPF, SANCOES, PRECOS, NOME_PRECO } from './motor/financas.js';
 import { garantirMercado } from './motor/mercado.js';
 import * as Mercado from './mercado.js';
 import * as AoVivo from './aovivo.js';
@@ -282,9 +282,10 @@ telas.novo = () => {
 // ----- clube -----
 // quem não joga a próxima partida (lesão ou suspensão naquela competição)
 function desfalques(ci, fim) {
-  const s = app.s, comp = compProxima(app.base, s), d = fim ? [] : app.base.elencos[ci].filter(j => indisponivel(s, j.id, comp) || barradoMedo(app.base, s, j.id, ci));
+  const s = app.s, comp = compProxima(app.base, s), doze = j => comp === 'L' && clube(ci).div === 'A' && barrado12(s, j.id, ci);
+  const d = fim ? [] : app.base.elencos[ci].filter(j => indisponivel(s, j.id, comp) || barradoMedo(app.base, s, j.id, ci) || doze(j));
   const medo = d.filter(j => barradoMedo(app.base, s, j.id, ci));
-  return (d.length ? `<a class="cartao aviso-contratos aviso-dm" href="#/dm"><b>Desfalques no próximo jogo</b><span>${d.map(j => `${esc(j.curto)} (${{ lesao: `lesão, ${s.dm[j.id]?.n} jogo${s.dm[j.id]?.n > 1 ? 's' : ''}`, suspenso: 'suspenso', afastado: `afastado, ${s.afast?.[j.id]?.n} jogo${s.afast?.[j.id]?.n > 1 ? 's' : ''}`, selecao: 'na seleção', medo: 'cláusula do medo' }[indisponivel(s, j.id, comp) || 'medo']})`).join(', ')}</span></a>` : '') + medo.map(j => `<section class="cartao aviso-medo"><p><b>Cláusula do medo:</b> ${esc(j.curto)} não pode enfrentar o ${esc(clube(app.s.emprestimos[j.id].de).n)}, dono do passe. Pagando a multa, ele joga.</p><button class="botao peq" type="button" data-acao="pagar-medo" data-id="${j.id}">Pagar multa de ${fmtDinheiro(multaMedo(j))}</button></section>`).join('');
+  return (d.length ? `<a class="cartao aviso-contratos aviso-dm" href="#/dm"><b>Desfalques no próximo jogo</b><span>${d.map(j => `${esc(j.curto)} (${{ lesao: `lesão, ${s.dm[j.id]?.n} jogo${s.dm[j.id]?.n > 1 ? 's' : ''}`, suspenso: 'suspenso', afastado: `afastado, ${s.afast?.[j.id]?.n} jogo${s.afast?.[j.id]?.n > 1 ? 's' : ''}`, selecao: 'na seleção', medo: 'cláusula do medo', doze: 'regra dos 12 jogos' }[indisponivel(s, j.id, comp) || (doze(j) ? 'doze' : 'medo')]})`).join(', ')}</span></a>` : '') + medo.map(j => `<section class="cartao aviso-medo"><p><b>Cláusula do medo:</b> ${esc(j.curto)} não pode enfrentar o ${esc(clube(app.s.emprestimos[j.id].de).n)}, dono do passe. Pagando a multa, ele joga.</p><button class="botao peq" type="button" data-acao="pagar-medo" data-id="${j.id}">Pagar multa de ${fmtDinheiro(multaMedo(j))}</button></section>`).join('');
 }
 const MESES = ['JAN', 'FEV', 'MAR', 'ABR', 'MAI', 'JUN', 'JUL', 'AGO', 'SET', 'OUT', 'NOV', 'DEZ'], SEMANA = ['DOM', 'SEG', 'TER', 'QUA', 'QUI', 'SEX', 'SÁB'];
 const ATALHOS = [
@@ -394,7 +395,7 @@ function esperaHtml(x) {
 }
 
 // ----- finanças -----
-const ROT_FIN = { bilheteria: 'Bilheteria', tv: 'Cota de TV', patrocinio: 'Patrocínio', premio: 'Prêmios', venda: 'Vendas', verba: 'Verba da diretoria', socorro: 'Socorro (adiantamentos)', salarios: 'Salários', compra: 'Compras', rescisao: 'Rescisões', emprestimo: 'Taxas de empréstimo', revenda: 'Percentual de revenda', minutagem: 'Multas de minutagem', medo: 'Cláusula do medo', multa: 'Multas de jogadores', investidor: 'Investidores', calote: 'Calotes', penhora: 'Penhoras', show: 'Shows no estádio', vaquinha: 'Vaquinha da torcida', reembolso: 'Reembolsos de empréstimo' };
+const ROT_FIN = { bilheteria: 'Bilheteria', tv: 'Cota de TV', patrocinio: 'Patrocínio', premio: 'Prêmios', venda: 'Vendas', verba: 'Verba da diretoria', socorro: 'Socorro (adiantamentos)', salarios: 'Salários', compra: 'Compras', rescisao: 'Rescisões', emprestimo: 'Taxas de empréstimo', revenda: 'Percentual de revenda', minutagem: 'Multas de minutagem', medo: 'Cláusula do medo', multa: 'Multas de jogadores', investidor: 'Investidores', calote: 'Calotes', fpf: 'Fair play financeiro (CBF)', penhora: 'Penhoras', show: 'Shows no estádio', vaquinha: 'Vaquinha da torcida', reembolso: 'Reembolsos de empréstimo' };
 telas.financas = () => {
   const s = app.s, ci = s.tecnico.clube, c = clube(ci), aba = app.abaFin || 'resumo';
   garantirFinancas(app.base, s);
@@ -420,7 +421,10 @@ telas.financas = () => {
   const pctSal = o.maxSal > o.folha ? Math.round((o.salarios - o.folha) / (o.maxSal - o.folha) * 100) : 0;
   return topo + `
     <section class="cartao aviso-fin ${sc.ok ? 'ok' : 'nao'}"><p><b>${sc.ok ? 'Socorro disponível' : 'Socorro bloqueado'}:</b> se o caixa ficar negativo, a TV adianta a cota e os salários saem em dia. Perde esse direito quem comprar mais do que vender na temporada ou aumentar a folha em mais de 10% (regra da ANRESF).${sc.ok ? '' : ` Agora está bloqueado porque ${esc(sc.motivo)}.`}</p></section>
-    ${(fp => `<section class="cartao aviso-fin ${fp.razao > LIMITE_FPF || fp.divida ? 'nao' : 'ok'}"><p><b>Fair play financeiro:</b> custo do elenco em <b>${Math.round(fp.razao * 100)}%</b> da receita (teto da CBF: 70%${s.ano < ANO_FPF ? `, punição a partir de ${ANO_FPF}` : ''}).${fp.divida ? ' Salário atrasado é dívida com credor relevante: a CBF pune na hora.' : ''}${registroBloqueado(s) ? ` Registro de jogadores bloqueado até a ${registroBloqueado(s) + 1}ª rodada.` : ''}${s.fpf?.degrau ? ` Situação na CBF: ${['', 'plano de correção', 'multado', 'registro bloqueado', 'perda de pontos'][s.fpf.degrau]}.` : ''}</p></section>`)(fairPlay(app.base, s))}
+    ${(fp => { const p = v => `${Math.round(v * 100)}%`, serieC = fp.limCusto === Infinity;
+      return `<section class="cartao aviso-fin ${fp.falhas.length || fp.divida ? 'nao' : 'ok'}"><p><b>Fair play financeiro</b> <span class="mudo">(ano até agora${s.ano < ANO_FPF ? `; até ${ANO_FPF - 1} a CBF só adverte` : ''})</span></p>
+      ${serieC ? '<p>Na Série C a CBF só cobra dívida em atraso: salário em dia.</p>' : `<ul class="fpf"><li>Custo do elenco: <b>${p(fp.razao)}</b> da receita <span class="mudo">(limite ${p(fp.limCusto)})</span></li><li>Dívida de curto prazo: <b>${p(fp.razaoCurto)}</b> da receita <span class="mudo">(limite ${p(fp.limCurto)})</span></li><li>Resultado em 3 anos: <b>${fmtDinheiro(fp.tri)}</b> <span class="mudo">(déficit tolerado ${fmtDinheiro(fp.tol)})</span></li></ul>`}
+      <p class="mudo" style="font-size:.95rem">${fp.divida ? 'Salário atrasado é dívida com credor relevante: a CBF confere em 31/3, 31/7 e 30/11. ' : ''}${registroBloqueado(s) ? `Transfer ban até a ${registroBloqueado(s) + 1}ª rodada. ` : ''}${s.fpf?.degrau ? `Situação na CBF: ${SANCOES[s.fpf.degrau]}${s.fpf.retido ? ` (${fmtDinheiro(s.fpf.retido)} retidos)` : ''}. ` : ''}A CBF julga o ano fechado, na virada. Verba da diretoria conta como aporte e alivia o custo e o déficit.</p></section>`; })(fairPlay(app.base, s))}
     <section class="cartao"><div class="titulo-linha"><h3>Diretoria</h3><span class="conf"><b class="num">${Math.round(f.diretoria)}</b>/100 de confiança</span></div>
       <p>Meta: <b>${meta.txt}</b>. ${s.rodada ? `Hoje: ${pos}º.` : ''}</p>
       ${(T => `<p>Teto salarial: <b>€ ${T.teto.toLocaleString("pt-BR")}/dia</b> por jogador em contrato novo.${T.partes.length ? ` <span class="mudo">(${T.partes.map(([t, p]) => `${t} ${p > 0 ? '+' : ''}${p}%`).join(' · ')})</span>` : ''}</p><p class="mudo" style="font-size:.95rem">A diretoria sobe o teto com Libertadores ou Sul-Americana, campanha na Copa do Brasil, título regional e confiança alta; recém-promovido recebe menos. Quem já ganha acima continua, mas não renova nem ganha aumento acima do teto.</p>`)(tetoSalarial(app.base, s))}

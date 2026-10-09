@@ -519,6 +519,8 @@ html:has(.vivo), body:has(.vivo) { overscroll-behavior-y: contain; }
 .dicas { margin: 0; padding-left: 1.1em; display: grid; gap: 6px; }
 .aviso-fin { border-left-width: 8px; }
 .aviso-fin.ok { border-left-color: var(--gramado); } .aviso-fin.nao { border-left-color: var(--cartao); }
+.aviso-fin .fpf { margin: .3rem 0; padding-left: 1.1rem; } .aviso-fin .fpf li { margin: .15rem 0; }
+.aviso-fin p + p { margin-top: .3rem; }
 .conf { font-weight: 700; } .conf b { font-size: 1.6rem; }
 .barra-orc { height: 26px; border: 2px solid var(--linha); border-radius: 13px; overflow: hidden; background: #D4F23C; }
 .orc-sal { height: 100%; background: repeating-linear-gradient(135deg, #E9A6E8 0 8px, #C77AC6 8px 16px); border-right: 3px solid var(--linha); transition: width .2s; }

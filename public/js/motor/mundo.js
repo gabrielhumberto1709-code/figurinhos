@@ -241,6 +241,15 @@ export function pagarMedo(base, s, id) {
 // até 5 em 2030 (aprovado pelos clubes em set/2026). Regionais, continentais e amistosos não têm limite.
 export const limiteEstrangeiros = (ano, comp) => ['L', 'CB', 'SUP'].includes(comp) ? (ano <= 2026 ? 9 : Math.max(5, 9 - (ano - 2026))) : Infinity;
 export const estrangeiro = j => !!j && j.nat !== 'BRA';
+// regra dos 12 jogos (Série A 2026): quem entrou em campo em 13 jogos da A por um clube não joga a A por outro na mesma
+// temporada. s.jogosA[id] = { c: clube, n: jogos por ele }; devolve o registro quando ele está barrado para o clube ci.
+export const LIMITE_12 = 12;
+export const barrado12 = (s, id, ci) => { const x = s.jogosA?.[id]; return x && x.c !== ci && x.n > LIMITE_12 ? x : null; };
+export const naoJogaA = (base, s, id, ci) => base.clubes[ci]?.div === 'A' && !!barrado12(s, id, ci); // clube da A não contrata quem não pode usar
+function contarSerieA(s, h, a, sim) {
+  const J = (s.jogosA ||= {});
+  [h, a].forEach((c, t) => { for (const id in sim.notas[t]) { const x = J[id]; if (x?.c === c) x.n++; else if (!x || x.n <= LIMITE_12) J[id] = { c, n: 1 }; } });
+}
 // os estrangeiros mais fortes ficam; o excedente entre os titulares dá lugar ao melhor brasileiro para a vaga e o banco
 // só leva estrangeiro enquanto couber (banco manual: só tira; banco automático: completa com brasileiros)
 function aplicarLimite(time, elenco, fora, lim, cond, bancoManual) {
@@ -266,6 +275,7 @@ function escalacaoLivre(base, s, ci, comp, poupa) {
   // time alternativo (IA nos regionais): os melhores descansam
   if (poupa && ci !== s.tecnico.clube) for (const j of elenco.filter(j => !fora.has(j.id)).sort((a, b) => b.ovr - a.ovr).slice(0, poupa)) fora.add(j.id);
   for (const j of elenco) if (s.emprestimos?.[j.id]?.medo && barradoMedo(base, s, j.id, ci)) fora.add(j.id);
+  if (comp === 'L' && base.clubes[ci].div === 'A') for (const j of elenco) if (barrado12(s, j.id, ci)) fora.add(j.id);
   if (ci !== s.tecnico.clube) { const t = taticaIA(base, ci); return { ...melhorTime(elenco, t.formacao, fora, cond, bonusFase(s)), estilo: t.estilo, gatilhos: t.gatilhos, fora }; }
   let time = null, trocados = [];
   if (s.xi?.length === 11) {
@@ -733,7 +743,7 @@ export function concluirRodada(base, s, R, simMeu) {
   const ci = s.tecnico.clube, d = R.d || base.clubes[ci].div, jogos = R.jogos.slice(), m = R.meu;
   if (m) { simMeu.capitao = m.capitao; jogos.push({ d: m.d, h: m.h, a: m.a, sim: simMeu }); }
   const dmN = [];
-  for (const { h, a, sim } of jogos) { (s.res[d] ||= {})[chave(h, a)] = sim.gols; registrar(s.est, sim); cartoesDoTime(s, d, h, a, sim); aposJogo(base, s, h, a, sim); dmN.push(...posJogo(base, s, h, a, sim, 'L')); }
+  for (const { h, a, sim } of jogos) { (s.res[d] ||= {})[chave(h, a)] = sim.gols; registrar(s.est, sim); if (d === 'A') contarSerieA(s, h, a, sim); cartoesDoTime(s, d, h, a, sim); aposJogo(base, s, h, a, sim); dmN.push(...posJogo(base, s, h, a, sim, 'L')); }
   if (m) {
     s.ultima = { rodada: R.rd, div: m.d, casa: m.h, fora: m.a, ...simMeu, xi: [m.th.xi.map(j => j.id), m.ta.xi.map(j => j.id)] };
     registrarConfronto(base, s);

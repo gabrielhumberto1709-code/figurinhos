@@ -1,6 +1,6 @@
 // Aba Mercado: Buscar (atalhos, séries, posições e filtros), Favoritos, Listas, Livres, Pré-contrato, Olheiros,
 // Propostas e Histórico. Também o bloco de mercado e contrato da ficha do jogador.
-import { janelaAberta, dataRodada, barradoMedo, pagarMedo, multaMedo } from './motor/mundo.js';
+import { janelaAberta, dataRodada, barradoMedo, pagarMedo, multaMedo, barrado12, LIMITE_12 } from './motor/mundo.js';
 import * as M from './motor/mercado.js';
 import { abrirLeilaoCompra, abrirLeilaoVenda } from './motor/leilao.js';
 import { orcamento, salarioDia, salarioBase, tetoSalarial } from './motor/financas.js';
@@ -259,14 +259,15 @@ export function blocoFicha(j) {
   const fav = `<button type="button" class="chip fav" data-acao="favorito" data-id="${j.id}" aria-pressed="${s.favoritos.includes(j.id)}">★ Favorito</button>`;
   if (meu) {
     const ofertas = s.recebidas.filter(x => x.jogador === j.id), pre = M.preContratoDe(s, j.id), emp = s.emprestimos[j.id];
-    const ren = M.renovacaoPossivel(s, j) && M.pedidoRenovacao(b, s, j), tr = M.travado(s, j.id);
+    const ren = M.renovacaoPossivel(s, j) && M.pedidoRenovacao(b, s, j), tr = M.semPassagem(s, j.id), a12 = b.clubes[j.clube].div === 'A' && s.jogosA?.[j.id]?.c === j.clube ? s.jogosA[j.id].n : 0;
     return `<section class="ficha-mercado"><div class="titulo-linha"><h3>Contrato</h3>${fav}</div>${tags}
       <dl><dt>Salário</dt><dd>${euro(salarioDia(b, s, j))}/dia</dd><dt>Contrato</dt><dd>até ${j.contrato}</dd>${(c => c ? `<dt>Multa rescisória</dt><dd>${fmtDinheiro(c.nac)} · exterior ${fmtDinheiro(c.int)}</dd>` : '')(M.clausula(b, s, j))}</dl>
       ${pre ? `<p><b>Assinou pré-contrato com o ${H.esc(H.clube(pre.para).n)} e sai no fim da temporada.</b></p>` : ''}
       ${s.promTit?.[j.id] ? (pr => `<p class="aviso-ficha">Promessa de titularidade: titular em ${pr.tit} de ${pr.jogos} jogo${pr.jogos === 1 ? '' : 's'}. Precisa de ${M.PROMESSA.titular} em ${M.PROMESSA.jogos}; mais ${M.PROMESSA.jogos - M.PROMESSA.titular - (pr.jogos - pr.tit) + 1 > 0 ? M.PROMESSA.jogos - M.PROMESSA.titular - (pr.jogos - pr.tit) + 1 : 0} no banco e a promessa cai.</p>`)(s.promTit[j.id]) : ''}
       ${emp ? `<p><b>Emprestado pelo ${H.esc(H.clube(emp.de).n)} até o fim da temporada.</b></p>${M.resumoCl(emp, M.jogosNoEmprestimo(s, j.id)) ? `<p class="mudo clausulas-txt">${H.esc(M.resumoCl(emp, M.jogosNoEmprestimo(s, j.id)))}</p>` : ''}${emp.opcao ? `<button class="botao peq" type="button" data-acao="opcao" data-id="${j.id}">Exercer opção de compra (${fmtDinheiro(emp.opcao)})</button>` : ''}` : ''}
       ${emp && barradoMedo(b, s, j.id, s.tecnico.clube) ? `<button class="botao peq" type="button" data-acao="pagar-medo" data-id="${j.id}">Pagar a multa do medo (${fmtDinheiro(multaMedo(j))}) para ele jogar contra o dono</button>` : ''}
-      ${tr ? `<p class="mudo">Chegou há pouco: só pode ser negociado daqui a ${tr} jogo${tr > 1 ? 's' : ''}.</p>` : ''}
+      ${tr ? `<p class="mudo">${H.esc(M.textoPassagem(j))}</p>` : ''}
+      ${a12 >= 8 ? `<p class="mudo">Série A: ${a12} jogos pelo clube. ${a12 > LIMITE_12 ? 'Pela regra dos 12 jogos, não joga mais a A por outro clube este ano.' : `Com mais ${LIMITE_12 + 1 - a12}, fica preso ao clube na Série A este ano (regra dos 12 jogos).`}</p>` : ''}
       ${M.emNovela(s, j.id) ? `<p class="aviso-ficha fase-pessima">Novela: ${H.esc(j.curto)} não renova (${H.esc(s.novela[j.id].motivo)}). Venda enquanto dá ou ele sai de graça no fim do ano.</p>` : ''}
       ${ren && !M.emNovela(s, j.id) ? `<form class="proposta" data-form="renovar" data-id="${j.id}"><p class="mudo">${ren.ficar < 30 ? 'Ele anda insatisfeito e não quer conversa.' : `Ele deve pedir cerca de <b>${euro(ren.pede)}/dia</b>. Folga na folha: ${euro(orcamento(b, s).folga)}/dia.`}</p>
         <div class="campos-2"><label>Salário por dia (€) <input type="number" name="salario" inputmode="numeric" min="10" step="10" value="${ren.pede}"></label>${anosSelect('anos')}</div>
@@ -291,6 +292,7 @@ export function blocoFicha(j) {
   return `<section class="ficha-mercado"><div class="titulo-linha"><h3>Mercado</h3>${fav}</div>${tags}
     <dl>${livre ? '' : `<dt>Preço pedido</dt><dd>${fmtDinheiro(pedido)}</dd>`}${cid ? `<dt>Multa rescisória</dt><dd>${fmtDinheiro(cid.nac)}</dd>` : ''}<dt>Salário hoje</dt><dd>${livre ? '—' : `${euro(salarioDia(b, s, j))}/dia`}</dd><dt>Seu caixa</dt><dd>${fmtDinheiro(s.caixa)}</dd></dl>
     <p class="mudo">${M.pistaVontade(M.vontade(b, s, j, s.tecnico.clube))}${medo ? ` Ele tem medo de ser reserva${medo >= 2 ? ': tem dois ou mais melhores na posição' : ''}.` : ''}</p>
+    ${(x => x && b.clubes[s.tecnico.clube].div === 'A' ? `<p class="aviso-ficha">Regra dos 12 jogos: ${H.esc(j.curto)} já fez ${x.n} jogos da Série A pelo ${H.esc(H.clube(x.c).n)}. Se vier, não joga a Série A por você nesta temporada (só Copa do Brasil, estadual e continental).</p>` : '')(barrado12(s, j.id, s.tecnico.clube))}
     ${ja ? `<p><b>${ja.estado === 'contraproposta' ? 'Tem contraproposta esperando. Veja em Mercado › Propostas.' : 'Proposta enviada. Resposta na próxima rodada.'}</b></p>`
       : fixo ? `<p class="erro">${H.esc(geral)}</p>`
       : `<form class="proposta" data-form="proposta" data-id="${j.id}" data-pedido="${pedido}">
@@ -298,7 +300,7 @@ export function blocoFicha(j) {
         ${tipos.includes('compra') ? `<div class="so-compra"><label>Valor da transferência ${campoDinheiro('valor', pedido)}</label>
           <div class="chips">${[0.85, 1, 1.15].map(f => `<button type="button" class="chip" data-acao="sugerir" data-v="${txt(Math.round(pedido * f / 1e4) * 1e4)}">${fmtDinheiro(Math.round(pedido * f / 1e4) * 1e4)}</button>`).join('')}${cid ? `<button type="button" class="chip" data-acao="sugerir" data-v="${txt(cid.nac)}">Pagar a multa</button>` : ''}</div>
           ${cid ? `<p class="mudo" style="font-size:.9rem">Pagando a multa rescisória (${fmtDinheiro(cid.nac)}), o ${H.esc(H.clube(j.clube).n)} não pode recusar nem abrir leilão: só ele decide.</p>` : ''}
-          <label>Jogador na troca <select name="troca"><option value="">Sem troca</option>${b.elencos[s.tecnico.clube].filter(t => !s.emprestimos[t.id] && !M.travado(s, t.id) && !M.preContratoDe(s, t.id)).sort((x, y) => y.ovr - x.ovr).map(t => `<option value="${t.id}" data-v="${M.valorNaTroca(b, s, t, j.clube)}">${H.esc(t.curto)} · ${t.pos} ${t.ovr} · abate ~${fmtDinheiro(M.valorNaTroca(b, s, t, j.clube))}</option>`).join('')}</select></label></div>` : ''}
+          <label>Jogador na troca <select name="troca"><option value="">Sem troca</option>${b.elencos[s.tecnico.clube].filter(t => !s.emprestimos[t.id] && !M.semPassagem(s, t.id) && !M.preContratoDe(s, t.id)).sort((x, y) => y.ovr - x.ovr).map(t => `<option value="${t.id}" data-v="${M.valorNaTroca(b, s, t, j.clube)}">${H.esc(t.curto)} · ${t.pos} ${t.ovr} · abate ~${fmtDinheiro(M.valorNaTroca(b, s, t, j.clube))}</option>`).join('')}</select></label></div>` : ''}
         <div class="campos-2 nao-emprestimo"><label>Salário por dia (€) <input type="number" name="salario" inputmode="numeric" min="10" step="10" value="${pede}"></label>${anosSelect('anos')}</div>
         ${tipos.includes('emprestimo') ? formEmprestimo(j) : ''}${promessa}
         ${pede > tetoSalarial(b, s).teto ? `<p class="erro" style="font-size:.95rem">Ele deve pedir acima do teto salarial da diretoria (${euro(tetoSalarial(b, s).teto)}/dia). Só com empréstimo em que o outro clube paga parte do salário.</p>` : ''}

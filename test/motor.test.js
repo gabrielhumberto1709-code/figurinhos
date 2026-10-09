@@ -553,9 +553,9 @@ test('eventos: afastado sai da escalação e cumpre os jogos; julgamento de dopi
   assert.ok(ev >= 4 && ev <= 18, `eventos em 30 rodadas: ${ev}`);
 });
 
-import { valorNaTroca, travado, podeSair, conversaFechada, rescindir, multaRescisao, exercerOpcao, chamarDeVolta, emprestar, pedirMais, abrirLeilao, resolverMercado, alternarLista, LIMITE_ELENCO } from '../public/js/motor/mercado.js';
+import { valorNaTroca, semPassagem, podeSair, conversaFechada, rescindir, multaRescisao, exercerOpcao, chamarDeVolta, emprestar, pedirMais, abrirLeilao, resolverMercado, alternarLista, LIMITE_ELENCO } from '../public/js/motor/mercado.js';
 import { janelaAberta } from '../public/js/motor/mundo.js';
-test('mercado extras: troca, trava de 14 jogos, acordo com janela fechada, 3 recusas, rescisão, opção, volta, contraproposta, leilão e gigantes', () => {
+test('mercado extras: troca, limite de 3 clubes por temporada (FIFA), acordo com janela fechada, 3 recusas, rescisão, opção, volta, contraproposta, leilão e gigantes', () => {
   const ci = base.clubes.findIndex(c => c.n === 'Palmeiras'), s = novoJogo(base, { ...cfg(23), clube: ci });
   s.caixa = 5e8; s.fin.salarioBudget = folhaDia(base, s) * 3;
   const fechadaEm = r0 => { let r = r0; while (janelaAberta(s.ano, r) || janelaAberta(s.ano, r + 1)) r++; return r; };
@@ -572,10 +572,12 @@ test('mercado extras: troca, trava de 14 jogos, acordo com janela fechada, 3 rec
   assert.equal(alvo.clube, ci); assert.equal(t.clube, de);
   assert.ok(s.noticias.some(n => n.texto.startsWith('HERE WE GO') && n.jogador === alvo.id), 'Zeca Furo crava');
   assert.ok(s.fin.extrato.some(e => e.tipo === 'compra' && e.valor === -p.valor) && !s.fin.extrato.some(e => e.tipo === 'venda'), 'paga só a parte em dinheiro');
-  // trava: quem chegou não sai nem vai à lista
-  assert.ok(travado(s, alvo.id) > 10);
-  assert.match(podeSair(base, s, alvo), /chegou há pouco/);
-  assert.match(alternarLista(base, s, 'venda', alvo.id), /chegou há pouco/);
+  // FIFA: registrado por 3 clubes na temporada (2 mudanças), não muda mais até o ano que vem
+  assert.equal(s.passagens[alvo.id], 1); assert.equal(podeSair(base, s, alvo), null);
+  s.passagens[alvo.id] = 2;
+  assert.match(podeSair(base, s, alvo), /3 clubes/);
+  assert.match(alternarLista(base, s, 'venda', alvo.id), /3 clubes/);
+  delete s.passagens[alvo.id];
   // acordo com a janela fechada: fecha agora, chega quando abrir
   s.rodada = fechadaEm(s.rodada + 1);
   const b2 = cands.find(j => j.clube !== ci && j.clube !== de);
@@ -592,26 +594,26 @@ test('mercado extras: troca, trava de 14 jogos, acordo com janela fechada, 3 rec
   assert.equal(conversaFechada(s, c3.id), 2);
   assert.match(bloqueioProposta(base, s, c3, proposta(base, s, c3)), /fechou as conversas/);
   // rescisão: paga todo o resto do contrato (cláusula compensatória) e ele fica livre
-  const res = base.elencos[ci].slice().sort((a, b) => a.ovr - b.ovr).find(x => x.pos !== 'GOL' && !travado(s, x.id)), m = multaRescisao(base, s, res), cx1 = s.caixa;
+  const res = base.elencos[ci].slice().sort((a, b) => a.ovr - b.ovr).find(x => x.pos !== 'GOL' && !semPassagem(s, x.id)), m = multaRescisao(base, s, res), cx1 = s.caixa;
   assert.ok(m > 0);
   assert.equal(rescindir(base, s, res.id), null);
   assert.equal(base.clubes[res.clube].div, 'L'); assert.equal(cx1 - s.caixa, m);
   // empréstimo com opção de compra e chamar de volta quem você emprestou
-  const emp = base.elencos[5].find(x => !travado(s, x.id)); emprestar(base, s, emp, ci); s.emprestimos[emp.id].opcao = 1e6;
+  const emp = base.elencos[5].find(x => !semPassagem(s, x.id)); emprestar(base, s, emp, ci); s.emprestimos[emp.id].opcao = 1e6;
   const cx2 = s.caixa; assert.equal(exercerOpcao(base, s, emp.id), null);
   assert.equal(emp.clube, ci); assert.ok(!s.emprestimos[emp.id]); assert.equal(cx2 - s.caixa, 1e6);
   r = s.rodada; while (!janelaAberta(s.ano, r) || !janelaAberta(s.ano, r + 1)) r++; s.rodada = r;
-  const meu = base.elencos[ci].slice().sort((a, b) => a.ovr - b.ovr).find(x => !travado(s, x.id) && x.pos !== 'GOL'); emprestar(base, s, meu, 7);
+  const meu = base.elencos[ci].slice().sort((a, b) => a.ovr - b.ovr).find(x => !semPassagem(s, x.id) && x.pos !== 'GOL'); emprestar(base, s, meu, 7);
   assert.equal(meu.clube, 7); assert.equal(chamarDeVolta(base, s, meu.id), null); assert.equal(meu.clube, ci);
   // contraproposta numa oferta recebida: pedir 5% a mais sempre passa e o negócio sai
-  const vend = base.elencos[ci].slice().sort((a, b) => b.ovr - a.ovr).find(x => !travado(s, x.id) && x.pos !== 'GOL');
+  const vend = base.elencos[ci].slice().sort((a, b) => b.ovr - a.ovr).find(x => !semPassagem(s, x.id) && x.pos !== 'GOL');
   s.recebidas = [{ id: 'x1', tipo: 'compra', jogador: vend.id, de: 3, valor: 2e6, rodada: s.rodada }];
   assert.equal(pedirMais(base, s, 'x1', 1.05), null);
   assert.ok(pedirMais(base, s, 'x1', 1.3), 'só uma contraproposta');
   resolverMercado(base, s, s.rodada);
   assert.equal(vend.clube, 3);
   // leilão: no fim sobra uma oferta só, pelo menos do tamanho da original
-  const lei = base.elencos[ci].slice().sort((a, b) => b.ovr - a.ovr).find(x => !travado(s, x.id) && x.pos !== 'GOL');
+  const lei = base.elencos[ci].slice().sort((a, b) => b.ovr - a.ovr).find(x => !semPassagem(s, x.id) && x.pos !== 'GOL');
   s.recebidas = [{ id: 'x2', tipo: 'compra', jogador: lei.id, de: 3, valor: 1e6, rodada: s.rodada }];
   assert.equal(abrirLeilao(base, s, 'x2'), null);
   resolverMercado(base, s, s.rodada);
@@ -862,19 +864,44 @@ test('renovação: IA renova cedo quem tem nível, deixa sair quem não tem ou q
 });
 
 import { fairPlay, punirFPF, registroBloqueado } from '../public/js/motor/financas.js';
-test('fair play financeiro: razão custo/receita, escada de punição (multa, registro bloqueado, perda de pontos) e aviso do diretor', () => {
-  const s = novoJogo(base, cfg(108)), ci = s.tecnico.clube; ate(s, 8);
-  const fp = fairPlay(base, s); assert.ok(fp.receita > 0 && fp.razao > 0);
-  const cx = s.caixa; punirFPF(base, s, 'teste'); punirFPF(base, s, 'teste');
-  assert.ok(s.caixa < cx, 'multa');
+test('fair play financeiro (CBF): indicadores, advertência até 2027 e escada de punição a partir de 2028', () => {
+  const s = novoJogo(base, cfg(108)), ci = s.tecnico.clube; ate(s, 10);
+  const fp = fairPlay(base, s); assert.ok(fp.receita > 0 && fp.razao > 0 && fp.limCusto === 0.8 && fp.limCurto === 0.6 && fp.tol >= 5.1e6);
+  // 2026: só advertência
+  const cx = s.caixa; assert.match(punirFPF(base, s, 'teste'), /advertência/); assert.equal(s.caixa, cx); assert.ok(!s.fpf?.degrau);
+  // caixa negativo vira dívida de curto prazo; déficit grande estoura o equilíbrio de 3 anos
+  s.caixa = -fp.receita; assert.ok(fairPlay(base, s).falhas.some(f => /curto prazo/.test(f))); s.caixa = cx;
+  s.fpf = { degrau: 0, anos: { [s.ano - 1]: { r: -30e6, c: 0 } } }; assert.ok(fairPlay(base, s).falhas.some(f => /três anos/.test(f)));
+  s.fpf = { degrau: 0 };
+  // 2028 em diante: advertência pública, multa, retenção, transfer ban, perda de pontos
+  const ano0 = s.ano; s.ano = 2028;
+  assert.match(punirFPF(base, s, 'teste'), /advertência pública/);
+  const c1 = s.caixa; punirFPF(base, s, 'teste'); assert.ok(s.caixa < c1, 'multa');
+  const c2 = s.caixa; punirFPF(base, s, 'teste'); assert.ok(s.caixa < c2 && s.fpf.retido > 0, 'retenção');
   punirFPF(base, s, 'teste');
   const outro = base.elencos[(ci + 3) % 20][0];
   assert.ok(registroBloqueado(s) && /bloqueado/.test(bloqueioProposta(base, s, outro, { tipo: 'compra', valor: 1e6, salario: 1000, anos: 2 })));
   const p0 = tabela(base, s, base.clubes[ci].div).find(l => l.clube === ci).p;
   punirFPF(base, s, 'teste');
   assert.equal(tabela(base, s, base.clubes[ci].div).find(l => l.clube === ci).p, p0 - 3);
-  s.fin.salarioBudget = null; s.fin.temporada.compras = fp.receita; correioF(base, s);
+  s.ano = ano0;
+  s.fin.salarioBudget = null; s.fin.temporada.compras = fp.receita * 3; correioF(base, s);
   assert.ok(s.msgs.some(m => m.assunto.startsWith('Fair play financeiro')));
+});
+
+import { barrado12, naoJogaA } from '../public/js/motor/mundo.js';
+test('regra dos 12 jogos: 13 jogos da Série A por um clube e ele não joga a A por outro na temporada', () => {
+  const s = novoJogo(base, cfg(41)), ci = s.tecnico.clube; ate(s, 14);
+  const j = [...base.jog.values()].find(x => x.clube !== ci && base.clubes[x.clube].div === 'A' && s.jogosA[x.id]?.c === x.clube && s.jogosA[x.id].n === 14);
+  const k = [...base.jog.values()].find(x => x.clube !== ci && base.clubes[x.clube].div === 'A' && s.jogosA[x.id]?.n >= 1 && s.jogosA[x.id].n <= 12);
+  assert.ok(j && k);
+  const para = base.clubes.findIndex((c, i) => c.div === 'A' && i !== j.clube && i !== ci);
+  assert.ok(barrado12(s, j.id, para) && !barrado12(s, j.id, j.clube) && !barrado12(s, k.id, para));
+  assert.ok(naoJogaA(base, s, j.id, para) && !interessadosR(base, j, s).some(c => base.clubes[c].div === 'A'));
+  const de = j.clube; transferir(base, s, j, para, 0);
+  assert.ok(!escalacao(base, s, para, 'L').xi.concat(escalacao(base, s, para, 'L').banco).some(x => x.id === j.id), 'fora da Série A');
+  assert.ok(!escalacao(base, s, para, 'CB').fora.has(j.id), 'Copa do Brasil pode');
+  rodada(s); assert.equal(s.jogosA[j.id].c, de, 'não entrou em campo pela A');
 });
 
 import { REGIONAIS, fasesReg, tabelaReg, dataFaseReg, regsDe } from '../public/js/motor/regionais.js';

@@ -1,6 +1,6 @@
 // Aba Elenco: Jogadores, Escalação (campo, capitão, estilo, planos, banco), Números, DM, Base e Treino.
 import { FORMACOES, posicoesDe, PERS, ESTILOS, encaixe, forcaSetores, fatorCond } from './motor/partida.js';
-import { escalacao, escalar, trocarFormacao, definirCapitao, liderNatural, TATICA_PADRAO, compProxima, editarVaga, moverVaga, POS_VAGA, limiteEstrangeiros, estrangeiro } from './motor/mundo.js';
+import { escalacao, escalar, trocarFormacao, definirCapitao, liderNatural, TATICA_PADRAO, compProxima, editarVaga, moverVaga, POS_VAGA, limiteEstrangeiros, estrangeiro, barrado12 } from './motor/mundo.js';
 import { LESOES, CATEGORIA, COMP_NOME, COMP_DE, fragilidade, indisponivel, pendurado, infilInfo, infiltrar } from './motor/dm.js';
 import { POS_NOME, POS_ORDEM, SETOR, cartaDe, fmtDinheiro, estrelas } from './motor/util.js';
 import { ganho, idadeF, alternarFoco, MAX_FOCO } from './motor/treino.js';
@@ -72,7 +72,7 @@ function telaEscalacao() {
   const elenco = app.base.elencos[ci].slice().sort((a, b) => POS_ORDEM.indexOf(a.pos) - POS_ORDEM.indexOf(b.pos) || b.ovr - a.ovr);
   const opcoes = slotSel ? elenco.filter(j => j.id !== time.xi[vaga].id && !time.fora.has(j.id)).sort((a, b) => rende(b, slotSel) - rende(a, slotSel)).slice(0, 8) : [];
   const set = forcaSetores(time, s.cond, s.mor), cap = time.capitao, auto = liderNatural(app.base, s, time.xi);
-  const desf = time.trocados.length ? `<a class="cartao aviso-contratos" href="#/dm"><b>Desfalques no próximo jogo</b><span>${time.trocados.map(([a, b, m]) => `${esc(a.curto)} (${m === 'estrangeiro' ? 'limite de estrangeiros' : { lesao: 'lesão', suspenso: 'suspenso', afastado: 'afastado', selecao: 'na seleção', medo: 'cláusula do medo' }[indisponivel(s, a.id, compProxima(app.base, s)) || 'medo']}) → entra ${esc(b.curto)}`).join(' · ')}. A sua escalação continua salva; ele volta quando estiver liberado.</span></a>` : '';
+  const desf = time.trocados.length ? `<a class="cartao aviso-contratos" href="#/dm"><b>Desfalques no próximo jogo</b><span>${time.trocados.map(([a, b, m]) => `${esc(a.curto)} (${m === 'estrangeiro' ? 'limite de estrangeiros' : (x => x ? { lesao: 'lesão', suspenso: 'suspenso', afastado: 'afastado', selecao: 'na seleção' }[x] : barrado12(s, a.id, s.tecnico.clube) ? 'regra dos 12 jogos' : 'cláusula do medo')(indisponivel(s, a.id, compProxima(app.base, s)))}) → entra ${esc(b.curto)}`).join(' · ')}. A sua escalação continua salva; ele volta quando estiver liberado.</span></a>` : '';
   const g = s.gatilhos || {};
   const linhaPlano = (k, rot) => { const p = g[k] || {}; return `<div class="plano"><span>${rot}</span>
     <select data-plano="${k}" data-campo-plano="estilo" aria-label="Estilo ${rot}"><option value="">Não mudar</option>${Object.entries(ESTILOS).map(([e, x]) => `<option value="${e}" ${p.estilo === e ? 'selected' : ''}>${x.nome}</option>`).join('')}</select>
