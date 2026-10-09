@@ -4,7 +4,8 @@
   "type": "module",
   "scripts": {
     "dados": "node tools/build-dados.js && node tools/clubes.js && node tools/vida.js && node tools/ajustar.js && node tools/ligas.js && node tools/sulamericanos.js",
-    "test": "node --test test/*.test.js"
+    "test": "node --test test/*.test.js",
+    "pages": "node tools/pages.js"
   },
   "devDependencies": {
     "wrangler": "^4.40.0"
