@@ -10,7 +10,7 @@ import { faseDe } from './forma.js';
 import { rng, clamp, pickW, shuffle, SETOR, nivelDiv, estrelas, continenteDe, fmtDinheiro } from './util.js';
 import { temperamento, tratar } from './vestiario.js';
 import { interessados, media } from './noticias.js';
-import { janelaAberta, caixaInicial, aplicarSave, evolucao } from './mundo.js';
+import { janelaAberta, caixaInicial, aplicarSave, evolucao, limiteEstrangeiros } from './mundo.js';
 import { dataAmistoso, doAno } from './calendario.js';
 import { orcamento, lancar, garantirFinancas, salarioDia, salarioBase, diasRestantes, registroBloqueado, passaDoTeto } from './financas.js';
 import { naSelecao } from './selecao.js';
@@ -174,9 +174,11 @@ export function folgaPara(base, s, j) { return orcamento(base, s).folga + (j.clu
 
 // caixa de verdade dos clubes da IA: começa no caixa inicial, mexe a cada compra e venda e se refaz em parte na virada
 export const caixaDe = (base, s, ci) => ci === s.tecnico.clube ? s.caixa : s.caixaIA?.[ci] ?? caixaInicial(base, ci);
+// dinheiro que entra num clube da IA: só 40% fica para contratar (o resto vai para folha, dívida e impostos, como
+// nos clubes de verdade); o que sai, sai inteiro
 export function mexerCaixa(base, s, ci, v) {
   if (ci == null || ci === s.tecnico.clube || base.clubes[ci].div === 'L' || !v) return;
-  (s.caixaIA ||= {})[ci] = Math.round(caixaDe(base, s, ci) + v);
+  (s.caixaIA ||= {})[ci] = Math.round(caixaDe(base, s, ci) + (v > 0 ? v * 0.4 : v));
 }
 
 // ---------- propostas do usuário ----------
@@ -758,7 +760,7 @@ function negociosIA(base, s, rd, r, add) {
 // Na A, a compra vem primeiro; na B e na C, quase tudo é jogador livre ou emprestado por clube grande (garoto sem
 // espaço). Assim os elencos não esvaziam e a lista de livres não incha.
 function montarElencos(base, s, rd, r, add, mover) {
-  const meu = s.tecnico.clube, L = listasIA(base, s), livresIdx = base.clubes.findIndex(c => c.div === 'L'), nome = ci => base.clubes[ci].n;
+  const meu = s.tecnico.clube, L = listasIA(base, s), livresIdx = base.clubes.findIndex(c => c.div === 'L'), nome = ci => base.clubes[ci].n, limEstr = limiteEstrangeiros(s.ano, 'L');
   const emprestaveis = [...L.emprestimo].map(id => base.jog.get(id)).filter(j => j && BR.includes(base.clubes[j.clube].div) && j.clube !== meu && !s.emprestimos[j.id] && !preContratoDe(s, j.id) && !emAcordo(s, j.id) && !travado(s, j.id));
   for (const ci of shuffle(r, base.clubes.map((c, i) => i).filter(i => BR.includes(base.clubes[i].div) && i !== meu))) {
     const c = base.clubes[ci], alvo = ALVO[c.div], el = base.elencos[ci];
@@ -767,10 +769,11 @@ function montarElencos(base, s, rd, r, add, mover) {
     for (; vagas > 0; vagas--) {
       const f = base.forca(ci), caixa = caixaDe(base, s, ci), aperto = Math.max(0, alvo - el.length - 2); // elenco curto aceita jogador mais fraco
       const pos = POS_CHAVE.filter(p => conta(p) < MIN_POS[p])[0] || POS_CHAVE.slice().sort((a, b) => conta(a) / MIN_POS[a] - conta(b) / MIN_POS[b] || r() - 0.5)[0];
-      const livre = () => base.elencos[livresIdx].filter(x => x.pos === pos && x.ovr >= f - 9 - aperto && x.ovr <= f + 3 && x.idade <= 34 && vontade(base, s, x, ci) >= 40).sort((a, b) => b.ovr - a.ovr)[0];
+      const estrOk = x => x.nat === 'BRA' || el.filter(y => y.nat !== 'BRA').length < limEstr + 3;  // ninguém contrata estrangeiro que não vai poder relacionar
+      const livre = () => base.elencos[livresIdx].filter(x => estrOk(x) && x.pos === pos && x.ovr >= f - 9 - aperto && x.ovr <= f + 3 && x.idade <= 34 && vontade(base, s, x, ci) >= 40).sort((a, b) => b.ovr - a.ovr)[0];
       const emprestado = () => emprestaveis.filter(x => x.pos === pos && x.clube !== ci && !s.emprestimos[x.id] && base.forca(x.clube) >= f + 3 && x.ovr >= f - 9 && !rivais(base, x.clube, ci)).sort((a, b) => b.ovr - a.ovr)[0];
       const comprado = () => {
-        const cands = (el.length >= 38 ? [] : [...base.jog.values()]).filter(x => x.pos === pos && x.clube !== ci && BR.includes(base.clubes[x.clube].div) && x.ovr >= f - 6 - aperto && x.ovr <= f + 4 && !s.emprestimos[x.id] && !preContratoDe(s, x.id)
+        const cands = (el.length >= 38 ? [] : [...base.jog.values()]).filter(x => estrOk(x) && x.pos === pos && x.clube !== ci && BR.includes(base.clubes[x.clube].div) && x.ovr >= f - 6 - aperto && x.ovr <= f + 4 && !s.emprestimos[x.id] && !preContratoDe(s, x.id)
           && vendedorAguenta(base, s, x) && !rivais(base, x.clube, ci) && base.elencos[x.clube].length > (nivelDiv(base.clubes[x.clube]) > nivelDiv(c) ? 24 : ALVO[base.clubes[x.clube].div])); // vende quem tem sobra (para divisão de cima, quase sempre)
         const j = cands.length ? pickW(r, cands, x => x.ovr - f + 5) : null;
         return j && precoPedido(base, s, j, ci) <= caixa * 0.5 && vontade(base, s, j, ci) >= 50 ? j : null;

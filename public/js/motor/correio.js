@@ -4,7 +4,7 @@
 import { rng, pick, fmtDinheiro, SETOR } from './util.js';
 import { temperamento } from './vestiario.js';
 import { nomeTecnico, pilares } from './carreira.js';
-import { proximoEvento, compProxima, janelaAberta, tabela, barradoMedo, multaMedo } from './mundo.js';
+import { proximoEvento, compProxima, janelaAberta, tabela, barradoMedo, multaMedo, limiteEstrangeiros } from './mundo.js';
 import { indisponivel, pendurado, LESOES, COMP_DE } from './dm.js';
 import { faseDe } from './forma.js';
 import { orcamento, metaDiretoria, salarioDia, fairPlay, registroBloqueado, tetoSalarial, LIMITE_FPF, ANO_FPF, ANO_EQUILIBRIO } from './financas.js';
@@ -34,7 +34,7 @@ export function cartasDeInicio(base, s, novo = false) {
   if (s.demitido) return;
   const ci = s.tecnico.clube, c = base.clubes[ci], T = tetoSalarial(base, s), teto = `€ ${T.teto.toLocaleString('pt-BR')}/dia`;
   const conta = T.partes.length ? ` Na conta: ${T.partes.map(([t, p]) => `${t} (${p > 0 ? '+' : ''}${p}%)`).join(', ')}.` : '';
-  enviar(s, 'diretor', `meta-${s.ano}-${ci}`, `Teto salarial: ${teto} por jogador`, `A diretoria fechou o orçamento de ${s.ano}: nenhum contrato novo passa de ${teto} por jogador. Quem já ganha mais continua ganhando, mas só renova com até 15% acima do que recebe hoje.${conta} A meta da temporada é ${metaDiretoria(base, s).txt}.`, { link: '#/financas' });
+  enviar(s, 'diretor', `meta-${s.ano}-${ci}`, `Teto salarial: ${teto} por jogador`, `A diretoria fechou o orçamento de ${s.ano}: nenhum contrato novo passa de ${teto} por jogador. Quem já ganha mais continua ganhando, mas só renova com até 15% acima do que recebe hoje.${conta} A meta da temporada é ${metaDiretoria(base, s).txt}. Lembrete da CBF: no Brasileirão e na Copa do Brasil, só ${limiteEstrangeiros(s.ano, 'L')} estrangeiros podem ser relacionados por jogo (temos ${base.elencos[ci].filter(j => j.nat !== 'BRA').length} no elenco).`, { link: '#/financas' });
   enviar(s, 'presidente', `boas-vindas-${s.ano}-${ci}`, novo ? `Bem-vindo ao ${c.n}` : `Começa a temporada ${s.ano}`, novo
     ? `${s.tecnico.nome}, seja bem-vindo ao ${c.n}. A partir de agora o diretor de futebol vai te escrever por aqui sempre que precisar de uma decisão sua: desfalques, propostas, contratos, dinheiro. Leia a carta do teto salarial antes de ir ao mercado. Boa sorte.`
     : `${s.tecnico.nome}, começa a temporada ${s.ano} no ${c.n}. A diretoria renovou o orçamento e o teto salarial está na carta do diretor. Conto com você.`);

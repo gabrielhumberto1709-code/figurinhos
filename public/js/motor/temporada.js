@@ -157,8 +157,8 @@ export function virarTemporada(base, s) {
   const meus = jovens.filter(r => r[3] === ci);
   if (meus.length) add(`Subiram da base: ${meus.map(r => `${r[2]} (${r[4]}, ${r[5]} anos)`).join(', ')}.`);
 
-  // clubes da IA fecham o ano: metade do caixa fica, a outra metade volta para o nível do clube (receitas menos folha)
-  for (const [c, v] of Object.entries(s.caixaIA || {})) s.caixaIA[c] = Math.round((v + caixaInicial(base, +c)) / 2);
+  // clubes da IA fecham o ano: o orçamento novo é 70% o do tamanho do clube e 30% o que sobrou, entre 0,3x e 2x o normal
+  for (const [c, v] of Object.entries(s.caixaIA || {})) { const ini = caixaInicial(base, +c); s.caixaIA[c] = Math.round(clamp(0.7 * ini + 0.3 * v, 0.3 * ini, 2 * ini)); }
   // temporada zerada
   viradaDM(base, s);
   s.forma = {}; s.afast = {}; s.julgamentos = [];

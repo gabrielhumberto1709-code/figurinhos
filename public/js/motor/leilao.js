@@ -118,7 +118,7 @@ export function concorrentes(base, s, j, valor, sal = '') {
     const el = base.elencos[ci];
     if (el.length >= 38 || j.ovr < base.forca(ci) - 4 || el.filter(x => x.pos === j.pos && x.ovr >= j.ovr).length >= 2) return;
     if (r() >= chance || vontade(base, s, j, ci) < 45) return;
-    const max = r10(Math.min(caixaDe(base, s, ci) * (c.div === 'X' ? 3 : 0.6), precoPedido(base, s, j, ci) * (1.05 + r() * 0.5 + f.d * 0.06)));
+    const max = r10(Math.min(caixaDe(base, s, ci) * (c.div === 'X' ? 3 : 0.5), precoPedido(base, s, j, ci) * (1.05 + r() * 0.35 + f.d * 0.05)));
     if (max >= piso) out.push({ ci, max, peso: c.fan + r() * 4 });
   });
   return out.sort((a, b) => b.peso - a.peso).slice(0, 3).map(({ ci, max }) => ({ ci, max }));

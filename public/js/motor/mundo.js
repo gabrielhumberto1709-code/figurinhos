@@ -237,12 +237,36 @@ export function pagarMedo(base, s, id) {
   lancar(s, 'medo', `Multa da cláusula do medo: ${j.curto} (${base.clubes[e.de].n})`, -v);
   return null;
 }
+// limite de estrangeiros nos relacionados (titulares + banco) nas competições da CBF: 9 em 2026, um a menos por ano
+// até 5 em 2030 (aprovado pelos clubes em set/2026). Regionais, continentais e amistosos não têm limite.
+export const limiteEstrangeiros = (ano, comp) => ['L', 'CB', 'SUP'].includes(comp) ? (ano <= 2026 ? 9 : Math.max(5, 9 - (ano - 2026))) : Infinity;
+export const estrangeiro = j => !!j && j.nat !== 'BRA';
+// os estrangeiros mais fortes ficam; o excedente entre os titulares dá lugar ao melhor brasileiro para a vaga e o banco
+// só leva estrangeiro enquanto couber (banco manual: só tira; banco automático: completa com brasileiros)
+function aplicarLimite(time, elenco, fora, lim, cond, bancoManual) {
+  const xi = time.xi.slice(), slots = posicoesDe(time.formacao, time.pers).map(x => x[0]), usados = new Set(xi.filter(Boolean).map(j => j.id)), trocados = [];
+  const est = xi.map((j, i) => [j, i]).filter(([j]) => estrangeiro(j)).sort((a, b) => b[0].ovr - a[0].ovr);
+  for (const [j, i] of est.slice(lim)) {
+    const sub = elenco.filter(x => !usados.has(x.id) && !fora.has(x.id) && !estrangeiro(x)).sort((a, b) => b.ovr * encaixe(b.pos, slots[i]) - a.ovr * encaixe(a.pos, slots[i]))[0];
+    if (sub) { usados.add(sub.id); xi[i] = sub; trocados.push([j, sub, 'estrangeiro']); }
+  }
+  let vagas = Math.max(0, lim - xi.filter(estrangeiro).length);
+  const cabe = j => !estrangeiro(j) || vagas-- > 0;
+  const banco = bancoManual ? time.banco.filter(j => !usados.has(j.id)).filter(cabe)
+    : bancoAuto(elenco.filter(j => !usados.has(j.id) && !fora.has(j.id)).sort((a, b) => b.ovr - a.ovr).filter(cabe), cond);
+  return { ...time, xi, banco, trocados: [...(time.trocados || []), ...trocados] };
+}
 export function escalacao(base, s, ci, comp = compProxima(base, s), poupa = 0) {
+  const t = escalacaoLivre(base, s, ci, comp, poupa), lim = limiteEstrangeiros(s.ano, comp);
+  if (!(lim < Infinity) || [...t.xi, ...t.banco].filter(estrangeiro).length <= lim) return t;
+  return aplicarLimite(t, base.elencos[ci], t.fora || indisponiveis(s, base.elencos[ci], comp), lim, s.cond || {}, ci === s.tecnico.clube && !!s.banco);
+}
+function escalacaoLivre(base, s, ci, comp, poupa) {
   const elenco = base.elencos[ci], cond = s.cond || {}, fora = indisponiveis(s, elenco, comp);
   // time alternativo (IA nos regionais): os melhores descansam
   if (poupa && ci !== s.tecnico.clube) for (const j of elenco.filter(j => !fora.has(j.id)).sort((a, b) => b.ovr - a.ovr).slice(0, poupa)) fora.add(j.id);
   for (const j of elenco) if (s.emprestimos?.[j.id]?.medo && barradoMedo(base, s, j.id, ci)) fora.add(j.id);
-  if (ci !== s.tecnico.clube) { const t = taticaIA(base, ci); return { ...melhorTime(elenco, t.formacao, fora, cond, bonusFase(s)), estilo: t.estilo, gatilhos: t.gatilhos }; }
+  if (ci !== s.tecnico.clube) { const t = taticaIA(base, ci); return { ...melhorTime(elenco, t.formacao, fora, cond, bonusFase(s)), estilo: t.estilo, gatilhos: t.gatilhos, fora }; }
   let time = null, trocados = [];
   if (s.xi?.length === 11) {
     const porId = new Map(elenco.map(j => [j.id, j])), xi = s.xi.map(id => porId.get(id));

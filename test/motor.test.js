@@ -1149,3 +1149,16 @@ test('salário pela idade, multa rescisória paga leva o jogador, distrato só c
   s.leilaoAtivo = { ...novoLeilao({ id: 'x', modo: 'compra', jogador: j.id, vendedor: j.clube, valor: 1e6, lider: ci, participantes: [{ ci, humano: true, max: 1e7 }, { ci: 3, max: 2e6 }], seed: 1 }), criado: -5 };
   resolverMercado(base, s, s.rodada); assert.ok(!s.leilaoAtivo);
 });
+
+import { limiteEstrangeiros, estrangeiro, escalacao as escalacaoE } from '../public/js/motor/mundo.js';
+test('limite de estrangeiros: 9 relacionados no Brasileirão e na Copa do Brasil em 2026, caindo até 5 em 2030; livre na Libertadores', () => {
+  assert.deepEqual([2026, 2027, 2028, 2029, 2030, 2035].map(a => limiteEstrangeiros(a, 'L')), [9, 8, 7, 6, 5, 5]);
+  assert.equal(limiteEstrangeiros(2026, 'LIB'), Infinity); assert.equal(limiteEstrangeiros(2026, 'CB'), 9);
+  const ci = base.clubes.map((c, i) => i).filter(i => base.clubes[i].div === 'A').sort((a, b) => base.elencos[b].filter(estrangeiro).length - base.elencos[a].filter(estrangeiro).length)[0];
+  const s = novoJogo(base, { ...cfg(31), clube: ci }), conta = t => [...t.xi, ...t.banco].filter(estrangeiro).length;
+  assert.ok(base.elencos[ci].filter(estrangeiro).length > 9);
+  s.ano = 2030; const t = escalacaoE(base, s, ci, 'L');
+  assert.ok(conta(t) <= 5 && t.xi.filter(Boolean).length === 11 && t.banco.length >= 7, `${conta(t)} estrangeiros`);
+  const outro = base.clubes.findIndex((c, i) => c.div === 'A' && i !== ci && base.elencos[i].filter(estrangeiro).length > 5);
+  assert.ok(conta(escalacaoE(base, s, outro, 'L')) <= 5 && conta(escalacaoE(base, s, outro, 'LIB')) > 5);
+});
