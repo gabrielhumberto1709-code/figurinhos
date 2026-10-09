@@ -28,12 +28,21 @@ export const dataSup = (_, ano) => diaSup(ano);
 const RODADAS_G = [[[0, 1], [2, 3]], [[2, 0], [3, 1]], [[0, 3], [1, 2]], [[1, 0], [3, 2]], [[0, 2], [1, 3]], [[3, 0], [2, 1]]];
 
 // ---------- clubes de fora ----------
-const SUL_AM = { 'Boca Juniors': 'ARG', 'River Plate': 'ARG', Racing: 'ARG', Independiente: 'ARG', Estudiantes: 'ARG', 'Lanús': 'ARG', 'Rosario Central': 'ARG', 'Vélez Sarsfield': 'ARG', 'San Lorenzo': 'ARG', Talleres: 'ARG', 'Argentinos Jrs': 'ARG', 'Huracán': 'ARG', 'Defensa y Justicia': 'ARG', Belgrano: 'ARG', 'Barracas Central': 'ARG', Banfield: 'ARG', 'Gimnasia LP': 'ARG', Instituto: 'ARG', 'Ind. Rivadavia': 'ARG', "Newell's": 'ARG', 'Unión': 'ARG', Tigre: 'ARG', Platense: 'ARG', 'Peñarol': 'URU', Nacional: 'URU', Olimpia: 'PAR', 'Cerro Porteño': 'PAR', Libertad: 'PAR', 'LDU Quito': 'EQU', 'Independiente del Valle': 'EQU', 'Atlético Nacional': 'COL', 'Universidad de Chile': 'CHI' };
 const NOMES = ['Matías', 'Agustín', 'Facundo', 'Nicolás', 'Lautaro', 'Santiago', 'Franco', 'Joaquín', 'Tomás', 'Gonzalo', 'Ezequiel', 'Rodrigo', 'Maximiliano', 'Federico', 'Juan', 'Diego', 'Sebastián', 'Cristian', 'Brian', 'Emiliano', 'Alexis', 'Kevin', 'Leandro', 'Mauricio', 'Ignacio'];
 const SOBRENOMES = ['González', 'Rodríguez', 'Fernández', 'López', 'Martínez', 'Sánchez', 'Romero', 'Sosa', 'Benítez', 'Acosta', 'Medina', 'Herrera', 'Suárez', 'Aguirre', 'Giménez', 'Ojeda', 'Ledesma', 'Vera', 'Godoy', 'Cabrera', 'Ríos', 'Paredes', 'Villalba', 'Correa', 'Quiroga', 'Castro', 'Molina', 'Peralta', 'Domínguez', 'Ortiz'];
 const MINIMO = { GOL: 2, ZAG: 4, LD: 2, LE: 2, VOL: 2, MC: 3, MEI: 2, PE: 2, PD: 2, CA: 3 };
 const CONMEBOL = ['ARG', 'URU', 'PAR', 'CHI', 'COL', 'PER', 'EQU', 'BOL', 'VEN'];
-export const sulAmericanos = base => base.clubes.map((c, i) => i).filter(i => base.clubes[i].div === 'X' && (SUL_AM[base.clubes[i].n] || (base.clubes[i].tier <= 1 && CONMEBOL.includes(base.clubes[i].nat))));
+export const sulAmericanos = base => base.clubes.map((c, i) => i).filter(i => base.clubes[i].div === 'X' && CONMEBOL.includes(base.clubes[i].nat));
+// vagas dos clubes de fora por país (Conmebol 2026, fase de grupos): Libertadores ARG 6, COL 4, EQU e PER 3, os outros 2;
+// Sul-Americana ARG 6, URU, CHI e VEN 3, os outros 2. Como as ligas de lá não são simuladas, vai o elenco mais forte do país.
+const COTA = { LIB: { ARG: 6, COL: 4, EQU: 3, PER: 3, URU: 2, PAR: 2, CHI: 2, BOL: 2, VEN: 2 }, SUL: { ARG: 6, URU: 3, CHI: 3, VEN: 3, COL: 2, PER: 2, EQU: 2, PAR: 2, BOL: 2 } };
+// n clubes pela cota do país, na ordem da lista; sobra ou falta de vaga (o número de brasileiros muda com os repasses)
+// corta os últimos ou completa com os primeiros que ficaram de fora
+function porCota(base, k, n, lista) {
+  const cota = { ...COTA[k] }, dentro = new Set(lista.filter(ci => cota[base.clubes[ci].nat]-- > 0));
+  for (const ci of lista) if (dentro.size < n) dentro.add(ci);
+  return lista.filter(ci => dentro.has(ci)).slice(0, n);
+}
 // clube sem elenco completo na base: de fora (X) ou só dos regionais (R)
 export const deFora = c => c.div === 'X' || c.div === 'R';
 const NOMES_BR = ['Kauã', 'Gabriel', 'Davi', 'Pedro', 'Enzo', 'Arthur', 'Miguel', 'Heitor', 'Ryan', 'Kaique', 'Luan', 'Vitor', 'Igor', 'Caio', 'Rafael', 'Matheus', 'João', 'Lucas', 'Wesley', 'Yuri', 'Murilo', 'Thiago', 'Samuel', 'Breno', 'Gustavo', 'Diego', 'Renan', 'Erick', 'Wallace', 'Kelvin', 'Patrick', 'Ruan', 'Felipe', 'André', 'Leandro', 'Jefferson', 'Alisson', 'Cleiton', 'Dudu', 'Juninho'];
@@ -53,7 +62,7 @@ export function elencoFora(base, ci, ano) {
   for (const [pos, n] of Object.entries(MINIMO)) for (let q = conta[pos] || 0; q < n; q++) {
     const br = c.nat === 'BRA', ovr = clamp(Math.round((c.lvl || 66) + (r() - 0.5) * 8), 38, 82), sob = pick(r, br ? SOBRENOMES_BR : SOBRENOMES);
     let num = pos === 'GOL' ? 12 : 2; while (usados.has(num)) num++; usados.add(num);
-    extra.push({ id: -(9e6 + ci * 100 + extra.length), nome: `${pick(r, br ? NOMES_BR : NOMES)} ${sob}`, curto: sob, clube: ci, pos, idade: 19 + Math.floor(r() * 13), nat: c.nat || SUL_AM[c.n] || 'ARG', ovr, valor: 0, contrato: ano + 1, pot: ovr, rosto: '0000000000', num, gerado: true,
+    extra.push({ id: -(9e6 + ci * 100 + extra.length), nome: `${pick(r, br ? NOMES_BR : NOMES)} ${sob}`, curto: sob, clube: ci, pos, idade: 19 + Math.floor(r() * 13), nat: c.nat || 'ARG', ovr, valor: 0, contrato: ano + 1, pot: ovr, rosto: '0000000000', num, gerado: true,
       att: Object.fromEntries(ATT.map((a, i) => [a, clamp(Math.round(ovr + PERFIL[pos][i] + (r() - 0.5) * 8), 20, 99)])) });
   }
   const el = [...reais, ...extra];
@@ -118,13 +127,16 @@ function gruposReais(base, k) {
 }
 export function novaCont(base, s) {
   const br = vagasBR(base, s); s.repasses = br.repasses;
-  const fora = sulAmericanos(base).sort((a, b) => (base.clubes[b].lvl + base.clubes[b].fan * 0.4) - (base.clubes[a].lvl + base.clubes[a].fan * 0.4));
+  // o campeão de fora da Libertadores ou da Sul-Americana volta à Libertadores
+  const campeoes = [s.classif?.lib, s.classif?.sul].filter(c => c != null && base.clubes[c]?.div === 'X');
+  const fora = [...new Set([...campeoes, ...sulAmericanos(base).sort((a, b) => (base.clubes[b].lvl + base.clubes[b].fan * 0.4) - (base.clubes[a].lvl + base.clubes[a].fan * 0.4))])];
   const reais = s.ano === 2026 && !s.classif;
   const torneio = (k, clubes) => ({ k, ano: s.ano, grupos: (reais && gruposReais(base, k)) || sortear(base, s, k, clubes), fase: 0, jogos: [], chaves: [], art: {}, campeao: null, vice: null });
   const cl = s.classif, Aord = base.clubes.map((c, i) => i).filter(i => base.clubes[i].div === 'A').sort((a, b) => base.forca(b) - base.forca(a));
   const campA = cl?.A?.[0] ?? Aord[0], campCopa = cl?.copa ?? Aord[1];
   const nLib = N_GRUPOS * 4 - br.LIB.length, nSul = N_GRUPOS * 4 - br.SUL.length;
-  s.cont = { ano: s.ano, LIB: torneio('LIB', [...br.LIB, ...fora.slice(0, nLib)]), SUL: torneio('SUL', [...br.SUL, ...fora.slice(nLib, nLib + nSul)]),
+  const libF = porCota(base, 'LIB', nLib, fora), sulF = porCota(base, 'SUL', nSul, fora.filter(c => !libF.includes(c)));
+  s.cont = { ano: s.ano, LIB: torneio('LIB', [...br.LIB, ...libF]), SUL: torneio('SUL', [...br.SUL, ...sulF]),
     sup: { h: campA, a: campCopa !== campA ? campCopa : (cl?.A?.[1] ?? Aord[1]), jogo: null } };
   return s.cont;
 }

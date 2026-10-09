@@ -1,5 +1,5 @@
 // Corrige a liga de clubes de fora que vieram marcados como "Liga Argentina" na base de origem (MLS, México, Itália,
-// França, Espanha, Paraguai, Equador, Uruguai). A liga define o tier (força do mercado) e o país do clube.
+// França, Espanha; o Rio Ave, português, vinha como colombiano). Paraguai, Equador e Uruguai: tools/sulamericanos.js. A liga define o tier (força do mercado) e o país do clube.
 // Idempotente. Uso: node tools/ligas.js (o `npm run dados` chama no fim)
 import { readFileSync, writeFileSync } from 'node:fs';
 
@@ -12,9 +12,7 @@ const CERTO = new Map([
   ...L('Serie B (ITA)', 2.5, 'ITA', ['Monza']),
   ...L('LaLiga', 5, 'ESP', ['Elche']),
   ...L('Ligue 1', 4, 'FRA', ['LOSC Lille', 'Strasbourg Alsace']),
-  ...L('Liga Paraguaia', 1, 'PAR', ['Cerro Porteño', 'Olimpia']),
-  ...L('Liga Equatoriana', 1, 'EQU', ['LDU Quito']),
-  ...L('Liga Uruguaia', 1, 'URU', ['Nacional', 'Peñarol']),
+  ...L('Liga Portugal', 3.5, 'POR', ['Rio Ave']),
 ]);
 let n = 0;
 for (const c of d.clubes) { const x = c.div === 'X' && CERTO.get(c.n); if (x && c.liga !== x.liga) { Object.assign(c, x); n++; } }

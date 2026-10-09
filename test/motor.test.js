@@ -1189,3 +1189,16 @@ test('limite de estrangeiros: 9 relacionados no Brasileirão e na Copa do Brasil
   const outro = base.clubes.findIndex((c, i) => c.div === 'A' && i !== ci && base.elencos[i].filter(estrangeiro).length > 5);
   assert.ok(conta(escalacaoE(base, s, outro, 'L')) <= 5 && conta(escalacaoE(base, s, outro, 'LIB')) > 5);
 });
+
+import { sulAmericanos, novaCont } from '../public/js/motor/continental.js';
+test('base sul-americana do Treineiros: elencos reais e vagas por país nas copas a partir de 2027', () => {
+  const sa = sulAmericanos(base), arg = sa.filter(ci => base.clubes[ci].nat === 'ARG');
+  assert.ok(sa.length >= 100, `sul-americanos: ${sa.length}`);
+  assert.equal(arg.length, 30); assert.ok(arg.every(ci => base.elencos[ci].length >= 20));
+  const s = novoJogo(base, cfg(77)); s.ano = 2027; s.classif = { A: base.clubes.map((c, i) => i).filter(i => base.clubes[i].div === 'A') };
+  novaCont(base, s);
+  const pais = k => { const n = {}; for (const c of s.cont[k].grupos.flat()) { const p = base.clubes[c].div === 'X' ? base.clubes[c].nat : 'BRA'; n[p] = (n[p] || 0) + 1; } return n; };
+  const L = pais('LIB');
+  assert.equal(s.cont.LIB.grupos.flat().length, 32); assert.equal(L.BRA, 5); assert.ok(L.ARG >= 6 && L.COL === 4 && L.BOL === 2, JSON.stringify(L));
+  assert.equal(new Set([...s.cont.LIB.grupos.flat(), ...s.cont.SUL.grupos.flat()]).size, 64);
+});

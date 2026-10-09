@@ -566,7 +566,7 @@ function migrar(s) {
   garantirFinancas(app.base, s);
   // base de jogadores atualizada depois que a carreira começou: avisa (o save segue por cima da base nova)
   if (s.dadosVersao !== app.base.dados.versao) {
-    enviar(s, 'diretor', `base-${app.base.dados.versao}`, 'Base de jogadores atualizada', 'Os dados do futebol brasileiro foram atualizados: overalls, valores e elencos da Série C mudaram. Suas contratações, contratos e resultados continuam valendo.');
+    enviar(s, 'diretor', `base-${app.base.dados.versao}`, 'Base de jogadores atualizada', 'Os clubes da Argentina, Colômbia, Uruguai, Paraguai, Chile, Equador, Peru e Bolívia chegaram com o elenco completo: dá para contratar de lá, e nas copas eles jogam com os titulares reais. Suas contratações, contratos e resultados continuam valendo.');
     s.dadosVersao = app.base.dados.versao;
   }
   return s;

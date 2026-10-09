@@ -3,7 +3,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dados": "node tools/build-dados.js && node tools/clubes.js && node tools/vida.js && node tools/ajustar.js && node tools/ligas.js",
+    "dados": "node tools/build-dados.js && node tools/clubes.js && node tools/vida.js && node tools/ajustar.js && node tools/ligas.js && node tools/sulamericanos.js",
     "test": "node --test test/*.test.js"
   },
   "devDependencies": {
