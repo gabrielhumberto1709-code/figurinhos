@@ -740,7 +740,7 @@ test('proposta árabe: salário 3 a 4x, valor pela fase, vontade decide e o dire
   const j = base.elencos[ci].slice().sort((a, b) => b.ovr - a.ovr)[0], ar = base.clubes.findIndex(c => c.liga === 'Saudi Pro League');
   s.forma = { [j.id]: 7.5 }; const exc = gigante(base, s, j, ar, true, rngU('g1'));
   s.forma = { [j.id]: 5.0 }; const pes = gigante(base, s, j, ar, true, rngU('g1'));
-  assert.ok(exc.valor > pes.valor * 1.5, `${exc.valor} x ${pes.valor}`);
+  assert.ok(exc.valor > pes.valor * 1.3, `${exc.valor} x ${pes.valor}`);
   assert.ok(exc.mult >= 3 && exc.mult <= 4.3 && pes.mult >= 3 && pes.mult <= 4);
   assert.ok(Math.abs(exc.salario - salarioDiaF(base, s, j) * exc.mult) < 20);
   s.recebidas = [{ id: 'g', tipo: 'compra', jogador: j.id, de: ar, rodada: s.rodada, gigante: true, arabe: true, ...exc, vontade: 20, quer: null }];
@@ -1098,4 +1098,17 @@ test('preço: negócio entre clubes da IA não depende do seu clube; contrato ac
   assert.ok(agosto < fim * 0.7 && renovado / fim < 1.35, `${fim} ${agosto} ${renovado}`);
   assert.deepEqual(['500mil', '500 mil', '5M', '5,5m', '1.500.000', '12,5', '500'].map(lerValor), [5e5, 5e5, 5e6, 5.5e6, 1.5e6, 12.5e6, 5e5]);
   assert.deepEqual([4.5e5, 5e6, 12.4e6].map(v => fmtD(v)), ['€ 450 mil', '€ 5M', '€ 12,4M']);
+});
+
+import { precoExterior } from '../public/js/motor/mercado.js';
+test('exterior: garoto vale mais que veterano do mesmo valor, teto de € 45M, Arábia paga mais; rival paga acima do limite', () => {
+  const s = novoJogo(base, cfg(5)), r = () => 0.4, js = [...base.jog.values()].filter(j => base.clubes[j.clube].div === 'A' && j.contrato >= s.ano + 2);
+  const jovem = js.find(j => j.idade <= 20 && j.valor >= 3000), velho = js.find(j => j.idade >= 31 && j.valor >= 3000);
+  assert.ok(precoExterior(base, s, jovem, r) / (jovem.valor * 1000) > 1.4 && precoExterior(base, s, velho, r) / (velho.valor * 1000) < 0.7);
+  const caro = js.filter(j => j.ovr < 86).sort((a, b) => b.valor - a.valor)[0], sau = base.clubes.findIndex(c => c.liga === 'Saudi Pro League');
+  assert.ok(precoExterior(base, s, caro, r) <= 45e6);
+  const vet = js.find(j => j.idade >= 27 && j.idade <= 30 && j.valor >= 5000);
+  assert.ok(precoExterior(base, s, vet, r, sau) > precoExterior(base, s, vet, r) * 1.2);
+  const ci = n => base.clubes.findIndex(c => c.n === n), arr = [...base.jog.values()].find(x => x.curto === 'Arrascaeta');
+  assert.ok(precoPedido(base, novoJogo(base, { ...cfg(3), clube: ci('Fluminense') }), arr) > arr.valor * 1000 * 2.5, 'o rival paga caro');
 });

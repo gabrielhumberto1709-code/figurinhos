@@ -76,7 +76,7 @@ export function situacao(base, s, j) {
 
 // ---------- preço e salário ----------
 // preço pedido ao comprador (por padrão, você). Contrato acabando barateia mês a mês: nos últimos 6 meses ele já
-// pode assinar pré-contrato de graça. O resto dos fatores fica entre 0,35x e 2,2x o valor de mercado.
+// pode assinar pré-contrato de graça. Os fatores ficam entre 0,35x e 2,2x o valor de mercado; para o rival, x1,6 por cima.
 const hoje = s => s.ultimaData ?? +dataAmistoso(s.ano, 0);
 export const mesesDeContrato = (s, j) => (+doAno(j.contrato, '12-31') - hoje(s)) / (30.44 * 864e5);
 export const fatorContrato = m => m >= 24 ? 1 : m >= 12 ? 0.8 + 0.2 * (m - 12) / 12 : m >= 6 ? 0.5 + 0.3 * (m - 6) / 6 : Math.max(0.15, 0.5 * m / 6);
@@ -91,8 +91,8 @@ export function precoPedido(base, s, j, comprador = s.tecnico.clube) {
   if (daqui.div === 'X') f *= 1.15;                                     // clube de fora não vende barato
   if (rank < 3 && j.clube !== comprador && daqui.div === base.clubes[comprador].div) f *= 1.3; // não vende craque pra concorrente direto
   if (listasIA(base, s).venda.has(j.id)) f *= 0.7;                       // está à venda: o clube quer se livrar
-  if (rivais(base, j.clube, comprador)) f *= 1.6;                        // vender pro rival só se for muito bom
-  return arred((j.valor * 1000 || 30000) * clamp(f, 0.35, 2.2) * fatorContrato(mesesDeContrato(s, j)));
+  const rival = rivais(base, j.clube, comprador) ? 1.6 : 1;               // vender pro rival só se for muito bom (fica fora do limite)
+  return arred((j.valor * 1000 || 30000) * clamp(f, 0.35, 2.2) * rival * fatorContrato(mesesDeContrato(s, j)));
 }
 
 // quanto o jogador quer vir (0-100). Clube maior, divisão, chance de ser titular, idade e nome do técnico pesam.
@@ -623,10 +623,9 @@ function rebaixadosIA(base, s, rd, r, aberta, add) {
 // ---------- IA ----------
 // proposta de gigante: o valor acompanha a fase; árabe paga 3 a 4 vezes o salário (europeu, 1,5 a 2,2);
 // a vontade dele pesa salário, idade, temperamento, como está no clube e o sonho europeu
-const FATOR_FASE = { pessima: 1, ruim: 1.15, normal: 1.35, boa: 1.6, excelente: 1.9 };
 export function gigante(base, s, j, de, arabe, r) {
   const f = faseDe(s, j.id), atual = salarioDia(base, s, j);
-  const valor = arred(precoPedido(base, s, j, de) / (1 + f.d * 0.05) * FATOR_FASE[f.k] * (0.95 + r() * 0.15));
+  const valor = arred(precoExterior(base, s, j, r, de) * 1.1);   // gigante paga um pouco acima do mercado
   const mult = Math.round((arabe ? 3 + r() + (f.k === 'excelente' ? 0.3 : 0) : 1.5 + r() * 0.7) * 10) / 10;
   const t = temperamento(j), mor = s.mor[j.id] ?? 62;
   let v = 40 + (mult - 1) * 9 + (arabe ? (j.idade >= 30 ? 15 : j.idade <= 24 ? -20 : 0) : 25 + (j.idade <= 27 ? 8 : j.idade >= 31 ? -12 : 0));
@@ -669,20 +668,58 @@ function negociosIA(base, s, rd, r, add) {
     if (r() > (faseDe(s, j.id).k === 'excelente' ? 0.12 : 0.05)) continue;
     const ops = interessados(base, j).filter(ci => ci !== meu && base.elencos[ci].length < 38 && vontade(base, s, j, ci) >= 45);
     if (!ops.length) continue;
-    const para = pickW(r, ops, ci => base.clubes[ci].fan), valor = arred(precoPedido(base, s, j, para) * (1 + r() * 0.2));
+    const para = pickW(r, ops, ci => base.clubes[ci].fan), valor = base.clubes[para].div === 'X' ? precoExterior(base, s, j, r, para) : arred(precoPedido(base, s, j, para) * (1 + r() * 0.2));
     if (caixaDe(base, s, para) * (base.clubes[para].div === 'X' ? 3 : 0.6) < valor) continue;
     const de = mover(j, para, valor); quentes++;
     add(`${valor >= 5e6 ? 'HERE WE GO! Em' : 'Mercado: em'} grande fase, ${j.curto} deixa o ${nome(de)} e acerta com o ${nome(para)} por ${fmt(valor)}.`, 'mercado', base.clubes[de].div, { jogador: j.id });
   }
-  if (r() < 0.35) {
-    const destaques = [...base.jog.values()].filter(j => base.clubes[j.clube].div === 'A' && j.clube !== meu && j.idade <= 27 && (j.ovr >= 78 || (j.ovr >= 75 && media(s.est[j.id]) >= 6.9)) && vendedorAguenta(base, s, j) && !preContratoDe(s, j.id) && !s.emprestimos[j.id]);
-    const j = destaques.length && pickW(r, destaques, x => x.ovr - 72);
-    const fora = j && interessados(base, j).filter(ci => base.clubes[ci].div === 'X');
-    if (fora?.length) {
-      const para = pickW(r, fora, ci => base.clubes[ci].fan), valor = arred(precoPedido(base, s, j, para) * (1 + r() * 0.3)), de = mover(j, para, valor);
-      add(`HERE WE GO! Venda para o exterior: ${j.curto} troca o ${nome(de)} pelo ${nome(para)} (${base.clubes[para].liga}) por ${fmt(valor)}.`, 'mercado', base.clubes[de].div, { jogador: j.id });
-    }
+  // vendas para fora: todo clube daqui vende de vez em quando, de preferência o garoto de potencial (A ~2 a 3 por ano,
+  // B ~1, C quase nunca). Potencial 80+ vai para liga forte; o resto para MLS, México, Argentina, Portugal, Bélgica...
+  // Veterano de nível (27+, 76+) às vezes vai para a Arábia. Quem vendeu repõe com um livre da posição, se houver.
+  const fora = base.clubes.map((c, i) => i).filter(i => base.clubes[i].div === 'X'), livres = base.elencos[base.clubes.findIndex(c => c.div === 'L')] || [];
+  const pesoIdade = i => i <= 20 ? 4 : i <= 23 ? 2.5 : i <= 26 ? 1.2 : 0.4;
+  for (const ci of base.clubes.map((c, i) => i).filter(i => BR.includes(base.clubes[i].div) && i !== meu)) {
+    if (r() > { A: 0.16, B: 0.06, C: 0.015 }[base.clubes[ci].div] || base.elencos[ci].length <= 24) continue;
+    const cands = base.elencos[ci].filter(j => j.idade <= 31 && j.pot >= 66 && !s.emprestimos[j.id] && !preContratoDe(s, j.id) && vendedorAguenta(base, s, j));
+    if (!cands.length) continue;
+    const j = pickW(r, cands, x => Math.max(0.2, x.pot - 65) * pesoIdade(x.idade)), arabia = j.idade >= 27 && j.ovr >= 76 && r() < 0.5;
+    const ops = fora.filter(c => {
+      const k = base.clubes[c], saudita = k.liga === 'Saudi Pro League';
+      if (arabia !== saudita || base.elencos[c].length >= 40 || rivais(base, c, ci)) return false;
+      return (arabia || (j.pot >= 80 ? k.tier >= 3 : k.tier <= 3)) && j.ovr >= base.forca(c) - (j.idade <= 21 ? 14 : 6);
+    });
+    if (!ops.length) continue;
+    const para = pickW(r, ops, c => base.clubes[c].fan), valor = precoExterior(base, s, j, r, para);
+    if (caixaDe(base, s, para) * 3 < valor) continue;
+    mover(j, para, valor);
+    add(`${valor >= 5e6 ? 'HERE WE GO! ' : ''}Venda para o exterior: ${j.curto} (${j.idade} anos) troca o ${nome(ci)} pelo ${nome(para)} (${base.clubes[para].liga}) por ${fmt(valor)}.`, 'mercado', base.clubes[ci].div, { jogador: j.id });
+    const rep = livres.filter(x => x.pos === j.pos && x.ovr >= base.forca(ci) - 10 && x.ovr <= base.forca(ci) + 3).sort((a, b) => b.ovr - a.ovr)[0];
+    if (rep) { mover(rep, ci, 0); add(`Para o lugar de ${j.curto}, o ${nome(ci)} contrata ${rep.curto}, que estava sem clube.`, 'mercado', base.clubes[ci].div, { jogador: rep.id }); }
   }
+  // repatriação: brasileiro lá fora com 27 a 34 anos volta para clube daqui que precisa da posição (veterano sai barato)
+  for (let k = 0; k < 2; k++) {
+    if (r() > 0.4) continue;
+    const volta = [...base.jog.values()].filter(j => j.nat === 'BRA' && base.clubes[j.clube].div === 'X' && j.idade >= 27 && j.idade <= 34 && j.ovr >= 68 && !s.emprestimos[j.id] && !preContratoDe(s, j.id) && !travado(s, j.id));
+    const j = volta.length ? pickW(r, volta, x => x.idade - 25) : null;
+    const ops = j ? base.clubes.map((c, i) => i).filter(ci => ['A', 'B'].includes(base.clubes[ci].div) && ci !== meu && base.elencos[ci].length < 36
+      && j.ovr >= base.forca(ci) - 2 && j.ovr <= base.forca(ci) + 10 && base.elencos[ci].filter(x => x.pos === j.pos && x.ovr >= j.ovr).length < 2) : [];
+    if (!ops.length) continue;
+    const para = pickW(r, ops, ci => base.clubes[ci].fan), valor = arred(j.valor * 1000 * (j.idade >= 29 ? 0.75 : 1) * fatorContrato(mesesDeContrato(s, j)) * (0.9 + r() * 0.2));
+    if (caixaDe(base, s, para) * 0.6 < valor) continue;
+    const de = mover(j, para, valor);
+    add(`${valor >= 5e6 ? 'HERE WE GO! ' : ''}De volta ao Brasil: ${j.curto} (${j.idade} anos) deixa o ${nome(de)} e acerta com o ${nome(para)} por ${fmt(valor)}.`, 'mercado', base.clubes[para].div, { jogador: j.id });
+  }
+}
+
+// ---------- exterior ----------
+// preço de venda para fora: valor de mercado pesado pela idade (o mercado paga pelo garoto), pela fase e pelo contrato,
+// com teto de € 45M (só craque de 86+ passa disso). Na Arábia, quem tem 26+ sai 25% mais caro.
+const F_IDADE_EXT = i => i <= 20 ? 1.55 : i <= 23 ? 1.35 : i <= 27 ? 1.15 : i <= 30 ? 0.9 : 0.6;
+const F_FASE_EXT = { pessima: 0.85, ruim: 0.92, normal: 1, boa: 1.1, excelente: 1.22 };
+export function precoExterior(base, s, j, r, para) {
+  const arabe = para != null && base.clubes[para].liga === 'Saudi Pro League' && j.idade >= 26;
+  const v = (j.valor * 1000 || 30000) * F_IDADE_EXT(j.idade) * F_FASE_EXT[faseDe(s, j.id).k] * (0.92 + r() * 0.2) * (arabe ? 1.25 : 1) * fatorContrato(mesesDeContrato(s, j));
+  return arred(j.ovr >= 86 ? v : Math.min(v, 45e6));
 }
 
 // ---------- renovações ----------
