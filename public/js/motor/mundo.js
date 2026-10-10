@@ -38,9 +38,9 @@ export const DIFICULDADES = { facil: 'Fácil', normal: 'Normal', dificil: 'Difí
 // datas: calendario.js (o calendário real de 2026: cada divisão nas suas datas)
 export { dataRodada, dataLiga };
 // janelas reais (5/jan a 3/mar e 20/jul a 11/set), vistas na data da próxima rodada da Série A (o relógio do jogo);
-// antes da 1ª rodada vale a janela de pré-temporada
-export function janelaAberta(ano, r) {
-  return janelaNaData(ano, r <= 0 ? Math.max(+doAno(ano, '1-5'), Math.min(+dataRodada(ano, 0), +doAno(ano, '3-3'))) : dataRodada(ano, Math.min(r, 37)));
+// antes da 1ª rodada (pré-temporada e estaduais), na data de hoje (o último jogo), nunca antes da abertura de 5/jan
+export function janelaAberta(ano, r, hoje) {
+  return janelaNaData(ano, r <= 0 ? Math.max(+doAno(ano, '1-5'), hoje ?? 0) : dataRodada(ano, Math.min(r, 37)));
 }
 // rodadas jogadas por divisão: a Série A é o relógio da temporada (s.rodada); B e C contam à parte
 export const feitas = (s, d) => d === 'A' ? s.rodada : s.feitas?.[d] || 0;
@@ -784,6 +784,7 @@ const SEMANA = 7 * 864e5;
 function semanasDoBloco(base, s, ate) {
   if (s.rodada > 0) return;
   const fim = Math.min(+ate, +dataRodada(s.ano, 0)), B = s.semanaBloco?.ano === s.ano ? s.semanaBloco : { ano: s.ano, t: +diaAmistoso(s.ano, 0), n: 0 };
+  s.semanaBloco = B; // o mercado da semana vê a janela nesta data
   while (B.t + SEMANA <= fim) {
     B.t += SEMANA; B.n++;
     for (const [, sv] of humanos(s)) { garantirFinancas(base, sv); lancar(sv, 'salarios', 'Salários (7 dias)', -folhaDia(base, sv) * 7, 0); }

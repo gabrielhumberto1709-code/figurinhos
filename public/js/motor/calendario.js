@@ -26,8 +26,10 @@ export function pontosCorridos(times, seed) {
 // ---------- temporada: o calendário real de 2026 (CBF e Conmebol) ----------
 // Fontes: tabela básica da CBF (Série A rodada a rodada), regulamentos das Séries B e C, Copa do Brasil 2026 (art. 12),
 // calendário Conmebol 2026. Os outros anos repetem 2026 pelas semanas: mesma semana do ano e mesmo dia da semana.
-// - Estaduais de 11/jan a 8/mar (domingos e algumas quartas), em paralelo com o começo da Série A.
-// - Série A de 28/jan a 2/dez, parada de 1º/jun a 22/jul (Copa do Mundo).
+// - Estaduais de 11/jan a 8/mar (domingos e algumas quartas).
+// - Série A no formato antigo: só depois dos estaduais, de 11/mar a 2/dez, parada de 1º/jun a 22/jul (Copa do Mundo).
+//   (Em 2026 a CBF começou em 28/jan, junto com os estaduais; as 4 rodadas de janeiro e fevereiro foram para 27 e
+//   30/set, depois da data Fifa, e 11 e 15/nov.)
 // - Série B de 21/mar a 14/nov (aos sábados, 3 terças) + playoff de acesso 21 e 28/nov (3º×6º e 4º×5º).
 // - Série C: 1ª fase em turno único de 4/abr a 30/ago, quadrangulares de 5/set a 10/out e final 18 e 25/out.
 // - Copa do Brasil: fases 1 a 4 em jogo único (fev-mar), a Série A entra na 5ª fase (abr-mai); oitavas, quartas e
@@ -46,8 +48,8 @@ const dias2026 = (de, ate, semana) => { const L = []; for (let t = Date.UTC(BASE
 const ordenar = L => L.sort((a, b) => { const [m1, d1] = a.split('-').map(Number), [m2, d2] = b.split('-').map(Number); return m1 - m2 || d1 - d2; });
 
 export const LIGA = {
-  A: ['1-28', '2-4', '2-11', '2-25', '3-11', '3-15', '3-18', '3-22', '4-1', '4-5', '4-12', '4-19', '4-26', '5-3', '5-10', '5-17', '5-24', '5-31',
-    '7-23', '7-26', '7-30', '8-9', '8-16', '8-23', '8-30', '9-6', '9-13', '9-20', '10-7', '10-11', '10-18', '10-25', '10-28', '11-4', '11-18', '11-22', '11-29', '12-2'],
+  A: ['3-11', '3-15', '3-18', '3-22', '4-1', '4-5', '4-12', '4-19', '4-26', '5-3', '5-10', '5-17', '5-24', '5-31',
+    '7-23', '7-26', '7-30', '8-9', '8-16', '8-23', '8-30', '9-6', '9-13', '9-20', '9-27', '9-30', '10-7', '10-11', '10-18', '10-25', '10-28', '11-4', '11-11', '11-15', '11-18', '11-22', '11-29', '12-2'],
   B: ordenar([...dias2026([2, 21], [10, 14], [6]), '4-28', '7-14', '9-29']),
   C: ['4-4', ...dias2026([3, 12], [7, 30], [0]).filter(x => !['6-14', '6-28', '7-12'].includes(x))],
 };

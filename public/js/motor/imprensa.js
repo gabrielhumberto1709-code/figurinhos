@@ -167,7 +167,7 @@ function contexto(base, s) {
     derrotas: ult.slice(-4).filter(x => x === 'D').length, semVencer: (() => { let n = 0; for (let i = ult.length - 1; i >= 0 && ult[i] !== 'V'; i--) n++; return n; })(), vitorias: seq('V'),
     comp: u.copa ? (u.div === 'copa' ? 'Copa do Brasil' : u.copa.split(' · ')[0]) : null, mataMata, final,
     adv2: prox ? (prox.h === ci ? prox.a : prox.h) : null,
-    janela: janelaAberta(s.ano, s.rodada),
+    janela: janelaAberta(s.ano, s.rodada, s.ultimaData),
     encostado: top.find(j => (s.semJogar?.[j.id] || 0) >= 3 && j.ovr >= 72), insatisfeito: top.find(j => (s.mor?.[j.id] ?? 62) < 35 && j.ovr >= 70),
     renova: s.rodada >= 19 ? top.find(j => j.contrato <= s.ano && j.ovr >= 76) : null,
     H: confronto(s, ci, adv), tabu: (() => { const H = confronto(s, ci, adv); if (!H || !venceu) return 0; let n = 0; for (let i = H.ult.length - 2; i >= 0 && H.ult[i] !== 'v'; i--) n++; return n; })(),

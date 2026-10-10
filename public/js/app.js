@@ -399,7 +399,7 @@ telas.clube = () => {
   const jogo = ev && [ev.h, ev.a];
   const tab = tabela(app.base, s, d), pos = tab.findIndex(l => l.clube === ci);
   const viz = tab.slice(Math.max(0, Math.min(pos - 2, tab.length - 5)), Math.max(5, pos + 3)).map(l => ({ ...l, n: tab.indexOf(l) + 1 }));
-  const dt = ev ? ev.data : dataRodada(s.ano, 37), janela = janelaAberta(s.ano, s.rodada);
+  const dt = ev ? ev.data : dataRodada(s.ano, 37), janela = janelaAberta(s.ano, s.rodada, s.ultimaData);
   const acabando = s.rodada >= 19 ? app.base.elencos[ci].filter(j => j.contrato <= s.ano && !s.preContratos?.some(p => p.jogador === j.id) && !s.emprestimos?.[j.id]) : [];
   const lado = ci2 => { const p = posicaoNoJogo(ev, ci2); return `<div class="lado">${imgEscudo(ci2, 64, 69)}<span>${esc(clube(ci2).n)}</span>${p ? `<small>${p}º</small>` : ''}</div>`; };
   return `<div class="status-clube"><span title="Dinheiro em caixa"><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">${ICONES.moeda}</svg>${fmtDinheiro(s.caixa ?? 0)}</span>
@@ -434,7 +434,7 @@ telas.clube = () => {
 function esperaHtml(x) {
   const dt = new Date(+x.data), dia = `${dt.getUTCDate()} de ${MESES[dt.getUTCMonth()].toLowerCase()}`;
   return `<section class="cartao escuro fim-temporada"><h2>Sem jogos do ${esc(clube(app.s.tecnico.clube).n)} por agora</h2>
-    <p>O calendário segue sem o seu clube. Próxima data: <b>${dia}</b> · ${esc(x.titulo)}.${janelaAberta(app.s.ano, app.s.rodada) ? ' A janela de transferências está aberta.' : ''}</p>
+    <p>O calendário segue sem o seu clube. Próxima data: <b>${dia}</b> · ${esc(x.titulo)}.${janelaAberta(app.s.ano, app.s.rodada, app.s.ultimaData) ? ' A janela de transferências está aberta.' : ''}</p>
     ${app.liga ? Liga.relogio('O calendário anda sozinho. Próximo horário da liga:') : `<div class="linha-botoes"><button class="botao sec" type="button" data-acao="avancar-data">Avançar até ${dia}</button><button class="botao grande" type="button" data-acao="avancar-fim">Até o fim da temporada</button></div>`}</section>`;
 }
 

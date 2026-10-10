@@ -83,7 +83,7 @@ const chips = (rot, itens, acao, ativo, extra = '') => `<div class="chips" role=
 
 // janelas reais (5/jan a 3/mar e 20/jul a 11/set): quanto falta para fechar ou abrir, contando de hoje (último jogo do calendário)
 function janelaInfo(s) {
-  const aberta = janelaAberta(s.ano, s.rodada), hoje = s.ultimaData ?? +dataAmistoso(s.ano, 0);
+  const aberta = janelaAberta(s.ano, s.rodada, s.ultimaData), hoje = s.ultimaData ?? +dataAmistoso(s.ano, 0);
   for (const [a, b] of JANELAS) {
     const ini = doAno(s.ano, a), fim = doAno(s.ano, b);
     if (aberta && +fim >= hoje) return { aberta, dias: Math.max(0, Math.round((fim - hoje) / 864e5)), data: fim };

@@ -129,7 +129,7 @@ export function concorrentes(base, s, j, valor, sal = '') {
 // concorrência, o leilão abre e a tela vem sozinha
 export function abrirLeilaoCompra(base, s, pid, tarde = false) {
   const p = s.propostas.find(x => x.id === pid && x.estado === 'aguardando');
-  if (!p || (p.tipo || 'compra') !== 'compra' || p.troca || p.leilao || s.leilaoAtivo || !janelaAberta(s.ano, s.rodada)) return null;
+  if (!p || (p.tipo || 'compra') !== 'compra' || p.troca || p.leilao || s.leilaoAtivo || !janelaAberta(s.ano, s.rodada, s.ultimaData)) return null;
   const j = base.jog.get(p.jogador), cid = clausula(base, s, j);
   if (ehHumano(s, j.clube)) return null;                  // jogador de outro técnico: quem decide é ele
   if (cid && p.valor >= cid.nac) return null;              // multa paga: o vendedor não escolhe comprador

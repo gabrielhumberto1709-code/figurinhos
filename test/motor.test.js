@@ -918,7 +918,7 @@ import { dataRodada as diaLiga } from '../public/js/motor/calendario.js';
 test('regionais: amistosos, estaduais e copas regionais reais antes do Brasileirão, com a janela aberta; acesso no Paulista', () => {
   const nome = c => base.clubes[c].n, vit = base.clubes.findIndex(c => c.n === 'Vitória');
   const s = novoJogo(base, { ...cfg(11), clube: vit });
-  assert.equal(diaLiga(2026, 0).toISOString().slice(0, 10), '2026-01-28'); // 2026: Série A começa junto com os estaduais
+  assert.equal(diaLiga(2026, 0).toISOString().slice(0, 10), '2026-03-11'); // formato antigo: a Série A começa depois dos estaduais
   assert.deepEqual(regsDe(s, vit), ['BA', 'NE']);
   assert.deepEqual(s.reg.NE.etapas[0].grupos[0].map(nome), ['Vitória', 'ASA', 'Sousa', 'Itabaiana', 'Fluminense-PI']);
   assert.deepEqual(s.reg.RJ.etapas[0].grupos[1].map(nome), ['Botafogo', 'Madureira', 'Boavista', 'Flamengo', 'Nova Iguaçu', 'Maricá']);
@@ -934,7 +934,7 @@ test('regionais: amistosos, estaduais e copas regionais reais antes do Brasileir
   const go = s.reg.GO.etapas[0], vs = new Set(go.rodadas.flat().map(([h, a]) => [h, a].sort().join('-')));
   assert.equal(vs.size, 48);
   assert.ok(go.grupos.every(g => g.every(x => g.every(y => x === y || !vs.has([x, y].sort().join('-'))))));
-  assert.ok(janelaAberta(2026, 0) && janelaAberta(2026, 3) && !janelaAberta(2026, 4) && !janelaAberta(2026, 17) && janelaAberta(2026, 18), 'janelas reais: 5/jan a 3/mar e 20/jul a 11/set');
+  assert.ok(janelaAberta(2026, 0) && janelaAberta(2026, 0, Date.UTC(2026, 2, 1)) && !janelaAberta(2026, 0, Date.UTC(2026, 2, 8)) && !janelaAberta(2026, 1) && !janelaAberta(2026, 13) && janelaAberta(2026, 14), 'janelas reais: 5/jan a 3/mar (na pré-temporada vale a data) e 20/jul a 11/set');
   while (s.rodada < 19) avancar(base, s);
   for (const k of Object.keys(REGIONAIS)) {
     const T = s.reg[k], F = fasesReg(k);
@@ -1021,13 +1021,13 @@ import { vagasBR } from '../public/js/motor/continental.js';
 import { dataSupDe } from '../public/js/motor/mundo.js';
 test('calendário 2026: datas da CBF/Conmebol e vaga da Libertadores repassada a quem vem na tabela', () => {
   const d = x => x.toISOString().slice(0, 10);
-  assert.equal(d(diaDiv(2026, 'A', 0)), '2026-01-28'); assert.equal(d(diaDiv(2026, 'A', 17)), '2026-05-31'); assert.equal(d(diaDiv(2026, 'A', 18)), '2026-07-23'); assert.equal(d(diaDiv(2026, 'A', 37)), '2026-12-02');
+  assert.equal(d(diaDiv(2026, 'A', 0)), '2026-03-11'); assert.equal(d(diaDiv(2026, 'A', 13)), '2026-05-31'); assert.equal(d(diaDiv(2026, 'A', 14)), '2026-07-23'); assert.equal(d(diaDiv(2026, 'A', 37)), '2026-12-02');
   assert.equal(d(diaDiv(2026, 'B', 0)), '2026-03-21'); assert.equal(d(diaDiv(2026, 'B', 37)), '2026-11-14'); assert.equal(d(diaDiv2(2026, 'B', 1)), '2026-11-28');
   assert.equal(d(diaDiv(2026, 'C', 0)), '2026-04-04'); assert.equal(d(diaDiv(2026, 'C', 18)), '2026-08-30'); assert.equal(d(diaDiv2(2026, 'C', 7)), '2026-10-25');
   assert.equal(d(diaCopa(2026, 0)), '2026-02-18'); assert.equal(d(diaCopa(2026, 12)), '2026-12-06');
   assert.equal(d(diaCont(2026, 6, 'SUL')), '2026-07-22'); assert.equal(d(diaCont(2026, 0, 'PRE')), '2026-02-19'); assert.equal(d(diaCont(2026, 3, 'PRE')), '2026-03-12'); assert.equal(d(diaCont(2026, 14, 'LIB')), '2026-11-28'); assert.equal(d(diaCont(2026, 14, 'SUL')), '2026-11-21');
   assert.ok(janelaNaData(2026, Date.UTC(2026, 0, 5)) && !janelaNaData(2026, Date.UTC(2026, 2, 4)) && janelaNaData(2026, Date.UTC(2026, 8, 11, 12)) && !janelaNaData(2026, Date.UTC(2026, 8, 12)));
-  // 2027 repete as semanas de 2026: Série A numa quarta no fim de janeiro
+  // formato antigo: a Série A começa depois dos estaduais (8/mar); 2027 repete as semanas de 2026, numa quarta
   assert.equal(diaDiv(2027, 'A', 0).getUTCDay(), 3);
   // campeão da Copa do Brasil já no G4: a vaga dele nos grupos vai para o vice, e a pré do vice para o próximo da tabela
   const A = base.clubes.map((c, i) => i).filter(i => base.clubes[i].div === 'A');

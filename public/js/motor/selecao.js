@@ -3,8 +3,10 @@
 import { clamp, PAISES } from './util.js';
 import { faseDe } from './forma.js';
 import { humanos } from './humanos.js';
+import { LIGA } from './calendario.js';
 
-export const DATAS_FIFA = [17, 24, 30];   // rodada do Brasileirão em que sai a convocação (setembro, outubro e novembro; a de março cai nos regionais)
+// rodadas já jogadas da Série A quando sai a convocação: depois dos jogos de 24/mai (lista da Copa), 23/ago e 11/out
+export const DATAS_FIFA = ['5-24', '8-23', '10-11'].map(md => LIGA.A.indexOf(md) + 1);
 export const ESTRUTURA = { GOL: 3, ZAG: 4, LD: 2, LE: 2, VOL: 3, MC: 2, MEI: 2, PE: 2, PD: 2, CA: 4 };
 const BR = ['A', 'B', 'C'];
 const lista = n => n.length <= 1 ? n.join('') : `${n.slice(0, -1).join(', ')} e ${n.at(-1)}`;

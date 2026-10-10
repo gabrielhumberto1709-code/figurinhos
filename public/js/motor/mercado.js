@@ -202,7 +202,7 @@ export function tiposPossiveis(base, s, j) {
 }
 
 export function bloqueioProposta(base, s, j, o) {
-  const meu = s.tecnico.clube, janela = janelaAberta(s.ano, s.rodada);
+  const meu = s.tecnico.clube, janela = janelaAberta(s.ano, s.rodada, s.ultimaData);
   if (j.clube === meu) return 'Ele já é seu.';
   const ban = registroBloqueado(s); if (ban) return `Registro de jogadores bloqueado ${s.banAdm?.ate === ban && s.banAdm.ano === s.ano ? 'pelo ADM da liga' : 'pelo fair play financeiro'} ${ban >= 38 ? 'até o fim da temporada' : `até a ${ban + 1}ª rodada`}.`;
   if (s.propostas.some(p => p.jogador === j.id && ['aguardando', 'contraproposta'].includes(p.estado))) return 'Você já tem uma proposta por ele.';
@@ -378,7 +378,7 @@ export function emprestar(base, s, j, para, cl = null) {
 
 // ---------- vender e listar ----------
 export function podeSair(base, s, j) {
-  if (!janelaAberta(s.ano, s.rodada)) return 'A janela fechou.';
+  if (!janelaAberta(s.ano, s.rodada, s.ultimaData)) return 'A janela fechou.';
   if (semPassagem(s, j.id)) return textoPassagem(j);
   return elencoAguenta(base, s, j);
 }
@@ -506,7 +506,7 @@ export const reembolso = j => arred(j.valor * 1000 * 0.1);
 export function chamarDeVolta(base, s, id) {
   const j = base.jog.get(+id), e = s.emprestimos[+id], meu = s.tecnico.clube;
   if (!j || !e || e.de !== meu) return 'Ele não está emprestado por você.';
-  if (!janelaAberta(s.ano, s.rodada)) return 'Só dá para chamar de volta com a janela aberta.';
+  if (!janelaAberta(s.ano, s.rodada, s.ultimaData)) return 'Só dá para chamar de volta com a janela aberta.';
   if (base.elencos[meu].length >= LIMITE_ELENCO) return `Elenco cheio (${LIMITE_ELENCO}).`;
   const v = reembolso(j); if (v > s.caixa) return 'Não tem dinheiro em caixa para o reembolso.';
   delete s.emprestimos[j.id];
@@ -942,7 +942,7 @@ function novelas(base, s, rd, add) {
 export function resolverMercado(base, s, rd, semana = 0) {
   garantirMercado(s);
   const r = rng(`mercado${s.seed}-${rd}${semana ? `-s${semana}` : ''}`), N = [];
-  const aberta = x => !!semana || janelaAberta(s.ano, x), nome = ci => base.clubes[ci].n, divDe = ci => base.clubes[ci]?.div ?? 'A';
+  const aberta = x => semana ? janelaAberta(s.ano, 0, s.semanaBloco?.t) : janelaAberta(s.ano, x), nome = ci => base.clubes[ci].n, divDe = ci => base.clubes[ci]?.div ?? 'A';
   const add = (texto, tipo = 'clube', div = divDe(s.tecnico.clube), extra) => N.push({ rodada: rd + 1, tipo, div, texto, mercado: true, ...extra });
   const addDo = ci => (texto, tipo = 'clube', div = divDe(ci), extra) => N.push({ rodada: rd + 1, tipo, div, texto, mercado: true, clube: ci, ...extra });
   for (const [id, c] of Object.entries(s.chegou)) if (agora(s) - c >= 14) delete s.chegou[id];
@@ -967,7 +967,7 @@ function mercadoDoTecnico(base, s, rd, semana, r, add) {
   garantirMercado(s);
   // leilão que ninguém abriu em duas passadas do mercado (avanço rápido, motor sem tela): a sala termina sem você
   if (s.leilaoAtivo && (s.leilaoAtivo.comecou || s.rodada * 100 + (s.semanaBloco?.n || 0) - (s.leilaoAtivo.criado ?? -1e9) >= 2)) encerrarPendente(base, s);
-  const meu = s.tecnico.clube, aberta = x => !!semana || janelaAberta(s.ano, x), nome = ci => base.clubes[ci].n;
+  const meu = s.tecnico.clube, aberta = x => semana ? janelaAberta(s.ano, 0, s.semanaBloco?.t) : janelaAberta(s.ano, x), nome = ci => base.clubes[ci].n;
   if (s.acordos.length && aberta(rd + 1)) cumprirAcordos(base, s, add);
 
   for (const p of s.propostas.filter(x => x.estado === 'aguardando' && x.rodada <= rd)) {
