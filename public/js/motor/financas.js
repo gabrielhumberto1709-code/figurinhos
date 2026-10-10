@@ -6,6 +6,7 @@ import { liberar, multaRescisao } from './mercado.js';
 import { dataAmistoso, doAno } from './calendario.js';
 import { FASES } from './copa.js';
 import { clubesCont } from './continental.js';
+import { assinarPatrocinio, pagarPatrocinio, patrocinioRestante, checarClausula } from './patrocinio.js';
 
 const DIA = 864e5;
 const PISO = { A: 150000, B: 40000, C: 15000 };                 // salário anual mínimo por divisão
@@ -101,7 +102,7 @@ export function bilheteria(base, s, ci, adv, ultimos = [], pos = 10, nivel = 'no
 
 export function financasIniciais(base, s) {
   const ci = s.tecnico.clube, c = base.clubes[ci];
-  return { divida: dividaInicial(c), extrato: [], temporada: { ano: s.ano, compras: 0, vendas: 0, folha0: folhaDia(base, s) }, diretoria: 60, ultimaVerba: -99, verbasRecentes: [], tvPagas: [], ingresso: 'normal', salarioBudget: null, atraso: 0, socorro: 0, patrocinador: patrocinio(c, ci).marca };
+  return { divida: dividaInicial(c), extrato: [], temporada: { ano: s.ano, compras: 0, vendas: 0, folha0: folhaDia(base, s) }, diretoria: 60, patro: null, ultimaVerba: -99, verbasRecentes: [], tvPagas: [], ingresso: 'normal', salarioBudget: null, atraso: 0, socorro: 0, patrocinador: patrocinio(c, ci).marca };
 }
 export const garantirFinancas = (base, s) => { s.fin = s.fin || financasIniciais(base, s); s.fin.divida ??= dividaInicial(base.clubes[s.tecnico.clube]); return s.fin; };
 // custos fixos por dia (estrutura e juros), para o orçamento
@@ -124,7 +125,7 @@ export const cotaRestante = (base, s) => { const c = base.clubes[s.tecnico.clube
 export function receitaPrevista(base, s) {
   const ci = s.tecnico.clube, c = base.clubes[ci], resta = Math.max(0, 38 - s.rodada);
   const casa = Math.round(resta / 2), b = bilheteria(base, s, ci, ci, [], 10, s.fin?.ingresso || 'normal');
-  return cotaRestante(base, s) + patrocinio(c, ci).valor / 38 * resta + 0.9 * b.renda * casa;
+  return cotaRestante(base, s) + (s.fin?.patro === undefined ? patrocinio(c, ci).valor / 38 * resta : patrocinioRestante(s, patrocinio(c, ci).valor)) + 0.9 * b.renda * casa;
 }
 
 // orçamento: quanto do caixa fica para salários até o fim da temporada e quanto sobra para compras
@@ -241,8 +242,14 @@ export function contasDaRodada(base, s, rd, jogoCasa, tab) {
   if (f.divida > 0) lancar(s, 'juros', `Juros da dívida (${fmt(f.divida)} a ${Math.round(JUROS * 100)}% ao ano)`, -f.divida * JUROS / 38, rd);
   if (jogoCasa) bilheteriaLiga(base, s, rd, jogoCasa.adv, tab);
   if (PARCELAS_TV.includes(rd) && !f.tvPagas.includes(rd)) { f.tvPagas.push(rd); lancar(s, 'tv', `Cota de TV (parcela ${PARCELAS_TV.indexOf(rd) + 1} de 4)`, cotaTV(c) / 4, rd); }
-  lancar(s, 'patrocinio', `Patrocínio master · ${f.patrocinador}`, patrocinio(c, ci).valor / 38, rd);
-  const pos = (tab || []).findIndex(x => x.clube === ci) + 1;
+  // patrocínio master: save de antes do contrato escolhido paga por rodada até o fim da temporada; depois, mensalidades
+  if (f.patro === undefined) lancar(s, 'patrocinio', `Patrocínio master · ${f.patrocinador}`, patrocinio(c, ci).valor / 38, rd);
+  else {
+    if (!f.patro && rd === 0 && !assinarPatrocinio(base, s, 0, true)) N.push(`Ninguém escolheu o patrocinador até a 1ª rodada: a diretoria assinou com a ${f.patrocinador}.`);
+    pagarPatrocinio(s, +dataRodada(s.ano, rd));
+  }
+  const pos = (tab || []).findIndex(x => x.clube === ci) + 1, clausula = checarClausula(s, rd, pos, metaDiretoria(base, s).pos);
+  if (clausula) N.push(clausula);
   if (rd === 37) { const p = premioLiga(c.div, pos); lancar(s, 'premio', `Premiação da Série ${c.div} (${pos}º lugar)`, p, rd); N.push(`Premiação: ${fmt(p)} pelo ${pos}º lugar.`); }
   // caixa negativo: socorro (adianta a TV) ou salários atrasados
   if (s.caixa < 0) {

@@ -15,6 +15,7 @@ import { revisarPotencial } from './potencial.js';
 import { enviar, cartasDeInicio } from './correio.js';
 import { estrelas } from './util.js';
 import { humanos, ehHumano } from './humanos.js';
+import { fecharPatrocinio } from './patrocinio.js';
 
 const DIVS = ['A', 'B', 'C'];
 // a temporada acaba com tudo jogado: Série A (relógio), B e C com a segunda fase, Copa do Brasil e as continentais
@@ -116,6 +117,13 @@ export function virarTemporada(base, s) {
       sobem: doAno.sobem, caem: doAno.caem, repasses: doAno.repasses,
     });
     sv.fin.diretoria = clamp(sv.fin.diretoria + (pos <= meta.pos ? 10 : -12) + (s.copa?.campeao === ci ? 8 : 0), 0, 100);
+    // patrocínio: bônus de títulos (grande: Série A, Copa do Brasil, Libertadores; médio: B, C, Sula, Supercopa; pequeno: regionais) e de meta
+    const h = sv.historico[0], titulos = [];
+    if (h.campeoes[div] === ci) titulos.push([`Série ${div}`, div === 'A' ? 'grande' : 'medio']);
+    if (h.copa?.campeao === ci) titulos.push(['Copa do Brasil', 'grande']);
+    for (const [k, nomeT, peso] of [['LIB', 'Libertadores', 'grande'], ['SUL', 'Sul-Americana', 'medio'], ['sup', 'Supercopa', 'medio']]) if (h.cont?.[k] === ci) titulos.push([nomeT, peso]);
+    for (const [k, c] of Object.entries(h.reg?.campeoes || {})) if (c === ci) titulos.push([REGIONAIS[k].nome, 'pequeno']);
+    for (const t of fecharPatrocinio(sv, { bateuMeta: pos <= meta.pos, titulos })) add(t);
     add(pos <= meta.pos ? `A diretoria comemora: meta da temporada cumprida (${meta.txt}).` : `A diretoria cobra: a meta era ${meta.txt} e o time terminou em ${pos}º.`);
   }
 

@@ -14,6 +14,7 @@ import * as AoVivo from './aovivo.js';
 import * as Elenco from './elenco.js';
 import * as Jornal from './jornal.js';
 import * as Coletiva from './coletiva.js';
+import { TIPOS as TIPOS_PATRO, ofertasPatrocinio, assinarPatrocinio, garantido as garantidoPatro } from './motor/patrocinio.js';
 import * as Leilao from './leilao.js';
 import * as Liga from './liga.js';
 import { daFoto } from './motor/mundo.js';
@@ -441,6 +442,32 @@ function esperaHtml(x) {
 
 // ----- finanças -----
 const ROT_FIN = { bilheteria: 'Bilheteria', tv: 'Cota de TV', patrocinio: 'Patrocínio', premio: 'Prêmios', venda: 'Vendas', verba: 'Verba da diretoria', socorro: 'Socorro (adiantamentos)', salarios: 'Salários, encargos e comissão', compra: 'Compras', rescisao: 'Rescisões', emprestimo: 'Taxas de empréstimo', revenda: 'Percentual de revenda', minutagem: 'Multas de minutagem', medo: 'Cláusula do medo', multa: 'Multas de jogadores', investidor: 'Investidores', calote: 'Calotes', fpf: 'Fair play financeiro (CBF)', penhora: 'Penhoras', adm: 'Decisões do ADM da liga', estrutura: 'Estrutura do clube', juros: 'Juros da dívida', amortizacao: 'Amortização da dívida', rolagem: 'Dívida nova (caixa negativo rolado)', show: 'Shows no estádio', vaquinha: 'Vaquinha da torcida', reembolso: 'Reembolsos de empréstimo' };
+// aba Patrocínio: o contrato em vigor ou as três propostas (cada uma com o bom e o risco)
+const MES_PATRO = ['janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho', 'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro'];
+function bonusPatro(o) {
+  return [o.luvas && `Luvas de <b>${fmtDinheiro(o.luvas)}</b> na assinatura`, o.porVitoria && `<b>${fmtDinheiro(o.porVitoria)}</b> por vitória em jogo oficial`,
+    o.titulo && `Por título: <b>${fmtDinheiro(o.titulo.grande)}</b> (Série A, Copa do Brasil, Libertadores), <b>${fmtDinheiro(o.titulo.medio)}</b> (Série B ou C, Sul-Americana, Supercopa), <b>${fmtDinheiro(o.titulo.pequeno)}</b> (estadual ou copa regional)`,
+    o.bonusMeta && `<b>${fmtDinheiro(o.bonusMeta)}</b> se cumprir a meta da diretoria no campeonato`, o.rompe && 'Rompe se o time ficar 3 posições ou mais abaixo da meta depois da 19ª rodada'].filter(Boolean);
+}
+function telaPatrocinio(s) {
+  const f = s.fin, P = f.patro;
+  if (P === undefined) return `<section class="cartao"><h3>Patrocinador master</h3><p>O contrato com a <b>${esc(f.patrocinador)}</b> vai até o fim da temporada, pago a cada rodada. Na virada chegam três propostas novas para você escolher aqui.</p></section>`;
+  if (P) return `<section class="cartao patro-atual"><div class="titulo-linha"><h3>${esc(P.marca)}</h3><span class="tag">${esc(P.setor)}</span></div>
+      <p class="patro-valor"><b class="num">${fmtDinheiro(P.mensal)}</b> por mês · ${esc(TIPOS_PATRO[P.tipo].nome)}</p>
+      <ul class="patro-bonus">${[`Contrato até dezembro de ${P.ate}`, ...bonusPatro(P).filter(t => !t.startsWith('Luvas'))].map(t => `<li>${t}</li>`).join('')}</ul>
+      <p>${P.rompido ? '<b class="neg">Contrato rompido pela empresa: não paga mais nada.</b>' : `Recebido até agora: <b>${fmtDinheiro(P.recebido)}</b>${P.porVitoria ? ` (${P.vitorias} vitórias)` : ''}. O dinheiro entra todo dia 1º.`}</p></section>
+    <p class="mudo" style="font-size:.95rem">Quando o contrato acabar, chegam três propostas novas.</p>`;
+  const L = ofertasPatrocinio(app.base, s).lista;
+  return `<section class="cartao"><h3>Escolha o patrocinador master de ${s.ano}</h3><p class="mudo" style="font-size:.95rem">O dinheiro entra todo dia 1º, a partir do mês em que você assinar: cada mês sem contrato é dinheiro perdido. Sem escolha até a 1ª rodada do Brasileirão, a diretoria fecha com a que paga mais garantido.</p></section>
+    <div class="patro-ofertas">${L.map((o, i) => `<section class="cartao patro-oferta"><div class="titulo-linha"><h3>${esc(o.marca)}</h3><span class="tag">${esc(o.setor)}</span></div>
+      <p class="patro-tipo">${esc(TIPOS_PATRO[o.tipo].nome)} · ${o.anos === 1 ? '1 temporada' : `${o.anos} temporadas`}</p>
+      <p class="patro-valor"><b class="num">${fmtDinheiro(o.mensal)}</b> por mês</p>
+      ${bonusPatro(o).length ? `<ul class="patro-bonus">${bonusPatro(o).map(t => `<li>${t}</li>`).join('')}</ul>` : ''}
+      <p class="patro-pro"><b>O bom:</b> ${esc(TIPOS_PATRO[o.tipo].bom)}</p><p class="patro-contra"><b>O risco:</b> ${esc(TIPOS_PATRO[o.tipo].risco)}</p>
+      <p class="mudo" style="font-size:.9rem">Garantido por temporada: ${fmtDinheiro(garantidoPatro(o))}</p>
+      <button class="botao" type="button" data-acao="assinar-patro" data-i="${i}">Assinar com a ${esc(o.marca)}</button></section>`).join('')}</div>`;
+}
+
 telas.financas = () => {
   const s = app.s, ci = s.tecnico.clube, c = clube(ci), aba = app.abaFin || 'resumo';
   garantirFinancas(app.base, s);
@@ -453,7 +480,8 @@ telas.financas = () => {
       ${f.divida > 0 && s.caixa > 0 ? `<div class="linha-botoes">${[1e6, 5e6, 20e6].filter(v => v < Math.min(s.caixa, f.divida)).map(v => `<button class="botao peq sec" type="button" data-acao="amortizar" data-v="${v}">Pagar ${fmtDinheiro(v)}</button>`).join('')}<button class="botao peq sec" type="button" data-acao="amortizar" data-v="${Math.min(s.caixa, f.divida)}">Pagar ${fmtDinheiro(Math.min(s.caixa, f.divida))}</button></div>` : ''}
       ${(d => `<p>${f.divida > 0 ? `São ${reais(f.divida)}, ${d.toFixed(1).replace('.', ',')}x a receita do ano. ` : ''}${corteDivida(d) ? `Com isso a diretoria corta <b>${corteDivida(d)}%</b> do teto salarial${corteDivida(d) >= 20 ? ' e quase não libera verba' : ' e libera menos verba'}; abaixo de 0,9x o aperto acaba.` : 'Dívida sob controle: sem corte no teto salarial.'}</p>`)(pesoDivida(c, f.divida || 0))}
       <p class="mudo" style="font-size:.95rem">Valores do balanço real de 2025. Caixa negativo no fim do ano vira dívida nova; pagar a dívida corta os juros e solta o teto salarial.</p></section>
-    <div class="chips" role="group" aria-label="Seção">${[['resumo', 'Resumo'], ['extrato', 'Extrato'], ['balanco', `Balanço ${s.ano}`]].map(([k, t]) => `<button type="button" class="chip" data-acao="aba-fin" data-a="${k}" aria-pressed="${aba === k}">${t}</button>`).join('')}</div>`;
+    <div class="chips" role="group" aria-label="Seção">${[['resumo', 'Resumo'], ['patrocinio', 'Patrocínio'], ['extrato', 'Extrato'], ['balanco', `Balanço ${s.ano}`]].map(([k, t]) => `<button type="button" class="chip" data-acao="aba-fin" data-a="${k}" aria-pressed="${aba === k}">${t}</button>`).join('')}</div>`;
+  if (aba === 'patrocinio') return topo + telaPatrocinio(s);
   if (aba === 'extrato') return topo + `<section class="cartao"><h3>Extrato</h3>${f.extrato.length ? `<ul class="extrato">${f.extrato.slice(0, 150).map(e => `<li><span class="rd">R${e.r + 1}</span><span>${esc(e.desc)}</span><b class="${e.valor < 0 ? 'neg' : 'pos'}">${e.valor < 0 ? '−' : '+'} ${fmtDinheiro(Math.abs(e.valor))}</b></li>`).join('')}</ul>` : '<p class="mudo">Nada lançado ainda. As contas fecham a cada rodada.</p>'}</section>`;
   if (aba === 'balanco') {
     const rec = Object.entries(bal).filter(([, v]) => v > 0).sort((a, b) => b[1] - a[1]), desp = Object.entries(bal).filter(([, v]) => v < 0).sort((a, b) => a[1] - b[1]);
@@ -680,6 +708,7 @@ async function render() {
   if (app.aba === 'leilao' && rota !== 'leilao' && !Leilao.podeSair()) { history.replaceState(null, '', '#/leilao'); return; }
   if (rota === 'ao-vivo' && !app.vivo) { location.hash = app.s ? '#/clube' : '#/inicio'; return; }
   if (rota === 'tabela') { location.hash = '#/torneios'; return; }
+  if (rota === 'patrocinio') { app.abaFin = 'patrocinio'; location.hash = '#/financas'; return; }
   if (rota === 'base' || rota === 'treino' || rota === 'dm') { app.abaElenco = rota; location.hash = '#/elenco'; return; }
   if (app.s?.demitido && ['elenco', 'mercado', 'financas', 'partida', 'calendario', 'coletiva'].includes(rota)) { location.hash = '#/clube'; return; } // sem clube: só propostas, tabelas e notícias
   const precisaJogo = ['clube', 'elenco', 'torneios', 'calendario', 'partida', 'noticias', 'mercado', 'financas', 'carreira', 'coletiva', 'mensagens', 'gala', 'leilao'].includes(rota);
@@ -774,6 +803,7 @@ const acoes = {
   'avancar-data': async el => { el.disabled = true; el.textContent = 'Simulando…'; await umQuadro(); const x = pendentes(app.base, app.s)[0]; if (x) mundoAte(app.base, app.s, x.data); render(); salvar(); },
   'avancar-fim': async el => { el.disabled = true; el.textContent = 'Simulando o resto da temporada…'; await umQuadro(); for (let x; !proximoEvento(app.base, app.s) && (x = pendentes(app.base, app.s)[0]);) mundoAte(app.base, app.s, x.data); render(); salvar(); },
   'aba-fin': el => { app.abaFin = el.dataset.a; render(); },
+  'assinar-patro': el => { const e = assinarPatrocinio(app.base, app.s, +el.dataset.i); if (e) return aviso(e); aviso(`Contrato assinado com a ${app.s.fin.patrocinador}!`); render(); salvar(); },
   ingresso: el => { app.s.fin.ingresso = el.dataset.p; render(); salvar(); },
   amortizar: el => { aviso(amortizar(app.base, app.s, +el.dataset.v)); render(); salvar(); },
   'pedir-verba': () => { const s = app.s, c = clube(s.tecnico.clube), tab = tabela(app.base, s, c.div); const r = pedirVerba(app.base, s, tab.findIndex(l => l.clube === s.tecnico.clube) + 1); aviso(r.txt); render(); salvar(); },

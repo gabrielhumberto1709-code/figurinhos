@@ -6,6 +6,7 @@ import { humanos, ehHumano, mundoDe } from './humanos.js';
 import { caixaInicial } from './mundo.js';
 import { metaDiretoria, financasIniciais } from './financas.js';
 import { cartasDeInicio } from './correio.js';
+import { bonusVitoria } from './patrocinio.js';
 
 const DIVS = ['A', 'B', 'C'];
 const PRIMEIROS = ['Renato', 'Marcelo', 'Paulo', 'Luiz', 'Roberto', 'Sérgio', 'Carlos', 'Márcio', 'Ricardo', 'Fábio', 'Eduardo', 'Jorge', 'Antônio', 'Cláudio', 'Gilson', 'Wagner', 'Adilson', 'Hélio', 'Marcos', 'Celso', 'Dário', 'Osvaldo', 'Nelson', 'Toninho', 'Vadão', 'Joel', 'Zé Carlos', 'Mário', 'Gustavo', 'Rui'];
@@ -55,6 +56,7 @@ export function torcidaAposJogo(s, ci, h, gols, { pen = null, mataMata = false, 
     s.revolta = { ano: s.ano, rodada: s.rodada, id: `${s.ano}-${s.rodada}-${h}-${gols.join('x')}`, placar: [my, ot], goleada, seguidos: s.classicos, protesto, diretoria, avisada: false };
   }
   s.torcida = clamp(Math.round((s.torcida + v) * 10) / 10, 0, 100);
+  if (won) bonusVitoria(s); // patrocínio por vitória
 }
 
 // ---------- depois de cada rodada do campeonato ----------

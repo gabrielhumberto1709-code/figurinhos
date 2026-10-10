@@ -513,7 +513,8 @@ test('mercado agressivo: jogador em fase excelente num clube da B recebe propost
 import { naoLidas } from '../public/js/motor/correio.js';
 test('caixa de mensagens: boas-vindas, meta, desfalques e propostas chegam uma vez só', () => {
   const s = novoJogo(base, cfg(91)), ci = s.tecnico.clube;
-  assert.equal(naoLidas(s), 2); // boas-vindas e teto salarial
+  assert.equal(naoLidas(s), 3); // boas-vindas, teto salarial e a escolha do patrocinador master
+  assert.ok(s.msgs.some(m => m.assunto === 'Escolha o patrocinador master' && m.link === '#/patrocinio'));
   ate(s, 3);
   assert.ok(s.msgs.some(m => m.assunto.startsWith('Teto salarial') && m.texto.includes('meta')));
   const j = base.elencos[ci].slice().sort((a, b) => b.ovr - a.ovr)[0];
@@ -1071,6 +1072,16 @@ test('base: 5 garotos gerados já no 1º ano do seu clube, uma vez por clube', (
   const s = novoJogo(base, cfg(93)), ci = s.tecnico.clube, meus = base.elencos[ci].filter(j => j.id <= -6e8);
   assert.equal(meus.length, 5); assert.ok(meus.every(j => j.idade >= 16 && j.idade <= 18 && j.pot >= j.ovr));
   assert.ok(s.noticias.some(n => n.texto.startsWith('Subiram da base')));
+});
+
+import { ofertasPatrocinio, assinarPatrocinio } from '../public/js/motor/patrocinio.js';
+test('patrocínio: 3 propostas diferentes por clube, mensalidade todo dia 1º; sem escolha, a diretoria assina na 1ª rodada', () => {
+  const s = novoJogo(base, cfg(95)), O = ofertasPatrocinio(base, s).lista, meses = s => s.fin.extrato.filter(e => e.desc.startsWith(`Patrocínio master · ${s.fin.patro.marca} (`)).length;
+  assert.equal(new Set(O.map(o => o.tipo)).size, 3); assert.equal(new Set(O.map(o => o.marca)).size, 3);
+  assert.notDeepEqual(ofertasPatrocinio(base, novoJogo(base, { ...cfg(95), clube: 5 })).lista.map(o => o.marca), O.map(o => o.marca));
+  const cedo = novoJogo(base, cfg(95)); assert.equal(assinarPatrocinio(base, cedo, 1), null); assert.equal(cedo.fin.patrocinador, O[1].marca);
+  ate(cedo, 1); assert.equal(meses(cedo), 3); // assinou em janeiro: jan, fev e mar
+  ate(s, 1); assert.ok(s.fin.patro && !s.fin.patro.rompe); assert.equal(meses(s), 1); // a diretoria assinou em março: perdeu jan e fev
 });
 
 test('escalação fixa: o jogo não mexe no seu time; quem sai do clube é trocado só na vaga dele, neste jogo', () => {

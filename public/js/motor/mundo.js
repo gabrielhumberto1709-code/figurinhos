@@ -15,6 +15,7 @@ import { eventosAposRodada } from './eventos.js';
 import { TORNEIOS, PREMIO_SUP, FASES_CONT, F_MATA, F_PO, F_FIN, forcaCont, deFora, dataCont, novaCont, contDevida, naCont, supDevida, jogosDaFase, decidirCont, avancarCont, timeFora, jogadorCont, agregadoCont, tabelaGrupo, fasesDe, compDe, fecharPre, FASES_PRE } from './continental.js';
 import { gerarNoticias } from './noticias.js';
 import { baseInicial } from './temporada.js';
+import { pagarPatrocinio } from './patrocinio.js';
 import { resolverMercado, garantirMercado, acompanharPromessas } from './mercado.js';
 import { dataFifa } from './selecao.js';
 import { registrarConfronto } from './confrontos.js';
@@ -787,7 +788,7 @@ function semanasDoBloco(base, s, ate) {
   s.semanaBloco = B; // o mercado da semana vê a janela nesta data
   while (B.t + SEMANA <= fim) {
     B.t += SEMANA; B.n++;
-    for (const [, sv] of humanos(s)) { garantirFinancas(base, sv); lancar(sv, 'salarios', 'Salários (7 dias)', -folhaDia(base, sv) * 7, 0); }
+    for (const [, sv] of humanos(s)) { garantirFinancas(base, sv); lancar(sv, 'salarios', 'Salários (7 dias)', -folhaDia(base, sv) * 7, 0); pagarPatrocinio(sv, B.t); }
     resolverMercado(base, s, 0, B.n);
   }
   s.semanaBloco = B;

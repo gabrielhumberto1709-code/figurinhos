@@ -937,3 +937,12 @@ b.pos { color: var(--gramado); } b.neg { color: var(--cartao); }
 @keyframes cortina-entra { from { opacity: 0; } to { opacity: 1; } }
 @keyframes cortina-sai { from { opacity: 1; } to { opacity: 0; visibility: hidden; } }
 @media (prefers-reduced-motion: reduce) { #transicao, #transicao.sai { animation-duration: .01s; } }
+
+/* patrocínio master */
+.patro-ofertas { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); }
+.patro-oferta { display: flex; flex-direction: column; gap: 6px; }
+.patro-oferta .botao { margin-top: auto; }
+.patro-tipo { margin: 0; font-family: var(--f-pixel); color: var(--carimbo); font-size: .95rem; }
+.patro-valor { margin: 0; font-size: 1.05rem; } .patro-valor .num { font-size: 1.6rem; }
+.patro-bonus { margin: 0; padding-left: 18px; font-size: .95rem; } .patro-bonus li { margin: 2px 0; }
+.patro-pro, .patro-contra { margin: 0; font-size: .95rem; } .patro-pro b { color: var(--gramado); } .patro-contra b { color: var(--tinta); }
