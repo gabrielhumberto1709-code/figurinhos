@@ -152,6 +152,7 @@ function posicaoNaTabela(ci) {
 }
 
 const ICONES = {
+  chat: '<path d="M4 5h16v11H10l-6 4V5z" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round"/>',
   clube: '<path d="M12 2 4 5v6c0 5 3.4 9.4 8 11 4.6-1.6 8-6 8-11V5l-8-3z" fill="none" stroke="currentColor" stroke-width="2.2"/>',
   elenco: '<rect x="3" y="4" width="8" height="11" rx="1" fill="none" stroke="currentColor" stroke-width="2.2"/><rect x="13" y="8" width="8" height="11" rx="1" fill="none" stroke="currentColor" stroke-width="2.2"/>',
   tabela: '<path d="M4 5h16M4 10h16M4 15h16M4 20h10" stroke="currentColor" stroke-width="2.4"/>',
@@ -185,7 +186,7 @@ function desenhaTopo() {
   topo.innerHTML = `<div class="topo-in">${imgEscudo(ci, 36, 39)}
     <div class="info"><div class="clube-nome">${esc(clube(ci).n)}</div><small>${(d => { const k = feitas(s, d); return `Série ${d} · ${k ? `Rodada ${Math.min(k + 1, { C: 19 }[d] || 38)} · ${posicaoNaTabela(ci)}º` : proximoEvento(app.base, s)?.tipo === 'liga' ? 'Rodada 1' : 'Pré-temporada'}`; })(clube(ci).div)}</small></div>
     <button class="estado ${app.salvando} ${app.liga ? 'liga' : ''}" data-acao="salvar" type="button" ${app.liga || ['falhou', 'conflito'].includes(app.salvando) ? '' : 'tabindex="-1"'} style="background:none;border:0;cursor:pointer">${estado}</button>
-    ${botaoTema('botao peq')}<button class="botao peq" data-acao="menu" type="button">Sair</button></div>`;
+    ${app.liga ? (n => `<a class="botao peq chat-topo" href="#/chat" aria-label="Chat da liga${n ? `: ${n} nova${n > 1 ? 's' : ''}` : ''}"><svg viewBox="0 0 24 24" aria-hidden="true">${ICONES.chat}</svg>${n ? `<span class="badge">${n}</span>` : ''}</a>`)(Liga.chatNovas()) : ''}${botaoTema('botao peq')}<button class="botao peq" data-acao="menu" type="button">Sair</button></div>`;
   const pend = (s.recebidas || []).length + (s.propostas || []).filter(p => p.estado === 'contraproposta').length;
   const ativa = { calendario: 'clube', partida: 'clube', financas: 'clube', carreira: 'clube' }[app.aba] || app.aba;
   abas.innerHTML = `<ul>${[['clube', 'Clube'], ['elenco', 'Elenco'], ['mercado', 'Mercado'], ['torneios', 'Torneios'], ['noticias', 'Notícias']].map(([k, t]) =>
@@ -603,6 +604,7 @@ telas.coletiva = () => Coletiva.tela();
 telas.gala = () => Gala.tela();
 telas.leilao = () => Leilao.tela();
 telas.liga = () => Liga.tela();
+telas.chat = () => Liga.telaChat();
 
 // saves antigos ganham os campos novos; a base recebe as transferências deste save
 function migrar(s) {
@@ -682,7 +684,7 @@ async function render() {
   const precisaJogo = ['clube', 'elenco', 'torneios', 'calendario', 'partida', 'noticias', 'mercado', 'financas', 'carreira', 'coletiva', 'mensagens', 'gala', 'leilao'].includes(rota);
   if (!app.conta && rota !== 'entrar') { location.hash = '#/entrar'; return; }
   if (precisaJogo && !app.s) { location.hash = app.liga ? '#/liga' : '#/inicio'; return; }
-  if (rota === 'liga' && !app.liga) { location.hash = '#/inicio'; return; }
+  if ((rota === 'liga' || rota === 'chat') && !app.liga) { location.hash = '#/inicio'; return; }
   // leilão por jogador que você quer: a sala abre sozinha, por cima do que estiver fazendo (menos no meio do jogo e da coletiva)
   if (precisaJogo && rota !== 'leilao' && rota !== 'coletiva' && app.s.leilaoAtivo && !app.s.leilaoAtivo.fim && !app.s.demitido) { location.hash = '#/leilao'; return; }
   if (rota === 'novo' && !app.novo) { location.hash = '#/saves'; return; }

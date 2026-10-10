@@ -43,10 +43,10 @@ const ligaValida = d => saveValido(d) && d.startsWith('gz:H4sI');
 
 // código de liga: 6 letras/números sem os que confundem (0/O, 1/I)
 const codigoNovo = () => [...crypto.getRandomValues(new Uint8Array(6))].map(b => 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'[b % 32]).join('');
-// relógio da liga: ritmo, início, quanto o ADM adiantou e pausa
+// relógio da liga (ritmo, início, quanto o ADM adiantou, pausa), se é aberta e se o clube de cada técnico é sorteado
 function metaValida(m) {
   if (!m || typeof m !== 'object' || !['normal', 'turbo'].includes(m.ritmo)) return null;
-  const n = v => v == null ? null : Number.isFinite(+v) ? +v : NaN, out = { ritmo: m.ritmo, inicio: n(m.inicio), desloc: n(m.desloc) || 0, pausa: !!m.pausa, publica: !!m.publica, slot0: Math.max(0, Math.floor(n(m.slot0) || 0)) };
+  const n = v => v == null ? null : Number.isFinite(+v) ? +v : NaN, out = { ritmo: m.ritmo, inicio: n(m.inicio), desloc: n(m.desloc) || 0, pausa: !!m.pausa, publica: !!m.publica, sorteio: !!m.sorteio, slot0: Math.max(0, Math.floor(n(m.slot0) || 0)) };
   return Number.isNaN(out.inicio) || Number.isNaN(out.desloc) || Number.isNaN(out.slot0) ? null : out;
 }
 
@@ -216,16 +216,34 @@ const rotas = {
 
   // só as versões (consulta leve, sem gravar nada)
   async 'GET /api/ligas/:c/v'(req, env, u, c) {
-    const [l, m] = await env.DB.batch([
+    const [l, m, ch] = await env.DB.batch([
       env.DB.prepare('SELECT ver, meta FROM ligas WHERE codigo = ?').bind(c),
       env.DB.prepare('SELECT usuario_id AS id, apelido, ver, clube, visto FROM mesas WHERE codigo = ?').bind(c),
+      env.DB.prepare('SELECT MAX(id) AS ult FROM chat WHERE codigo = ?').bind(c),
     ]);
     if (!l.results[0]) return erro('Liga não existe.', 404);
     const eu = m.results.find(x => x.id === u.id);
     if (!eu) return erro('Você não está nessa liga.', 403);
     // "estou online": no máximo uma gravação a cada 5 min por técnico (quem processa a rodada é escolhido por isso)
     if (Date.now() - eu.visto > 300e3) await env.DB.prepare('UPDATE mesas SET visto = ? WHERE codigo = ? AND usuario_id = ?').bind(Date.now(), c, u.id).run();
-    return json({ ver: l.results[0].ver, meta: JSON.parse(l.results[0].meta), mesas: m.results });
+    return json({ ver: l.results[0].ver, meta: JSON.parse(l.results[0].meta), mesas: m.results, chat: ch.results[0]?.ult || 0 });
+  },
+
+  // ---------- chat da liga (só quem está nela; as últimas 200 mensagens) ----------
+  async 'GET /api/ligas/:c/chat'(req, env, u, c) {
+    if (!(await membro(env, c, u))) return erro('Você não está nessa liga.', 403);
+    const depois = Math.max(0, Math.floor(+new URL(req.url).searchParams.get('depois') || 0));
+    const { results } = await env.DB.prepare('SELECT id, usuario_id AS de, apelido, texto, criado FROM chat WHERE codigo = ? AND id > ? ORDER BY id DESC LIMIT 60').bind(c, depois).all();
+    return json(results.reverse());
+  },
+  async 'POST /api/ligas/:c/chat'(req, env, u, c) {
+    const texto = String((await corpo(req)).texto || '').replace(/\s+/g, ' ').trim().slice(0, 300);
+    if (!texto) return erro('Escreva alguma coisa.');
+    if (!(await membro(env, c, u))) return erro('Você não está nessa liga.', 403);
+    const min = await limite(env, 'chat:' + u.id, 20, 60e3); if (min) return erro(`Calma: muitas mensagens seguidas. Tente de novo em ${min} min.`, 429);
+    const agora = Date.now(), r = await env.DB.prepare('INSERT INTO chat (codigo, usuario_id, apelido, texto, criado) VALUES (?, ?, ?, ?, ?)').bind(c, u.id, u.apelido, texto, agora).run();
+    await env.DB.prepare('DELETE FROM chat WHERE codigo = ?1 AND id <= (SELECT id FROM chat WHERE codigo = ?1 ORDER BY id DESC LIMIT 1 OFFSET 200)').bind(c).run();
+    return json({ id: r.meta.last_row_id, de: u.id, apelido: u.apelido, texto, criado: agora });
   },
 
   // ---------- ADM ----------
@@ -250,7 +268,7 @@ const rotas = {
   async 'POST /api/ligas/:c/excluir'(req, env, u, c) {
     const l = await souAdm(env, c, u);
     if (l instanceof Response) return l;
-    await env.DB.batch([env.DB.prepare('DELETE FROM mesas WHERE codigo = ?').bind(c), env.DB.prepare('DELETE FROM ligas WHERE codigo = ?').bind(c)]);
+    await env.DB.batch([env.DB.prepare('DELETE FROM mesas WHERE codigo = ?').bind(c), env.DB.prepare('DELETE FROM chat WHERE codigo = ?').bind(c), env.DB.prepare('DELETE FROM ligas WHERE codigo = ?').bind(c)]);
     return json({ ok: true });
   },
   // volta o mundo (e as mesas gravadas junto) para antes da última gravação do mundo
@@ -298,6 +316,7 @@ const rotas = {
   },
 
 };
+const membro = (env, c, u) => env.DB.prepare('SELECT 1 AS ok FROM mesas WHERE codigo = ? AND usuario_id = ?').bind(c, u.id).first();
 // confere que quem chama é o ADM da liga (devolve a liga ou a resposta de erro)
 async function souAdm(env, c, u) {
   const l = await env.DB.prepare('SELECT admin_id FROM ligas WHERE codigo = ?').bind(c).first();

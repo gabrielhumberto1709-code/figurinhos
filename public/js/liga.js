@@ -97,7 +97,7 @@ function minhaVez(agora = Date.now()) {
   const ordem = L.membros.filter(m => m.id === L.eu || agora - m.visto < ATIVO).sort((a, b) => (b.id === L.adminId) - (a.id === L.adminId) || a.id - b.id);
   return agora >= proximoHorario(L.meta, L.W) + ordem.findIndex(m => m.id === L.eu) * FOLGA;
 }
-const intervalo = () => document.visibilityState === 'hidden' ? 60e3 : (proximoHorario(Lg().meta, Lg().W) ?? Infinity) - Date.now() < 45e3 ? 4e3 : 10e3;
+const intervalo = () => document.visibilityState === 'hidden' ? 60e3 : H.app.aba === 'chat' ? 3e3 : (proximoHorario(Lg().meta, Lg().W) ?? Infinity) - Date.now() < 45e3 ? 4e3 : 10e3;
 async function vigiar() {
   const L = Lg(); if (!L || L.vigiando) return;
   L.vigiando = true; clearTimeout(L.tv);
@@ -105,6 +105,7 @@ async function vigiar() {
     const v = await H.api('GET', `/ligas/${L.codigo}/v`);
     if (Lg() !== L) return;
     L.membros = v.mesas; L.meta = v.meta;
+    if (v.chat > L.chatVisto) await puxarChat();
     const mudou = v.ver !== L.ver || v.mesas.length !== Object.keys(L.vers).length || v.mesas.some(m => L.vers[m.id] !== m.ver);
     if (mudou && !L.rodando) {
       const antes = marca();
@@ -149,7 +150,7 @@ async function processar() {
 export async function abrir(codigo) {
   fechar();
   await H.carregarBase();
-  H.app.liga = { codigo, mesas: {}, vers: {}, membros: [] };
+  H.app.liga = { codigo, mesas: {}, vers: {}, membros: [], chat: [], chatVisto: 0 };
   try { await exclusivo(() => baixar(true)); } catch (e) { fechar(); throw e; }
   H.app.salvando = '';
   vigiar();
@@ -164,10 +165,10 @@ export async function entrar(codigo) {
   await abrir(codigo);
   H.ir('#/liga');
 }
-async function criar(nome, ritmo, publica) {
+async function criar(nome, ritmo, publica, sorteio) {
   await H.carregarBase();
   const W = novoMundo(H.app.base, crypto.getRandomValues(new Uint32Array(1))[0] % 1e9);
-  const { codigo } = await H.api('POST', '/ligas', { nome, meta: { ritmo, publica }, mundo: await H.compacta(mundoParaGravar(W)) });
+  const { codigo } = await H.api('POST', '/ligas', { nome, meta: { ritmo, publica, sorteio }, mundo: await H.compacta(mundoParaGravar(W)) });
   await abrir(codigo);
   H.ir('#/liga');
 }
@@ -260,8 +261,9 @@ export function tela() {
     <section class="cartao liga-cabeca">
       <p>Código do convite <b class="codigo-liga">${L.codigo}</b></p>
       <p class="mudo">${L.membros.length} de ${MAX_TECNICOS} técnicos · Ritmo ${RITMOS[m.ritmo].nome}: ${RITMOS[m.ritmo].txt}.</p>
-      <p class="mudo">${m.publica ? 'Liga aberta: aparece em Encontrar uma liga.' : 'Liga fechada: só entra quem tem o código.'}</p>
-      <div class="linha-botoes"><button class="botao sec" type="button" data-acao="liga-convite">Convidar</button>${adm ? `<button class="botao sec" type="button" data-acao="liga-publica">${m.publica ? 'Fechar a liga' : 'Abrir a liga'}</button>` : ''}</div></section>
+      <p class="mudo">${m.publica ? 'Liga aberta: aparece em Encontrar uma liga.' : 'Liga fechada: só entra quem tem o código.'} ${m.sorteio ? 'Clube por sorteio: cada técnico escolhe só a série.' : 'Cada técnico escolhe o próprio clube.'}</p>
+      <div class="linha-botoes"><button class="botao sec" type="button" data-acao="liga-convite">Convidar</button>${adm ? `<button class="botao sec" type="button" data-acao="liga-publica">${m.publica ? 'Fechar a liga' : 'Abrir a liga'}</button><button class="botao sec" type="button" data-acao="liga-sorteio">${m.sorteio ? 'Deixar escolher o clube' : 'Clube por sorteio'}</button>` : ''}</div></section>
+    <a class="cartao chat-entrada" href="#/chat"><b>Chat da liga</b><span>${(n => n ? `${n} nova${n > 1 ? 's' : ''}` : 'Abrir')(chatNovas())}</span></a>
     <section class="cartao"><h3>Relógio</h3>
       ${m.inicio ? relogio('Próximo horário:') : `<p class="relogio-liga">A liga ainda não começou. ${adm ? 'Quando todos tiverem clube, comece: o primeiro horário é pelo menos 10 minutos depois.' : 'O ADM começa quando todos tiverem clube.'}</p>`}
       ${adm ? `<div class="linha-botoes">${!m.inicio ? '<button class="botao grande" type="button" data-acao="liga-comecar">Começar a liga</button>' : m.pausa ? '' : '<button class="botao sec" type="button" data-acao="liga-pausar">Pausar</button>'}</div>` : ''}
@@ -275,18 +277,57 @@ export function tela() {
     ${adm ? painelAdm(membros) : '<div class="linha-botoes" style="margin-top:16px"><button class="botao perigo" type="button" data-acao="liga-sair">Sair da liga</button></div>'}`;
 }
 function escolhaHtml(dono) {
-  const L = Lg(), { esc, clube, imgEscudo } = H, d = L.div || 'A', sorteio = L.modoEscolha === 'sorteio';
+  const L = Lg(), { esc, clube, imgEscudo } = H, d = L.div || 'A', regra = !!L.meta?.sorteio, sorteio = regra || L.modoEscolha === 'sorteio';
   const lista = H.app.base.clubes.map((c, i) => i).filter(i => clube(i).div === d).sort((a, b) => H.app.base.forca(b) - H.app.base.forca(a)), livres = lista.filter(ci => !dono(ci)).length;
   return `<section class="cartao"><h3>${sorteio ? 'Sortear o seu clube' : 'Escolha o seu clube'}</h3>
-    <div class="chips" role="group" aria-label="Como escolher">${[['escolher', 'Escolher'], ['sorteio', 'Sorteio']].map(([k, t]) => `<button type="button" class="chip" data-acao="liga-modo" data-v="${k}" aria-pressed="${(L.modoEscolha || 'escolher') === k}">${t}</button>`).join('')}</div>
+    ${regra ? '' : `<div class="chips" role="group" aria-label="Como escolher">${[['escolher', 'Escolher'], ['sorteio', 'Sorteio']].map(([k, t]) => `<button type="button" class="chip" data-acao="liga-modo" data-v="${k}" aria-pressed="${(L.modoEscolha || 'escolher') === k}">${t}</button>`).join('')}</div>`}
     <div class="chips" role="group" aria-label="Divisão">${['A', 'B', 'C'].map(x => `<button type="button" class="chip" data-acao="liga-div" data-div="${x}" aria-pressed="${d === x}">Série ${x}</button>`).join('')}</div>
-    ${sorteio ? `<p class="mudo">Você escolhe a série e o clube sai no sorteio, entre os ${livres} sem técnico. Não dá para sortear de novo: o clube é seu.</p>
+    ${sorteio ? `<p class="mudo">${regra ? 'Nesta liga o clube é sorteado (regra do ADM). ' : ''}Você escolhe a série e o clube sai no sorteio, entre os ${livres} sem técnico. Não dá para sortear de novo: o clube é seu.</p>
     <p class="erro" role="alert"></p>
     <button class="botao grande" type="button" data-acao="liga-sortear" ${livres ? '' : 'disabled'}>Sortear um clube da Série ${d}</button></section>` : `
     <div class="clubes-lista">${lista.map(ci => { const x = dono(ci); return `<label class="opcao clube-op ${x ? 'ocupado' : ''}" ${x ? '' : `data-acao="liga-escolhe" data-c="${ci}"`}><input type="radio" name="liga-clube" ${L.escolha === ci ? 'checked' : ''} ${x ? 'disabled' : ''}>${imgEscudo(ci, 34, 37)}<span><strong style="font-size:1rem">${esc(clube(ci).n)}</strong><br>${x ? `<small>${esc(x.apelido)}</small>` : H.estrelas(ci)}</span></label>`; }).join('')}</div>
     <p class="erro" role="alert"></p>
     <button class="botao grande" type="button" data-acao="liga-assumir" ${L.escolha == null ? 'disabled' : ''}>${L.escolha == null ? 'Escolha um clube' : `Assumir o ${esc(clube(L.escolha).n)}`}</button></section>`}`;
 }
+// ---------- chat da liga ----------
+// o servidor guarda as últimas 200 mensagens; a consulta leve (/v) diz o id da última e só então as novas são baixadas
+const chaveLido = () => `fig.chat.${Lg().codigo}`;
+const lido = () => { try { return +localStorage.getItem(chaveLido()) || 0; } catch { return 0; } };
+export const chatNovas = () => { const L = Lg(), l = lido(); return L ? L.chat.filter(m => m.id > l && m.de !== L.eu).length : 0; };
+async function puxarChat() {
+  const L = Lg(), primeira = !L.chatVisto, novas = await H.api('GET', `/ligas/${L.codigo}/chat?depois=${L.chatVisto}`);
+  if (Lg() !== L || !novas.length) return;
+  L.chat = [...L.chat, ...novas].slice(-200); L.chatVisto = novas.at(-1).id;
+  if (H.app.aba === 'chat') return atualizarChat();
+  const ult = novas.filter(m => m.de !== L.eu).at(-1);
+  if (ult && !primeira) H.aviso(`${ult.apelido}: ${ult.texto.slice(0, 80)}`);
+  H.desenhaTopo();
+}
+const itensChat = () => {
+  const L = Lg(), { esc, imgEscudo } = H, hora = t => new Date(t).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
+  const clubeDe = id => { const d = L.mesas[id]; return d && !d.demitido ? d.tecnico?.clube ?? null : null; };
+  // lista invertida (column-reverse): a mais nova embaixo e a rolagem já começa no fim
+  return L.chat.slice().reverse().map(m => { const ci = clubeDe(m.de); return `<li class="${m.de === L.eu ? 'meu' : ''}">${ci != null ? imgEscudo(ci, 22, 24) : '<span class="sem-clube" aria-hidden="true"></span>'}<div><small><b>${esc(m.apelido)}</b> · ${hora(m.criado)}</small><p>${esc(m.texto)}</p></div></li>`; }).join('')
+    || '<li class="vazio mudo">Ninguém falou nada ainda. Comece a resenha.</li>';
+};
+const marcarLido = () => { try { localStorage.setItem(chaveLido(), Lg().chatVisto); } catch { } };
+function atualizarChat() { const el = document.querySelector('.chat-lista'); if (el) el.innerHTML = itensChat(); marcarLido(); H.desenhaTopo(); }
+export function telaChat() {
+  const L = Lg(); marcarLido();
+  return `<div class="titulo-linha"><h2>Chat</h2><a href="#/liga">${H.esc(L.nome)}</a></div>
+    <section class="cartao chat"><ol class="chat-lista" aria-live="polite">${itensChat()}</ol>
+      <form class="chat-form" data-form="liga-chat" novalidate><input type="text" name="texto" maxlength="300" autocomplete="off" enterkeyhint="send" placeholder="Mensagem para a liga" aria-label="Mensagem para a liga"><button class="botao" type="submit">Enviar</button></form>
+      <p class="erro" role="alert"></p></section>`;
+}
+async function enviarChat(f) {
+  const L = Lg(), t = f.texto.value.trim(), erro = f.parentNode.querySelector('.erro');
+  if (!t) return;
+  f.texto.value = ''; erro.textContent = '';
+  try { await H.api('POST', `/ligas/${L.codigo}/chat`, { texto: t }); await puxarChat(); }
+  catch (e) { erro.textContent = e.message; f.texto.value = t; }
+  f.texto.focus();
+}
+
 // ---------- ADM: multa, dinheiro, transfer ban, expulsar, passar o posto, voltar horário, excluir ----------
 const banDe = (L, id) => { const b = L.mesas[id]?.banAdm; return b && b.ano === L.W.ano && L.W.rodada < b.ate ? b.ate : 0; };
 const OPS = [['multa', 'Multar'], ['dinheiro', 'Dar dinheiro'], ['ban', 'Transfer ban'], ['expulsar', 'Expulsar'], ['passar', 'Passar ADM']];
@@ -351,6 +392,7 @@ export function minhasLigas(ligas) {
 export const formsLiga = () => `<details class="dobra"><summary class="botao sec">Criar nova liga</summary><form class="cartao" data-form="liga-criar" novalidate>
     <label>Nome da liga <input type="text" name="nome" maxlength="30" required placeholder="Ex.: Liga da firma"></label>
     <div class="opcoes">${Object.entries(RITMOS).map(([k, r], i) => `<label class="opcao"><input type="radio" name="ritmo" value="${k}" ${i ? '' : 'checked'}><strong>${r.nome}</strong><small>${r.txt}.</small></label>`).join('')}</div>
+    <div class="opcoes">${[['escolher', 'Cada um escolhe o clube', 'O técnico escolhe entre os clubes sem técnico.'], ['sorteio', 'Clube por sorteio', 'O técnico escolhe só a série; o clube sai no sorteio.']].map(([k, t, d], i) => `<label class="opcao"><input type="radio" name="clubes" value="${k}" ${i ? '' : 'checked'}><strong>${t}</strong><small>${d}</small></label>`).join('')}</div>
     <label class="check"><input type="checkbox" name="publica" checked> Liga aberta: aparece em Encontrar uma liga para quem quiser entrar</label>
     <p class="erro" role="alert"></p><button class="botao">Criar liga</button></form></details>
   <details class="dobra"><summary class="botao sec">Entrar com código</summary><form class="cartao" data-form="liga-entrar" novalidate>
@@ -360,11 +402,12 @@ export const formsLiga = () => `<details class="dobra"><summary class="botao sec
 export async function telaAbertas() {
   const { esc } = H, L = await H.api('GET', '/ligas/abertas');
   return `<div class="titulo-linha"><h2>Encontrar uma liga</h2><a href="#/inicio">Voltar</a></div>
-    ${L.length ? `<ul class="ligas-abertas">${L.map(l => `<li class="cartao"><div><b>${esc(l.nome)}</b><small>${RITMOS[l.meta.ritmo]?.nome || ''} · ${l.n} de ${MAX_TECNICOS} técnicos · ADM ${esc(l.adm || '?')} · ${l.meta.inicio ? 'em andamento' : 'ainda não começou'}</small></div>
+    ${L.length ? `<ul class="ligas-abertas">${L.map(l => `<li class="cartao"><div><b>${esc(l.nome)}</b><small>${RITMOS[l.meta.ritmo]?.nome || ''}${l.meta.sorteio ? ' · clube por sorteio' : ''} · ${l.n} de ${MAX_TECNICOS} técnicos · ADM ${esc(l.adm || '?')} · ${l.meta.inicio ? 'em andamento' : 'ainda não começou'}</small></div>
       <button class="botao" type="button" data-acao="liga-entrar-aberta" data-c="${l.codigo}">Entrar</button></li>`).join('')}</ul>`
     : `<section class="cartao vazio"><p>Nenhuma liga aberta com vaga agora.</p><p class="mudo">Crie a sua e chame os amigos pelo código.</p><a class="botao" href="#/inicio">Criar uma liga</a></section>`}`;
 }
 export async function enviarForm(f) {
+  if (f.dataset.form === 'liga-chat') return enviarChat(f);
   const erro = f.querySelector('.erro'), bt = f.querySelector('button');
   bt.disabled = true; erro.textContent = '';
   try {
@@ -383,7 +426,7 @@ export async function enviarForm(f) {
       const nome = f.nome.value.trim();
       if (!nome) throw new Error('Dê um nome para a liga.');
       bt.textContent = 'Criando o mundo…'; await quadro();
-      await criar(nome, f.ritmo.value, f.publica.checked);
+      await criar(nome, f.ritmo.value, f.publica.checked, f.clubes.value === 'sorteio');
     } else {
       const c = f.codigo.value.trim().toUpperCase();
       if (!/^[A-Z0-9]{4,8}$/.test(c)) throw new Error('O código tem 6 letras e números.');
@@ -401,7 +444,7 @@ export const acoes = {
   'liga-escolhe': el => { Lg().escolha = +el.dataset.c; H.render(); },
   'liga-modo': el => { Lg().modoEscolha = el.dataset.v; H.render(); },
   'liga-sortear': tenta(async () => { const ci = await assumir(Lg().div || 'A'); H.aviso(`Sorteio: você vai treinar o ${H.clube(ci).n}!`); H.ir('#/clube'); }),
-  'liga-assumir': tenta(async () => { const ci = Lg().escolha; await assumir(ci); Lg().escolha = null; H.aviso(`Você vai treinar o ${H.clube(ci).n}!`); H.ir('#/clube'); }),
+  'liga-assumir': tenta(async () => { if (Lg().meta?.sorteio) throw new Error('Nesta liga o clube é sorteado.'); const ci = Lg().escolha; await assumir(ci); Lg().escolha = null; H.aviso(`Você vai treinar o ${H.clube(ci).n}!`); H.ir('#/clube'); }),
   'liga-convite': async () => {
     const url = `${location.origin}${location.pathname}#/liga/${Lg().codigo}`, txt = `Entra na minha liga do Figurinhos: ${Lg().nome}`;
     try { if (navigator.share) return await navigator.share({ title: 'Figurinhos', text: txt, url }); } catch { return; }
@@ -411,6 +454,7 @@ export const acoes = {
   'liga-retomar': tenta(async () => { await mudarMeta((m, W) => ({ ...m, inicio: Date.now(), desloc: 0, pausa: false, slot0: W.slot || 0 })); H.render(); }),
   'liga-entrar-aberta': tenta(el => entrar(el.dataset.c)),
   'liga-publica': tenta(async () => { await mudarMeta(m => ({ ...m, publica: !m.publica })); H.render(); }),
+  'liga-sorteio': tenta(async () => { await mudarMeta(m => ({ ...m, sorteio: !m.sorteio })); H.render(); }),
   'liga-pausar': tenta(async () => { await mudarMeta(m => ({ ...m, pausa: true })); H.render(); }),
   'liga-agora': tenta(async () => { await mudarMeta((m, W) => adiantar(m, W)); H.aviso('O próximo horário começa agora.'); vigiar(); }),
   'adm-alvo': el => { Lg().adm.alvo = +el.dataset.id; H.render(); },
