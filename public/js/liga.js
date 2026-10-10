@@ -115,7 +115,7 @@ async function vigiar() {
       if (L.sujo) await descarregar(); else await exclusivo(() => baixar());
       notificar(antes);
     }
-    chamada();
+    chamada(); retomar();
     if (minhaVez()) await processar();
     else if (H.app.aba === 'liga') atualizarTela();
     for (const el of document.querySelectorAll('[data-relogio]')) el.textContent = falta(+el.dataset.relogio);
@@ -309,7 +309,27 @@ function chamada() {
 }
 function abrirJogo() {
   const s = H.app.s; H.app.esperaJogo = null;
-  if (s?.ultimaVivo) H.assistir(); else H.ir('#/partida');
+  if (s?.ultimaVivo) transicao(H.assistir); else H.ir('#/partida');
+}
+// jogo que você ainda não viu (o horário rodou com o app fechado): ao entrar, ele abre desde o começo, como ao vivo.
+// O "já vi" fica neste aparelho; vale só o último jogo (é o que tem a ficha para assistir).
+const chaveVisto = () => `fig.visto.${Lg().codigo}.${Lg().eu}`;
+const chaveJogo = s => { const u = s?.ultima; return u ? `${s.ano}|${u.copa || u.div}|${u.rodada}|${u.casa}|${u.fora}|${u.gols}` : null; };
+export function marcarVisto() { const k = chaveJogo(H.app.s); if (k) try { localStorage.setItem(chaveVisto(), k); } catch { } }
+function retomar() {
+  const L = Lg(), s = H.app.s;
+  if (!s?.ultimaVivo || s.demitido || H.app.esperaJogo || L.rodando || document.visibilityState !== 'visible') return;
+  if (FIXAS.has(H.app.aba) || document.getElementById('transicao') || document.activeElement?.matches?.('input, textarea') || document.querySelector('dialog[open]')) return;
+  let visto = null; try { visto = localStorage.getItem(chaveVisto()); } catch { return; }
+  if (visto !== chaveJogo(s)) transicao(H.assistir);
+}
+// fade: a cortina com os escudos entra, o jogo carrega por trás e começa quando ela sai
+function transicao(fn) {
+  const u = H.app.s?.ultima, el = document.createElement('div');
+  marcarVisto(); el.id = 'transicao'; el.setAttribute('role', 'status');
+  el.innerHTML = `${u ? `<div class="vs">${H.imgEscudo(u.casa, 64, 69)}<span>×</span>${H.imgEscudo(u.fora, 64, 69)}</div><p>${H.esc(u.copa || 'Brasileirão')}</p>` : ''}<div class="bola-gira" aria-hidden="true"></div><p class="entrando">Entrando em campo…</p>`;
+  document.getElementById('transicao')?.remove(); document.body.appendChild(el);
+  setTimeout(() => { fn(); el.classList.add('sai'); setTimeout(() => el.remove(), 600); }, 1200);
 }
 export function telaCarregando() {
   const L = Lg(), E = H.app.esperaJogo, { esc, imgEscudo, clube } = H;

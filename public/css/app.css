@@ -926,3 +926,14 @@ b.pos { color: var(--gramado); } b.neg { color: var(--cartao); }
 @keyframes bola-gira { to { transform: rotate(360deg); } }
 @media (prefers-reduced-motion: reduce) { .bola-gira { animation-duration: 4s; } }
 .carregando-jogo .mudo { color: var(--barra-texto-2); }
+
+/* entrada no jogo da liga: a cortina entra (fade in), o jogo carrega por trás e começa quando ela sai */
+#transicao { position: fixed; inset: 0; z-index: 60; display: grid; place-content: center; justify-items: center; gap: 14px; text-align: center;
+  background: var(--barra); color: var(--barra-texto); animation: cortina-entra .45s ease-out both; }
+#transicao.sai { animation: cortina-sai .55s ease-in both; }
+#transicao .vs { display: flex; align-items: center; gap: 18px; font: 700 1.6rem var(--f-corpo); }
+#transicao p { margin: 0; font-family: var(--f-pixel); color: var(--placar); }
+#transicao .entrando { font-family: var(--f-corpo); font-weight: 700; color: var(--barra-texto); font-size: 1.2rem; }
+@keyframes cortina-entra { from { opacity: 0; } to { opacity: 1; } }
+@keyframes cortina-sai { from { opacity: 1; } to { opacity: 0; visibility: hidden; } }
+@media (prefers-reduced-motion: reduce) { #transicao, #transicao.sai { animation-duration: .01s; } }

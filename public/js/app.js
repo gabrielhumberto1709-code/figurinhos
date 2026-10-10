@@ -800,6 +800,7 @@ const acoes = {
   'recusar-oferta': el => { recusarOferta(app.s, +el.dataset.c); render(); salvar(); },
   'pedir-demissao': el => { if (el.dataset.confirma !== '1') { el.dataset.confirma = '1'; el.textContent = 'Tem certeza? Toque de novo'; return; } pedirDemissao(app.base, app.s); salvar(); ir('#/clube'); },
   assistir: () => {
+    if (app.liga) Liga.marcarVisto();
     const s = app.s, u = s.ultima, F = daFoto(s.ultimaVivo);
     app.vivo = AoVivo.novaPartidaAoVivo({ replay: true, pen: u.pen, titulo: u.copa || `Série ${u.div} · ${u.rodada + 1}ª rodada`, meu: { ...F, h: u.casa, a: u.fora, d: u.div, humano: u.casa === s.tecnico.clube ? 0 : 1 } });
     ir('#/ao-vivo');

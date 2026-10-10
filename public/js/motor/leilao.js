@@ -154,6 +154,8 @@ export function abrirLeilaoVenda(base, s, id) {
   const fol = ci => Math.min(teto, caixaDe(base, s, ci) * (base.clubes[ci].div === 'X' ? 3 : 0.6)) * (0.55 + r() * 0.45);
   const outros = shuffle(r, interessados(base, j, s).filter(ci => ci !== x.de && !ehHumano(s, ci) && !rivais(base, ci, meu) && base.elencos[ci].length < 38))
     .map(ci => ({ ci, max: r10(fol(ci)) })).filter(o => o.max >= minimo({ valor: x.valor })).slice(0, 3);
+  // sem mais ninguém interessado (ou com dinheiro para cobrir), não tem sala: a oferta segue como estava
+  if (!outros.length) return `Nenhum outro clube está interessado em ${j.curto} (ou tem dinheiro para cobrir): não tem leilão. A proposta do ${base.clubes[x.de].n} continua de pé.`;
   x.leilao = 'vivo';
   s.leilaoAtivo = novoLeilao({ id, modo: 'venda', jogador: j.id, vendedor: meu, valor: x.valor, lider: x.de, participantes: [{ ci: x.de, max: r10(Math.max(x.valor, fol(x.de))) }, ...outros], seed: `${s.seed}-${id}` });
   return null;
