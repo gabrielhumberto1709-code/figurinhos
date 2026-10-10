@@ -128,6 +128,21 @@ test('mercado: proposta boa por jogador que quer vir fecha na rodada seguinte; d
   }
 });
 
+import { responderProposta as respAgora, clausula as clausulaDe } from '../public/js/motor/mercado.js';
+test('mercado: a CPU responde na hora; multa rescisória paga, o clube não segura (só o jogador decide)', () => {
+  const s = novoJogo(base, cfg(23)), alvo = base.elencos[5][0];
+  assert.equal(fazerProposta(base, s, alvo, proposta(base, s, alvo, { valor: precoPedido(base, s, alvo) * 0.5 })), null);
+  assert.ok(respAgora(base, s, s.propostas[0].id)); assert.equal(s.propostas[0].estado, 'recusada');
+  s.caixa = 2e9; s.fin.salarioBudget = null;
+  const brs = [...base.jog.values()].filter(j => j.clube !== s.tecnico.clube && base.clubes[j.clube].div === 'A' && clausulaDe(base, s, j) && vontade(base, s, j, s.tecnico.clube) >= 75);
+  const o = j => proposta(base, s, j, { valor: clausulaDe(base, s, j).nac, salario: salarioPedido(base, s, j, 3) });
+  const j = brs.find(j => !bloqueioProposta(base, s, j, o(j)));
+  assert.ok(j, 'precisa de um alvo com a multa no orçamento');
+  assert.equal(fazerProposta(base, s, j, o(j)), null);
+  assert.match(respAgora(base, s, s.propostas[0].id), /Multa rescisória paga/);
+  assert.equal(s.propostas[0].estado, 'concluida', s.propostas[0].motivo); // ele quer vir: o clube não tinha como segurar
+});
+
 test('mercado: proposta baixa é recusada, janela fechada não bloqueia jogador livre', () => {
   const s = novoJogo(base, cfg(22));
   const alvo = base.elencos[5][0];
@@ -1258,7 +1273,7 @@ test('base sul-americana do Treineiros: elencos reais e vagas por país nas copa
 
 import { novoMundo, novaMesa, montar, processarProximo, vistaDe, horario, adiantar, devido, proximoHorario, merge3, liberarMesa, clubeLivre } from '../public/js/motor/online.js';
 import { daFoto, pendentes } from '../public/js/motor/mundo.js';
-import { aceitarRecebida as aceitarR } from '../public/js/motor/mercado.js';
+import { aceitarRecebida as aceitarR, responderProposta } from '../public/js/motor/mercado.js';
 test('liga online: dois técnicos no mesmo mundo, cada um com a sua tática, finanças e correio; proposta entre eles; replay igual; virada', () => {
   const W = novoMundo(base, 31), mesas = {};
   montar(W, mesas);
@@ -1275,14 +1290,21 @@ test('liga online: dois técnicos no mesmo mundo, cada um com a sua tática, fin
   const FA = daFoto(va.ultimaVivo); assert.deepEqual(simular(FA.th, FA.ta, FA.seed, FA.opts).gols, va.ultima.gols);
   // proposta da Ana por um jogador do Beto (janela aberta na pré-temporada)
   const alvo = base.elencos[B].slice().sort((a, b) => a.ovr - b.ovr)[8];
-  assert.equal(fazerProposta(base, va, alvo, { tipo: 'compra', valor: 2e6, salario: salarioPedido(base, va, alvo, 3, A), anos: 3 }), null);
+  const v = Math.round(clausula(base, vb, alvo).nac / 2e5) * 1e5; // abaixo da multa: o Beto decide
+  assert.equal(fazerProposta(base, va, alvo, { tipo: 'compra', valor: v, salario: salarioPedido(base, va, alvo, 3, A), anos: 3 }), null);
+  assert.match(responderProposta(base, va, va.propostas[0].id), /já chegou/);
   let n = 0;
-  while (!vb.recebidas.some(x => x.humano) && n++ < 30) processarProximo(base, W);
   const x = vb.recebidas.find(y => y.humano);
-  assert.ok(x && x.de === A && x.jogador === alvo.id, 'proposta chegou ao Beto');
+  assert.ok(x && x.de === A && x.jogador === alvo.id, 'proposta chegou ao Beto na hora');
   const ca = va.caixa, cb = vb.caixa;
   assert.equal(aceitarR(base, vb, x.id), null);
-  assert.equal(alvo.clube, A); assert.equal(va.caixa, ca - 2e6); assert.equal(vb.caixa, cb + 2e6);
+  assert.equal(alvo.clube, A); assert.equal(va.caixa, ca - v); assert.equal(vb.caixa, cb + v);
+  // multa rescisória paga: fecha na hora, o Beto não tem o que fazer (só o jogador podia recusar)
+  const alvo2 = base.elencos[B].filter(j => j.id !== alvo.id && vontade(base, vb, j, A) >= 35).sort((a, b) => a.ovr - b.ovr)[5], m = clausula(base, vb, alvo2).nac;
+  const cb2 = vb.caixa;
+  assert.equal(fazerProposta(base, va, alvo2, { tipo: 'compra', valor: m, salario: salarioPedido(base, va, alvo2, 3, A), anos: 3 }), null);
+  assert.match(responderProposta(base, va, va.propostas[0].id), /Multa rescisória paga/);
+  assert.equal(alvo2.clube, A); assert.equal(vb.caixa, cb2 + m); assert.ok(!vb.recebidas.some(y => y.jogador === alvo2.id) && vb.msgs.some(c => /multa rescisória/.test(c.assunto)));
   assert.equal(va.propostas.find(p => p.jogador === alvo.id).estado, 'concluida');
   while (W.rodada < 4 && n++ < 400) processarProximo(base, W);
   // a Ana deixa o melhor jogador no banco: vale no próximo jogo dela

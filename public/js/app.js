@@ -119,7 +119,7 @@ async function sairDaConta() { await descarregar().catch(() => { }); Liga.fechar
 
 function aviso(msg) {
   const el = $('#aviso'); el.textContent = msg; el.classList.add('on');
-  clearTimeout(aviso.t); aviso.t = setTimeout(() => el.classList.remove('on'), 2600);
+  clearTimeout(aviso.t); aviso.t = setTimeout(() => el.classList.remove('on'), Math.max(2600, msg.length * 50));
 }
 
 // ---------- pedaços de interface ----------

@@ -95,7 +95,7 @@ const ddmm = d => `${String(d.getUTCDate()).padStart(2, '0')}/${String(d.getUTCM
 function faixaJanela(s) {
   const J = janelaInfo(s);
   const txt = J.aberta ? (J.dias != null ? `Janela aberta · fecha em ${J.dias} dias (${ddmm(J.data)})` : 'Janela aberta') : J.dias != null ? `Janela fechada · abre em ${J.dias} dias (${ddmm(J.data)})` : 'Janela fechada até a próxima temporada';
-  return `<p class="janela ${J.aberta ? 'aberta' : ''}"><b>${txt}</b><small>Livres e pré-contratos não dependem da janela. Com ela fechada, dá para fechar compra ou empréstimo do mesmo jeito: o negócio fica acertado e o jogador chega quando a janela abrir. Propostas são respondidas na rodada seguinte (na pré-temporada e nos regionais, no fim da semana).</small></p>`;
+  return `<p class="janela ${J.aberta ? 'aberta' : ''}"><b>${txt}</b><small>Livres e pré-contratos não dependem da janela. Com ela fechada, dá para fechar compra ou empréstimo do mesmo jeito: o negócio fica acertado e o jogador chega quando a janela abrir. A resposta das propostas sai na hora. Pagando a multa rescisória, o clube não pode recusar: só o jogador decide.</small></p>`;
 }
 
 function abaBuscar(topo = faixaJanela(S())) {
@@ -171,7 +171,7 @@ function abaOlheiros() {
 function acoesRecebida(x) {
   if (x.leilao === 'aberto') return '<p class="mudo">Leilão aberto: os lances saem na próxima rodada.</p>';
   if (x.leilao === 'vivo') return '<a class="botao peq" href="#/leilao">Voltar à sala do leilão</a>';
-  if (x.pedido) return `<p class="mudo">Você pediu ${fmtDinheiro(x.pedido)}. Resposta na próxima rodada.</p>`;
+  if (x.pedido) return `<p class="mudo">Você pediu ${fmtDinheiro(x.pedido)}. Esperando a resposta.</p>`;
   const compra = x.tipo !== 'emprestimo', livre = compra && !x.contraFeita && !x.leilao;
   return `<div class="linha-botoes"><button class="botao peq" type="button" data-acao="aceitar-recebida" data-id="${x.id}">${compra ? 'Vender' : 'Emprestar'}</button>
     ${livre ? `<button class="botao peq sec" type="button" data-acao="pedir-mais" data-id="${x.id}" data-f="1.15">Pedir +15%</button><button class="botao peq sec" type="button" data-acao="pedir-mais" data-id="${x.id}" data-f="1.3">Pedir +30%</button><button class="botao peq sec" type="button" data-acao="leilao" data-id="${x.id}">Leilão</button>` : ''}
@@ -293,7 +293,7 @@ export function blocoFicha(j) {
     <dl>${livre ? '' : `<dt>Preço pedido</dt><dd>${fmtDinheiro(pedido)}</dd>`}${cid ? `<dt>Multa rescisória</dt><dd>${fmtDinheiro(cid.nac)}</dd>` : ''}<dt>Salário hoje</dt><dd>${livre ? '—' : `${euro(salarioDia(b, s, j))}/dia`}</dd><dt>Seu caixa</dt><dd>${fmtDinheiro(s.caixa)}</dd></dl>
     <p class="mudo">${M.pistaVontade(M.vontade(b, s, j, s.tecnico.clube))}${medo ? ` Ele tem medo de ser reserva${medo >= 2 ? ': tem dois ou mais melhores na posição' : ''}.` : ''}</p>
     ${(x => x && b.clubes[s.tecnico.clube].div === 'A' ? `<p class="aviso-ficha">Regra dos 12 jogos: ${H.esc(j.curto)} já fez ${x.n} jogos da Série A pelo ${H.esc(H.clube(x.c).n)}. Se vier, não joga a Série A por você nesta temporada (só Copa do Brasil, estadual e continental).</p>` : '')(barrado12(s, j.id, s.tecnico.clube))}
-    ${ja ? `<p><b>${ja.estado === 'contraproposta' ? 'Tem contraproposta esperando. Veja em Mercado › Propostas.' : 'Proposta enviada. Resposta na próxima rodada.'}</b></p>`
+    ${ja ? `<p><b>${ja.estado === 'contraproposta' ? 'Tem contraproposta esperando. Veja em Mercado › Propostas.' : 'Proposta enviada. Esperando a resposta.'}</b></p>`
       : fixo ? `<p class="erro">${H.esc(geral)}</p>`
       : `<form class="proposta" data-form="proposta" data-id="${j.id}" data-pedido="${pedido}">
         ${tipos.length > 1 ? `<div class="chips tipos" role="radiogroup" aria-label="Tipo de proposta">${tipos.map(t => `<label class="chip"><input class="vh" type="radio" name="tipo" value="${t}" ${t === tipo0 ? 'checked' : ''}>${NOME_TIPO[t]}</label>`).join('')}</div>` : `<input type="hidden" name="tipo" value="${tipos[0]}">`}
@@ -323,7 +323,7 @@ export function enviar(form) {
   if (e) { erro.textContent = e; return; }
   H.$('#ficha').close();
   if (abrirLeilaoCompra(b, s, s.propostas[0].id)) { H.salvar(); location.hash = '#/leilao'; return; } // outro clube também quer: vira leilão na hora
-  H.aviso('Proposta enviada. A resposta sai na próxima rodada.'); H.render(); H.salvar();
+  H.aviso(M.responderProposta(b, s, s.propostas[0].id) || 'Proposta enviada.'); H.render(); H.salvar();
 }
 
 // ---------- eventos ----------
@@ -349,11 +349,11 @@ export const acoes = {
   observar: el => { const e = M.observar(S(), +el.dataset.id); H.aviso(e || 'O olheiro vai observá-lo na próxima rodada.'); if (!e) el.outerHTML = '<p class="mudo">O olheiro vai observá-lo na próxima rodada.</p>'; H.salvar(); },
   olheiro: re(el => { const o = S().olheiro, k = el.dataset.k; o[k] = k === 'jovens' ? el.dataset.v === '1' : el.dataset.v; }, true),
   sugerir: el => { const c = el.closest('form').valor; c.value = el.dataset.v; aoDigitar(c); },
-  'aceitar-contra': re(el => { H.aviso(M.aceitarContraproposta(B(), S(), el.dataset.id) || 'Topou. A resposta final sai na próxima rodada.'); }, true),
+  'aceitar-contra': re(el => { H.aviso(M.aceitarContraproposta(B(), S(), el.dataset.id) || M.responderProposta(B(), S(), el.dataset.id) || 'Topou.'); }, true),
   desistir: re(el => { M.desistir(S(), el.dataset.id); }, true),
   'aceitar-recebida': re(el => { H.aviso(M.aceitarRecebida(B(), S(), el.dataset.id) || 'Negócio fechado.'); if (H.$('#ficha').open) H.$('#ficha').close(); }, true),
   'pagar-medo': re(el => { H.aviso(pagarMedo(B(), S(), +el.dataset.id) || 'Multa paga: ele está liberado para este jogo.'); if (H.$('#ficha').open) H.$('#ficha').close(); }, true),
-  'pedir-mais': re(el => { H.aviso(M.pedirMais(B(), S(), el.dataset.id, +el.dataset.f) || 'Contraproposta enviada. Resposta na próxima rodada.'); }, true),
+  'pedir-mais': re(el => { H.aviso(M.pedirMais(B(), S(), el.dataset.id, +el.dataset.f) || M.responderPedidoAgora(B(), S(), el.dataset.id) || 'Contraproposta enviada ao outro técnico.'); }, true),
   leilao: el => { const e = abrirLeilaoVenda(B(), S(), el.dataset.id); if (e) return H.aviso(e); if (H.$('#ficha').open) H.$('#ficha').close(); H.salvar(); location.hash = '#/leilao'; },
   opcao: re(el => { H.aviso(M.exercerOpcao(B(), S(), +el.dataset.id) || 'Opção exercida: ele é seu em definitivo.'); if (H.$('#ficha').open) H.$('#ficha').close(); }, true),
   'chamar-volta': re(el => { H.aviso(M.chamarDeVolta(B(), S(), +el.dataset.id) || 'Ele está de volta ao elenco.'); if (H.$('#ficha').open) H.$('#ficha').close(); }, true),

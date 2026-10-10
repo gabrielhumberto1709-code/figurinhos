@@ -2,7 +2,7 @@
 // IA) volta o relógio. Durante o leilão a tela se atualiza em pedaços (relógio, placar, placas, falas), sem redesenhar
 // tudo, para o relógio correr liso no celular. Martelo batido: carimbo "Arrematado" na figurinha e o resultado.
 import * as Lm from './motor/leilao.js';
-import { aceitarRecebida, recusarRecebida } from './motor/mercado.js';
+import { aceitarRecebida, recusarRecebida, responderProposta } from './motor/mercado.js';
 import { cartaDe, valorCurto, lerValor } from './motor/util.js';
 import { urlRosto, urlEscudo, urlLeiloeiro } from './pixel.js';
 import { SOM } from './sons.js';
@@ -34,7 +34,7 @@ function falaLance(L, ci, v) {
 function falaFim(L, res) {
   const j = B().jog.get(L.jogador), v = Lm.fmtLance(L.valor);
   if (res?.erro) return `O martelo bateu, mas ${res.erro.toLowerCase()}`;
-  if (L.modo === 'compra') return res.venceu ? `Vendido! ${j.curto} é do ${H.clube(S().tecnico.clube).n} por ${v}. Agora é com ele: a resposta sobre o salário sai na próxima rodada.` : `Vendido ${O(L.lider).replace(/^o /, 'ao ')} por ${v}! Não foi dessa vez.`;
+  if (L.modo === 'compra') return res.venceu ? `Vendido! ${j.curto} é do ${H.clube(S().tecnico.clube).n} por ${v}. ${res.resposta || ''}` : `Vendido ${O(L.lider).replace(/^o /, 'ao ')} por ${v}! Não foi dessa vez.`;
   return L.lances.length > 1 ? `Martelo batido: ${O(L.lider)} leva por ${v}. A decisão é sua.` : `Ninguém cobriu: fica a oferta ${O(L.lider).replace(/^o /, 'do ')}, ${v}. A decisão é sua.`;
 }
 
@@ -124,6 +124,7 @@ function aplicar(L, e) {
   else if (e.tipo === 'duas') { falar('Dou-lhe duas…'); bater(true); }
   else if (e.tipo === 'vendido') {
     const res = Lm.fecharLeilao(B(), S());
+    if (res?.venceu) res.resposta = responderProposta(B(), S(), L.id); // a conversa com ele sai na hora
     H.app.leilaoFim = { res, L }; H.app.leilaoFala = null;
     SOM.martelo(); H.salvar(); H.render();
   }
