@@ -605,6 +605,7 @@ telas.gala = () => Gala.tela();
 telas.leilao = () => Leilao.tela();
 telas.liga = () => Liga.tela();
 telas.chat = () => Liga.telaChat();
+telas.carregando = () => Liga.telaCarregando();
 
 // saves antigos ganham os campos novos; a base recebe as transferências deste save
 function migrar(s) {
@@ -684,7 +685,7 @@ async function render() {
   const precisaJogo = ['clube', 'elenco', 'torneios', 'calendario', 'partida', 'noticias', 'mercado', 'financas', 'carreira', 'coletiva', 'mensagens', 'gala', 'leilao'].includes(rota);
   if (!app.conta && rota !== 'entrar') { location.hash = '#/entrar'; return; }
   if (precisaJogo && !app.s) { location.hash = app.liga ? '#/liga' : '#/inicio'; return; }
-  if ((rota === 'liga' || rota === 'chat') && !app.liga) { location.hash = '#/inicio'; return; }
+  if (['liga', 'chat', 'carregando'].includes(rota) && !app.liga) { location.hash = '#/inicio'; return; }
   // leilão por jogador que você quer: a sala abre sozinha, por cima do que estiver fazendo (menos no meio do jogo e da coletiva)
   if (precisaJogo && rota !== 'leilao' && rota !== 'coletiva' && app.s.leilaoAtivo && !app.s.leilaoAtivo.fim && !app.s.demitido) { location.hash = '#/leilao'; return; }
   if (rota === 'novo' && !app.novo) { location.hash = '#/saves'; return; }
@@ -767,8 +768,8 @@ const acoes = {
     if (prePendente(app.base, app.s)) { app.colPre = true; ir('#/coletiva'); return; }
     comecarJogo();
   },
-  // Continuar: depois do jogo oficial vem a coletiva pós-jogo
-  'vivo-fim': () => { if (app.vivo?.R.replay) { app.vivo = null; return ir('#/partida'); } concluirAoVivo(); const u = app.s.ultima; if (u && u.div !== 'AMI') { app.colPre = false; ir('#/coletiva'); } else ir('#/partida'); },
+  // Continuar: depois do jogo oficial vem a coletiva pós-jogo (na liga, depois do replay)
+  'vivo-fim': () => { if (app.vivo?.R.replay) { app.vivo = null; app.colPre = false; return ir(app.liga && Coletiva.pendente(app.s) ? '#/coletiva' : '#/partida'); } concluirAoVivo(); const u = app.s.ultima; if (u && u.div !== 'AMI') { app.colPre = false; ir('#/coletiva'); } else ir('#/partida'); },
   'em-breve': el => aviso(`${el.dataset.t} chega numa próxima atualização.`),
   'avancar-data': async el => { el.disabled = true; el.textContent = 'Simulando…'; await umQuadro(); const x = pendentes(app.base, app.s)[0]; if (x) mundoAte(app.base, app.s, x.data); render(); salvar(); },
   'avancar-fim': async el => { el.disabled = true; el.textContent = 'Simulando o resto da temporada…'; await umQuadro(); for (let x; !proximoEvento(app.base, app.s) && (x = pendentes(app.base, app.s)[0]);) mundoAte(app.base, app.s, x.data); render(); salvar(); },
@@ -861,9 +862,9 @@ document.addEventListener('submit', async e => {
 
 AoVivo.configurar({ app, clube, esc, imgEscudo, $, guardar: guardarVivo });
 Torneios.configurar({ app, clube, esc, imgEscudo, render: () => render() });
-Coletiva.configurar({ app, clube, esc, render: () => render(), salvar: () => salvar(), jogar: () => comecarJogo() });
+Coletiva.configurar({ app, clube, esc, render: () => render(), salvar: () => salvar(), jogar: () => app.liga ? ir('#/carregando') : comecarJogo() });
 Gala.configurar({ app, clube, esc, imgEscudo, render: () => render() });
-Liga.configurar({ app, api, compacta, descompacta, carregarBase, esc, clube, imgEscudo, aviso, ir, render: () => render(), desenhaTopo, rostoAleatorio,
+Liga.configurar({ app, api, compacta, descompacta, carregarBase, esc, clube, imgEscudo, aviso, ir, render: () => render(), desenhaTopo, rostoAleatorio, assistir: () => acoes.assistir(),
   estrelas: ci => `<span class="estrelas" aria-label="Força ${forcaEstrelas(ci)} de 5">${estrelasTxt(forcaEstrelas(ci))}</span><br>${dividaTag(ci)}` });
 Leilao.configurar({ app, clube, esc, imgEscudo, aviso, render: () => render(), salvar: () => salvar() });
 Jornal.configurar({ app, clube, esc, imgEscudo, render: () => render() });

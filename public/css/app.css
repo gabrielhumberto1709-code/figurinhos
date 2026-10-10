@@ -916,3 +916,13 @@ b.pos { color: var(--gramado); } b.neg { color: var(--cartao); }
 .chat-lista .vazio { justify-content: center; padding: 24px 0; }
 .chat-form { display: flex; gap: 8px; margin-top: 12px; }
 .chat-form input { flex: 1; min-width: 0; font-size: 16px; }
+
+/* espera do jogo na liga: escudos, bola girando e o relógio */
+.carregando-jogo { text-align: center; display: grid; gap: 12px; justify-items: center; padding: 28px 16px; }
+.carregando-jogo .titulo-jogo { font-family: var(--f-pixel); color: var(--placar); margin: 0; }
+.carregando-jogo .vs { display: flex; align-items: center; gap: 18px; font: 700 1.6rem var(--f-corpo); }
+.carregando-jogo .nomes { margin: 0; font-weight: 700; font-size: 1.15rem; }
+.bola-gira { width: 34px; height: 34px; border-radius: 50%; background: radial-gradient(circle at 50% 50%, #1B1F2A 0 18%, transparent 19%), conic-gradient(#fff 0 25%, #1B1F2A 0 30%, #fff 0 55%, #1B1F2A 0 60%, #fff 0 85%, #1B1F2A 0 90%, #fff 0); animation: bola-gira 1s linear infinite; }
+@keyframes bola-gira { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .bola-gira { animation-duration: 4s; } }
+.carregando-jogo .mudo { color: var(--barra-texto-2); }

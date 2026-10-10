@@ -3,13 +3,14 @@
 // leva 409: baixa de novo, junta (merge3) e tenta outra vez. Na hora do jogo, quem estiver online processa o horário
 // (o ADM primeiro, depois os outros pela ordem de entrada, com uns segundos de folga entre um e outro).
 import { novoMundo, montar, vistaDe, clubeLivre, novaMesa, liberarMesa, processarProximo, proximoHorario, horario, amistososFaltando, devido, adiantar, mundoParaGravar, merge3, RITMOS, MAX_TECNICOS } from './motor/online.js';
-import { aplicarSave, pendentes } from './motor/mundo.js';
+import { aplicarSave, pendentes, proximoEvento } from './motor/mundo.js';
+import { prePendente } from './motor/imprensa.js';
 import { aceitarOferta as aceitarOfertaMotor } from './motor/carreira.js';
 import { lancar } from './motor/financas.js';
 import { fmtDinheiro } from './motor/util.js';
 import { enviar as carta } from './motor/correio.js';
 
-let H; // { app, api, compacta, descompacta, carregarBase, esc, clube, imgEscudo, estrelas, rostoAleatorio, aviso, render, ir, desenhaTopo }
+let H; // { app, api, compacta, descompacta, carregarBase, esc, clube, imgEscudo, estrelas, rostoAleatorio, aviso, render, ir, desenhaTopo, assistir }
 export const configurar = h => { H = h; };
 const Lg = () => H.app.liga;
 const quadro = () => new Promise(r => requestAnimationFrame(() => setTimeout(r, 0)));
@@ -81,12 +82,14 @@ function marca() { const L = Lg(), m = L?.mesas?.[L.eu]; return { b: L?.baixou, 
 function notificar(antes) {
   const L = Lg(); if (!L) return;
   const agora = marca(); if (agora.b === antes.b && agora.slot === antes.slot && agora.u === antes.u) return;
-  const u = H.app.s?.ultima;
+  const u = H.app.s?.ultima, E = H.app.esperaJogo;
+  // esperando o jogo (na espera ou ainda na coletiva pré-jogo): a bola rolou, o jogo abre; nada de placar no aviso
+  if (E && (L.W.slot || 0) > E.slot) { if (H.app.aba === 'carregando' || (H.app.aba === 'coletiva' && H.app.colPre)) { H.app.colPre = false; abrirJogo(); } return; }
   if (u && agora.u !== antes.u) H.aviso(`Fim de jogo: ${H.clube(u.casa).n} ${u.gols[0]} × ${u.gols[1]} ${H.clube(u.fora).n}${u.pen ? ` (${u.pen[0]} a ${u.pen[1]} nos pênaltis)` : ''}.`);
   else if (antes.ano && agora.ano !== antes.ano) H.aviso(`Começou a temporada ${agora.ano}.`);
   atualizarTela();
 }
-const FIXAS = new Set(['ao-vivo', 'leilao', 'coletiva', 'entrar', 'novo']);
+const FIXAS = new Set(['ao-vivo', 'leilao', 'coletiva', 'entrar', 'novo', 'carregando']);
 function atualizarTela() {
   if (FIXAS.has(H.app.aba) || document.activeElement?.matches?.('input, select, textarea') || document.querySelector('dialog[open]')) return;
   H.render();
@@ -112,6 +115,7 @@ async function vigiar() {
       if (L.sujo) await descarregar(); else await exclusivo(() => baixar());
       notificar(antes);
     }
+    chamada();
     if (minhaVez()) await processar();
     else if (H.app.aba === 'liga') atualizarTela();
     for (const el of document.querySelectorAll('[data-relogio]')) el.textContent = falta(+el.dataset.relogio);
@@ -229,7 +233,7 @@ function quando(t) {
   const d = new Date(t), mesmo = (a, b) => a.toDateString() === b.toDateString(), h = d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
   return mesmo(d, new Date()) ? `hoje às ${h}` : mesmo(d, new Date(Date.now() + 864e5)) ? `amanhã às ${h}` : `${d.toLocaleDateString('pt-BR', { weekday: 'short', day: '2-digit', month: '2-digit' })} às ${h}`;
 }
-const falta = t => { const m = Math.ceil((t - Date.now()) / 60e3); return m <= 0 ? 'rolando agora' : m < 60 ? `em ${m} min` : `em ${Math.floor(m / 60)} h${m % 60 ? ` ${m % 60} min` : ''}`; };
+const falta = t => { const m = Math.ceil((t - Date.now()) / 60e3), sg = Math.ceil((t - Date.now()) / 1e3); return m <= 0 ? 'rolando agora' : sg < 60 ? `em ${sg} s` : m < 60 ? `em ${m} min` : `em ${Math.floor(m / 60)} h${m % 60 ? ` ${m % 60} min` : ''}`; };
 // horário em que o jogo ev acontece: cada horário leva o mundo até a próxima data com jogo de algum técnico
 function horarioDo(ev) {
   const L = Lg(), datas = [...new Set(pendentes(H.app.base, L.W).filter(e => e.meu).map(e => +e.data))].sort((a, b) => a - b), i = datas.indexOf(+ev.data);
@@ -289,6 +293,37 @@ function escolhaHtml(dono) {
     <p class="erro" role="alert"></p>
     <button class="botao grande" type="button" data-acao="liga-assumir" ${L.escolha == null ? 'disabled' : ''}>${L.escolha == null ? 'Escolha um clube' : `Assumir o ${esc(clube(L.escolha).n)}`}</button></section>`}`;
 }
+// ---------- chamada do jogo ----------
+// A menos de 1 min do horário em que o seu clube joga, quem está no app é chamado: coletiva pré-jogo (se tiver) e a
+// tela de espera; quando o horário é simulado (neste aparelho ou em outro), o jogo abre no campinho.
+const CHAMADA = 60e3;
+function chamada() {
+  const L = Lg(), s = H.app.s, t = proximoHorario(L.meta, L.W), slot = L.W.slot || 0;
+  if (!s || s.demitido || t == null || L.meta.pausa || t - Date.now() > CHAMADA || L.chamado === slot || document.visibilityState !== 'visible') return;
+  const ev = proximoEvento(H.app.base, s);
+  if (!ev || !(amistososFaltando(L.W) ? ev.tipo === 'amistoso' : horarioDo(ev) === t)) return;      // seu clube não joga neste horário
+  if (FIXAS.has(H.app.aba) || document.activeElement?.matches?.('input, textarea') || document.querySelector('dialog[open]')) return;
+  L.chamado = slot;
+  H.app.esperaJogo = { slot, t, h: ev.h, a: ev.a, titulo: ev.titulo };
+  if (ev.tipo !== 'amistoso' && prePendente(H.app.base, s)) { H.app.colPre = true; H.ir('#/coletiva'); } else H.ir('#/carregando');
+}
+function abrirJogo() {
+  const s = H.app.s; H.app.esperaJogo = null;
+  if (s?.ultimaVivo) H.assistir(); else H.ir('#/partida');
+}
+export function telaCarregando() {
+  const L = Lg(), E = H.app.esperaJogo, { esc, imgEscudo, clube } = H;
+  if (!E) return `<section class="cartao"><p class="mudo">Nenhum jogo para carregar agora.</p><a class="botao" href="#/clube">Voltar ao clube</a></section>`;
+  if ((L.W.slot || 0) > E.slot) setTimeout(abrirJogo); // já foi simulado (enquanto você estava na coletiva)
+  return `<section class="cartao escuro carregando-jogo"><p class="titulo-jogo">${esc(E.titulo)}</p>
+      <div class="vs">${imgEscudo(E.h, 64, 69)}<span>×</span>${imgEscudo(E.a, 64, 69)}</div>
+      <p class="nomes">${esc(clube(E.h).n)} × ${esc(clube(E.a).n)}</p>
+      <div class="bola-gira" aria-hidden="true"></div>
+      <p class="relogio-liga" role="status">Bola rola <b data-relogio="${E.t}">${falta(E.t)}</b></p>
+      <p class="mudo">Os times estão no túnel. Quando o horário for simulado, o jogo abre aqui sozinho, para todo mundo da liga.</p>
+      <a class="botao sec" href="#/clube">Voltar ao clube</a></section>`;
+}
+
 // ---------- chat da liga ----------
 // o servidor guarda as últimas 200 mensagens; a consulta leve (/v) diz o id da última e só então as novas são baixadas
 const chaveLido = () => `fig.chat.${Lg().codigo}`;
@@ -456,7 +491,7 @@ export const acoes = {
   'liga-publica': tenta(async () => { await mudarMeta(m => ({ ...m, publica: !m.publica })); H.render(); }),
   'liga-sorteio': tenta(async () => { await mudarMeta(m => ({ ...m, sorteio: !m.sorteio })); H.render(); }),
   'liga-pausar': tenta(async () => { await mudarMeta(m => ({ ...m, pausa: true })); H.render(); }),
-  'liga-agora': tenta(async () => { await mudarMeta((m, W) => adiantar(m, W)); H.aviso('O próximo horário começa agora.'); vigiar(); }),
+  'liga-agora': tenta(async () => { await mudarMeta((m, W) => adiantar(m, W, Date.now() + CHAMADA)); H.aviso('O próximo horário começa em 1 minuto: o jogo abre para todos que estão no app.'); vigiar(); }),
   'adm-alvo': el => { Lg().adm.alvo = +el.dataset.id; H.render(); },
   'adm-op': el => { Lg().adm.op = el.dataset.op; H.render(); },
   'adm-expulsar': el => confirma(el, 'Expulsar mesmo? Toque de novo', async () => {

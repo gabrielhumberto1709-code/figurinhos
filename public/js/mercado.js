@@ -48,7 +48,7 @@ function filtrar(f = filtro(), sit = H.app.sitFixa || f.sit) {
     if (j.clube === meu) continue;
     const c = b.clubes[j.clube], livre = c.div === 'L';
     if (!livre && !f.divs.includes(c.div)) continue;
-    if (!livre && ligas.length && !ligas.includes(ligaDe(c))) continue;
+    if (ligas.length && (livre ? sit !== 'livres' : !ligas.includes(ligaDe(c)))) continue; // livre não tem liga: com liga marcada, só aparece pedindo "Livres"
     if (f.grupo && SETOR[j.pos] !== f.grupo) continue;
     if (f.pos.length && !f.pos.includes(j.pos)) continue;
     if (j.ovr < f.ovr[0] || j.ovr > f.ovr[1] || j.idade < f.idade[0] || j.idade > f.idade[1]) continue;
