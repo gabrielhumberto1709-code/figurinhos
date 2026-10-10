@@ -31,24 +31,38 @@ function rostoNovo(r) {
   const corte = pick(r, pele >= 3 ? [1, 2, 4, 7, 12, 13, 2] : [0, 3, 2, 10, 6, 5, 1, 11]);
   return [pele, cabelo, corte, r() < 0.12 ? 1 : 0, pick(r, [0, 0, 1, 2]), pele >= 3 ? 1 : 0, pele >= 3 && r() < 0.6 ? 1 : 0, pele >= 3 && r() < 0.5 ? 1 : 0, pele <= 1 ? pick(r, [0, 1, 2]) : 0, 0].map(n => n.toString(36)).join('');
 }
-// cada clube sobe 1 a 3 garotos por ano para as posições mais carentes (o seu sobe 3)
+// cada clube sobe 1 a 3 garotos por ano para as posições mais carentes (o de um técnico sobe 5)
 export function gerarJovens(base, s, r) {
   const rows = [];
   base.clubes.forEach((c, ci) => {
     if (!DIVS.includes(c.div)) return;
-    const el = base.elencos[ci], n = Math.min(9, Math.max(18 - el.length, ehHumano(s, ci) || el.length < 22 ? 3 : el.length < 28 ? 2 : 1));
-    const conta = {}; for (const j of el) conta[j.pos] = (conta[j.pos] || 0) + 1;
-    const usados = new Set(el.map(j => j.num)), f = base.forca(ci);
-    for (let k = 0; k < n; k++) {
-      const pos = Object.keys(IDEAL).sort((a, b) => (conta[a] || 0) / IDEAL[a] - (conta[b] || 0) / IDEAL[b] || r() - 0.5)[0];
-      conta[pos] = (conta[pos] || 0) + 1;
-      const idade = 16 + Math.floor(r() * 3), ovr = clamp(Math.round(f - 16 + (r() - 0.5) * 10), 38, 74), pot = clamp(Math.round(ovr + 10 + r() * 18), ovr, 92);
-      const nome = pick(r, NOMES), sob = pick(r, SOBRENOMES), curto = r() < 0.6 ? nome : sob;
-      let num = pos === 'GOL' ? 30 : 25; while (usados.has(num)) num++; usados.add(num);
-      const att = PERFIL[pos].map(d => clamp(Math.round(ovr + d + (r() - 0.5) * 8), 20, 99));
-      rows.push([-((s.ano % 1000) * 10000 + ci * 10 + k), `${nome} ${sob}`, curto, ci, pos, idade, 'BRA', ovr, Math.round(ovr * ovr / 30 * (pot >= 80 ? 2 : 1)), s.ano + 3, pot, att, rostoNovo(r), num, s.ano]);
-    }
+    const el = base.elencos[ci], n = Math.min(9, Math.max(18 - el.length, ehHumano(s, ci) ? 5 : el.length < 22 ? 3 : el.length < 28 ? 2 : 1));
+    rows.push(...jovensDoClube(base, s, ci, n, r, k => -((s.ano % 1000) * 10000 + ci * 10 + k)));
   });
+  return rows;
+}
+// base de quem assume um clube (carreira nova ou liga online): 5 garotos já no 1º ano, uma vez por clube
+export function baseInicial(base, s, ci) {
+  if ((s.baseIni ||= []).includes(ci)) return;
+  s.baseIni.push(ci);
+  const rows = jovensDoClube(base, s, ci, 5, rng(`baseini${s.seed}-${s.ano}-${ci}`), k => -(6e8 + (s.ano % 1000) * 1e5 + ci * 10 + k));
+  s.jovens = [...(s.jovens || []), ...rows];
+  aplicarSave(base, s);
+  s.noticias.unshift({ rodada: s.rodada, tipo: 'clube', clube: ci, div: base.clubes[ci].div, texto: `Subiram da base: ${rows.map(r => `${r[2]} (${r[4]}, ${r[5]} anos)`).join(', ')}.` });
+}
+function jovensDoClube(base, s, ci, n, r, idDe) {
+  const rows = [], el = base.elencos[ci];
+  const conta = {}; for (const j of el) conta[j.pos] = (conta[j.pos] || 0) + 1;
+  const usados = new Set(el.map(j => j.num)), f = base.forca(ci);
+  for (let k = 0; k < n; k++) {
+    const pos = Object.keys(IDEAL).sort((a, b) => (conta[a] || 0) / IDEAL[a] - (conta[b] || 0) / IDEAL[b] || r() - 0.5)[0];
+    conta[pos] = (conta[pos] || 0) + 1;
+    const idade = 16 + Math.floor(r() * 3), ovr = clamp(Math.round(f - 16 + (r() - 0.5) * 10), 38, 74), pot = clamp(Math.round(ovr + 10 + r() * 18), ovr, 92);
+    const nome = pick(r, NOMES), sob = pick(r, SOBRENOMES), curto = r() < 0.6 ? nome : sob;
+    let num = pos === 'GOL' ? 30 : 25; while (usados.has(num)) num++; usados.add(num);
+    const att = PERFIL[pos].map(d => clamp(Math.round(ovr + d + (r() - 0.5) * 8), 20, 99));
+    rows.push([idDe(k), `${nome} ${sob}`, curto, ci, pos, idade, 'BRA', ovr, Math.round(ovr * ovr / 30 * (pot >= 80 ? 2 : 1)), s.ano + 3, pot, att, rostoNovo(r), num, s.ano]);
+  }
   return rows;
 }
 

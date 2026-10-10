@@ -448,7 +448,7 @@ test('coletiva: 3 perguntas do jogo, respostas mexem nas plateias e viram notíc
 import { ganho, alternarFoco } from '../public/js/motor/treino.js';
 test('treino: jovem com margem evolui jogando, treino intenso e foco aceleram, e o ganho fica no save', () => {
   const s = novoJogo(base, cfg(51)), ci = s.tecnico.clube;
-  const jovem = base.elencos[ci].filter(j => j.idade <= 21 && j.pot - j.ovr >= 6).sort((a, b) => a.idade - b.idade)[0];
+  const jovem = base.elencos[ci].filter(j => j.id > 0 && j.idade <= 21 && j.pot - j.ovr >= 6).sort((a, b) => a.idade - b.idade)[0];
   const veterano = base.elencos[ci].find(j => j.idade >= 31);
   assert.ok(jovem, 'sem jovem no elenco');
   const g0 = ganho(s, jovem, 7);
@@ -1065,6 +1065,12 @@ test('teto salarial da diretoria: recém-promovido ganha menos aporte, continent
   const livre = base.elencos[base.clubes.findIndex(c => c.div === 'L')][0];
   rem.fin.salarioBudget = 1e9; assert.equal(bloqueioProposta(base, rem, livre, { tipo: 'livre', salario: tR.teto, anos: 3 }), null);
   assert.match(bloqueioProposta(base, rem, livre, { tipo: 'livre', salario: tR.teto + 50, anos: 3 }), /teto salarial/);
+});
+
+test('base: 5 garotos gerados já no 1º ano do seu clube, uma vez por clube', () => {
+  const s = novoJogo(base, cfg(93)), ci = s.tecnico.clube, meus = base.elencos[ci].filter(j => j.id <= -6e8);
+  assert.equal(meus.length, 5); assert.ok(meus.every(j => j.idade >= 16 && j.idade <= 18 && j.pot >= j.ovr));
+  assert.ok(s.noticias.some(n => n.texto.startsWith('Subiram da base')));
 });
 
 test('escalação fixa: o jogo não mexe no seu time; quem sai do clube é trocado só na vaga dele, neste jogo', () => {

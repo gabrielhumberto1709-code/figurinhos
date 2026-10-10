@@ -163,7 +163,7 @@ function telaDM() {
 
 function telaBase() {
   const s = H.app.s, jovens = H.app.base.elencos[s.tecnico.clube].filter(j => j.idade <= 20).sort((a, b) => b.pot - a.pot || b.ovr - a.ovr);
-  return `<section class="cartao"><h3>Categorias de base</h3><p class="mudo">Todo começo de temporada sobem três garotos da base para as posições mais carentes. Até uns 23 anos eles crescem rápido rumo ao potencial; depois dos 30 o overall começa a cair.</p></section>
+  return `<section class="cartao"><h3>Categorias de base</h3><p class="mudo">Todo começo de temporada sobem cinco garotos da base para as posições mais carentes (e cinco já chegam quando você assume o clube). Até uns 23 anos eles crescem rápido rumo ao potencial; depois dos 30 o overall começa a cair.</p></section>
     ${jovens.length ? `<div class="album">${jovens.map(j => H.figurinha(j)).join('')}</div>` : '<section class="cartao"><p class="mudo">Nenhum jogador de até 20 anos no elenco. Os primeiros garotos sobem na virada da temporada.</p></section>'}`;
 }
 

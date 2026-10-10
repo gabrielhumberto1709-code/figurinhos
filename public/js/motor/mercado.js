@@ -1045,13 +1045,15 @@ function mercadoDoTecnico(base, s, rd, semana, r, add) {
   // contrapropostas suas nas ofertas recebidas: o clube topa (e o negócio sai), sobe um pouco ou desiste
   for (const x of s.recebidas.filter(x => x.pedido && !x.humano && x.rodada <= rd)) {
     const j = base.jog.get(x.jogador), ped = x.pedido, teto = arred(x.valor * ((x.gigante ? 1.35 : 1.12) + r() * 0.2 + faseDe(s, j.id).d * 0.03));
+    const pct = Math.round((ped / x.valor - 1) * 100), msg = (aceitou, texto) => enviar(s, 'diretor', `contra-${x.id}`, `${nome(x.de)} ${aceitou ? 'aceitou' : 'recusou'} pagar ${pct}% a mais`, texto, { jogador: j.id });
     delete x.pedido;
-    if (ped <= teto) {
+    if (ped <= teto || fmt(ped) === fmt(teto)) { // diferença que nem aparece no valor arredondado: topa
       x.valor = ped;
       const e = aceitarRecebida(base, s, x.id);
+      msg(true, `O ${nome(x.de)} aceitou pagar ${fmt(ped)} (+${pct}%) por ${j.curto}. ${e ? `Mas o negócio travou: ${e}` : 'Negócio fechado.'}`);
       if (e) { x.rodada = rd; add(`O ${nome(x.de)} aceita pagar ${fmt(ped)} por ${j.curto}, mas o negócio travou: ${e}`); }
-    } else if (r() < 0.5) { Object.assign(x, { id: `${x.id}-c`, valor: teto, rodada: rd }); add(`O ${nome(x.de)} não chega a ${fmt(ped)}, mas sobe a oferta por ${j.curto} para ${fmt(teto)}. Responda no Mercado.`, 'clube', base.clubes[meu].div, { jogador: j.id }); }
-    else { s.recebidas = s.recebidas.filter(y => y !== x); add(`O ${nome(x.de)} acha caro e desiste de ${j.curto}.`, 'clube', base.clubes[meu].div, { jogador: j.id }); if (x.quer) barrarSaida(base, s, x); }
+    } else if (r() < 0.5) { msg(false, `O ${nome(x.de)} não chega a ${fmt(ped)} (+${pct}%) por ${j.curto}, mas subiu a oferta para ${fmt(teto)}. Responda em Mercado › Ofertas.`); Object.assign(x, { id: `${x.id}-c`, valor: teto, rodada: rd }); add(`O ${nome(x.de)} não chega a ${fmt(ped)}, mas sobe a oferta por ${j.curto} para ${fmt(teto)}. Responda no Mercado.`, 'clube', base.clubes[meu].div, { jogador: j.id }); }
+    else { msg(false, `O ${nome(x.de)} achou caro pagar ${fmt(ped)} (+${pct}%) por ${j.curto} e desistiu da negociação.`); s.recebidas = s.recebidas.filter(y => y !== x); add(`O ${nome(x.de)} acha caro e desiste de ${j.curto}.`, 'clube', base.clubes[meu].div, { jogador: j.id }); if (x.quer) barrarSaida(base, s, x); }
   }
   // leilão: quem fez a oferta e até 3 interessados dão lances; vence quem pagar mais (no máximo 190% do valor)
   for (const x of s.recebidas.filter(x => (x.leilao === 'aberto' || (x.leilao === 'vivo' && s.leilaoAtivo?.id !== x.id)) && x.rodada <= rd)) {

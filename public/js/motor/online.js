@@ -5,7 +5,7 @@
 //   simulados (cada técnico com a escalação, a tática e os planos que deixou), e o resultado é gravado para todos.
 import { novoJogo, mundoAte, pendentes, TATICA_PADRAO, caixaInicial, aplicarSave, amistosoSimulado, garantirAmistosos } from './mundo.js';
 import { separar, vista, MESA, mundoDe, humanos } from './humanos.js';
-import { virarTemporada, fimDeTemporada } from './temporada.js';
+import { virarTemporada, fimDeTemporada, baseInicial } from './temporada.js';
 import { garantirMercado } from './mercado.js';
 import { garantirCarreira } from './carreira.js';
 import { financasIniciais } from './financas.js';
@@ -42,6 +42,7 @@ export const clubeLivre = (base, W, ci) => ['A', 'B', 'C'].includes(base.clubes[
 // mesa de quem assume o clube ci: caixa do clube (o que a IA tinha), finanças, carreira, cartas de boas-vindas
 export function novaMesa(base, W, ci, tecnico, dificuldade = 'normal') {
   if (!clubeLivre(base, W, ci)) return null;
+  baseInicial(base, W, ci);
   const T = TATICA_PADRAO(), mesa = { tecnico: { nome: tecnico.nome, rosto: tecnico.rosto, nat: tecnico.nat || 'BRA', reputacao: tecnico.reputacao ?? 1, clube: ci, modo: 'escolher' }, dificuldade, formacao: '4-3-3', xi: null, ultima: null };
   for (const k of Object.keys(T)) if (MESA.has(k)) mesa[k] = T[k];
   const v = vista(W, mesa);

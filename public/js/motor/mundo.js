@@ -14,6 +14,7 @@ import { vestiarioAposRodada } from './vestiario.js';
 import { eventosAposRodada } from './eventos.js';
 import { TORNEIOS, PREMIO_SUP, FASES_CONT, F_MATA, F_PO, F_FIN, forcaCont, deFora, dataCont, novaCont, contDevida, naCont, supDevida, jogosDaFase, decidirCont, avancarCont, timeFora, jogadorCont, agregadoCont, tabelaGrupo, fasesDe, compDe, fecharPre, FASES_PRE } from './continental.js';
 import { gerarNoticias } from './noticias.js';
+import { baseInicial } from './temporada.js';
 import { resolverMercado, garantirMercado, acompanharPromessas } from './mercado.js';
 import { dataFifa } from './selecao.js';
 import { registrarConfronto } from './confrontos.js';
@@ -160,6 +161,7 @@ export function novoJogo(base, cfg) {
     dificuldade: cfg.dificuldade || 'normal',
     formacao: '4-3-3', xi: null, ultima: null, est: {}, ...TATICA_PADRAO(), caixa: caixaInicial(base, clube, cfg.dificuldade), transf: {}, propostas: [], historicoTransf: [], noticias: [{ rodada: 0, tipo: 'clube', div: base.clubes[clube].div, texto: `${cfg.tecnico.nome} é o novo técnico do ${base.clubes[clube].n}.` }],
   };
+  baseInicial(base, s, clube);
   s.fin = financasIniciais(base, s);
   garantirMercado(s);
   garantirCarreira(base, s);
