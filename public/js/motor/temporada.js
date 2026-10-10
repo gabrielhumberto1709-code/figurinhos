@@ -171,7 +171,7 @@ export function virarTemporada(base, s) {
   s.forma = {}; s.afast = {};
   for (const id in s.trato || {}) s.trato[id] = Math.trunc(s.trato[id] / 2); // a mágoa diminui com o tempo
   Object.assign(s, { rodada: 0, feitas: { ano: s.ano, B: 0, C: 0 }, f2: {}, res: { A: {}, B: {}, C: {} }, cart: {}, est: {}, lider: {}, rumores: {}, destaques: {}, ultimaData: null, recuperado: null, cond: {}, mor: {}, semJogar: {}, preContratos: [], querSair: {}, quedaIA: {}, jogosA: {}, passagens: {} });
-  for (const [, sv] of hs) Object.assign(sv, { ultima: null, ultimaVivo: null, xi: null, banco: null, recebidas: [], julgamentos: [] });
+  for (const [, sv] of hs) Object.assign(sv, { ultima: null, ultimaVivo: null, recebidas: [], julgamentos: [] });
   for (const t of pedidosDeQueda(base, s, [...cai.A, ...cai.B])) addW(t, 'mercado'); // os melhores de quem caiu pedem para sair
   delete s._cal;
   for (const { ci, sv, add } of eles) {

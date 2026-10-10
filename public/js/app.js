@@ -657,6 +657,8 @@ async function comecarJogo() {
 async function render() {
   const rota = location.hash.replace(/^#\/?/, '') || (app.conta ? 'inicio' : 'entrar');
   if (rota !== 'coletiva') app.colPre = false;
+  // escalação fixa: sem escalação salva, o melhor time do momento vira o seu e só muda quando você mexer
+  if (app.s && !app.s.xi && app.s.tecnico?.clube >= 0 && !app.s.demitido && !app.vivo) { app.s.xi = escalacao(app.base, app.s, app.s.tecnico.clube).xi.map(j => j.id); salvar(); }
   // saiu da tela do jogo (voltar do celular, por exemplo): pergunta antes; confirmando, o resto é simulado na hora
   const convite = rota.match(/^liga\/([A-Za-z0-9]{4,8})$/);
   if (convite) {

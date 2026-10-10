@@ -97,7 +97,7 @@ function telaEscalacao() {
       </div>
       ${slotSel && !app.editPos ? `<h3>Melhores opções para ${slotSel}</h3><div class="album opcoes-vaga">${opcoes.map(j => H.figurinha(j, titulares.has(j.id) ? 'titular escolha' : 'escolha', false, rende(j, slotSel))).join('')}</div>` : ''}
       <div class="setores">${[['Ataque', set.ataque], ['Meio', set.meio], ['Defesa', set.defesa], ['Goleiro', set.goleiro]].map(([t, v]) => `<div class="setor"><small>${t}</small><b class="num">${v}</b></div>`).join('')}</div>
-      <div class="linha-botoes"><button class="botao sec" type="button" data-acao="melhor-time">${s.xi ? 'Escalar melhor time (poupa cansados)' : 'Automática: entram os melhores descansados'}</button></div></section>
+      <div class="linha-botoes"><button class="botao sec" type="button" data-acao="melhor-time">Escalar melhor time (poupa cansados)</button></div></section>
     <section class="cartao"><h3>Capitão e pênaltis</h3>
       <label class="sel-linha"><i class="braco">C</i><select data-tatica="capitao" aria-label="Capitão"><option value="">Automático (${esc(auto?.curto || '')})</option>${time.xi.map(j => `<option value="${j.id}" ${s.capitao === j.id ? 'selected' : ''}>${esc(j.curto)}</option>`).join('')}</select></label>
       <label class="sel-linha"><i class="braco v">V</i><select data-tatica="vice" aria-label="Vice-capitão"><option value="">Sem vice definido</option>${time.xi.map(j => `<option value="${j.id}" ${s.vice === j.id ? 'selected' : ''}>${esc(j.curto)}</option>`).join('')}</select></label>
@@ -194,7 +194,7 @@ export const acoes = {
   formacao: el => { trocarFormacao(H.app.base, H.app.s, el.dataset.f); H.app.vaga = null; H.render(); H.salvar(); },
   vaga: el => { const i = +el.dataset.i; H.app.vaga = H.app.vaga === i ? null : i; H.render(); },
   escolher: el => { escalar(H.app.base, H.app.s, H.app.vaga, +el.dataset.id); H.app.vaga = null; H.render(); H.salvar(); },
-  'melhor-time': () => { H.app.s.xi = null; H.aviso('Escalação automática: a cada jogo entram os melhores, poupando os cansados.'); H.render(); H.salvar(); },
+  'melhor-time': () => { H.app.s.xi = null; H.aviso('Melhor time descansado escalado. Ele fica assim até você mudar.'); H.render(); H.salvar(); },
   estilo: el => { H.app.s.estilo = el.dataset.e; H.render(); H.salvar(); },
   'salvar-escalacao': () => {
     const { app } = H, s = app.s, time = escalacao(app.base, s, s.tecnico.clube);

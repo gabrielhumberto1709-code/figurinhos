@@ -358,7 +358,6 @@ export function transferir(base, s, j, para, valor, { salario, anos } = {}) {
   mexerCaixa(base, s, para, -valor); mexerCaixa(base, s, de, valor);
   const rv = vd && valor && s.revenda?.[j.id];
   if (rv) { lancar(vd, 'revenda', `Revenda: ${rv.pct}% da venda de ${j.curto} ao ${base.clubes[rv.clube].n}`, -Math.round(valor * rv.pct / 100)); delete s.revenda[j.id]; }
-  for (const v of [vp, vd]) if (v?.xi) v.xi = null; // escalação manual refeita com o elenco novo
   s.historicoTransf.unshift({ rodada: s.rodada, jogador: j.id, nome: j.curto, de, para, valor, tipo: ehLivre(base, de) ? 'livre' : 'compra' });
 }
 // empréstimo até o fim da temporada; o salário continua o mesmo e quem está com ele paga
@@ -374,7 +373,6 @@ export function emprestar(base, s, j, para, cl = null) {
   s.transf[j.id] = para; marcarChegada(s, j.id);
   if (vd) tirarDasListas(vd, j.id);
   aplicarSave(base, s);
-  for (const v of [vp, vd]) if (v?.xi) v.xi = null;
   s.historicoTransf.unshift({ rodada: s.rodada, jogador: j.id, nome: j.curto, de, para, valor: 0, tipo: 'emprestimo' });
 }
 
@@ -514,7 +512,7 @@ export function chamarDeVolta(base, s, id) {
   delete s.emprestimos[j.id];
   if (j.clubeOrig === meu) delete s.transf[j.id]; else s.transf[j.id] = meu;
   lancar(s, 'reembolso', `Reembolso ao ${base.clubes[e.para].n} pela volta de ${j.curto}`, -v);
-  aplicarSave(base, s); if (s.xi) s.xi = null;
+  aplicarSave(base, s);
   s.historicoTransf.unshift({ rodada: s.rodada, jogador: j.id, nome: j.curto, de: e.para, para: meu, valor: v, tipo: 'volta' });
   s.noticias.unshift({ rodada: s.rodada, tipo: 'clube', mercado: true, jogador: j.id, div: base.clubes[meu].div, texto: `${j.curto} volta antes do fim do empréstimo ao ${base.clubes[e.para].n}. O clube paga ${fmt(v)} de reembolso.` });
   return null;
@@ -560,7 +558,7 @@ export function liberar(base, s, j, valor = 0) {
   const meu = s.tecnico.clube, livres = base.clubes.findIndex(c => c.div === 'L');
   s.transf[j.id] = livres; delete s.salarios[j.id]; delete s.contratos[j.id]; tirarDasListas(s, j.id);
   s.recebidas = s.recebidas.filter(x => x.jogador !== j.id); delete s.querSair?.[j.id];
-  aplicarSave(base, s); if (s.xi) s.xi = null;
+  aplicarSave(base, s);
   s.historicoTransf.unshift({ rodada: s.rodada, jogador: j.id, nome: j.curto, de: meu, para: livres, valor, tipo: 'rescisao' });
 }
 export const mauPagador = s => s.fin?.mauPagador != null && s.ano - s.fin.mauPagador <= 1;

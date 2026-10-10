@@ -1067,6 +1067,17 @@ test('teto salarial da diretoria: recém-promovido ganha menos aporte, continent
   assert.match(bloqueioProposta(base, rem, livre, { tipo: 'livre', salario: tR.teto + 50, anos: 3 }), /teto salarial/);
 });
 
+test('escalação fixa: o jogo não mexe no seu time; quem sai do clube é trocado só na vaga dele, neste jogo', () => {
+  const s = novoJogo(base, cfg(91)), ci = s.tecnico.clube;
+  s.xi = escalacao(base, s, ci).xi.map(j => j.id);
+  const onze = s.xi.slice(), outro = base.clubes.findIndex((c, i) => c.div === 'A' && i !== ci), saiu = onze[5];
+  s.transf[saiu] = outro; aplicarSave(base, s);
+  const xi = escalacao(base, s, ci).xi.map(j => j.id);
+  assert.ok(!xi.includes(saiu) && xi.every((id, i) => i === 5 || id === onze[i]), 'só a vaga de quem saiu muda');
+  assert.deepEqual(s.xi, onze, 'a escalação salva continua a mesma');
+  delete s.transf[saiu]; aplicarSave(base, s);
+});
+
 import { novoLeilao, comecarLeilao, lanceLeilao, desistirLeilao, tickLeilao, minimo as minimoLeilao, terminarSemHumanos, abrirLeilaoCompra, abrirLeilaoVenda, fecharLeilao, encerrarPendente } from '../public/js/motor/leilao.js';
 import { pedidosDeQueda } from '../public/js/motor/mercado.js';
 

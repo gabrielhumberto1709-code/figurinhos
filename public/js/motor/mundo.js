@@ -281,15 +281,16 @@ function escalacaoLivre(base, s0, ci, comp, poupa) {
   if (comp === 'L' && base.clubes[ci].div === 'A') for (const j of elenco) if (barrado12(s0, j.id, ci)) fora.add(j.id);
   if (!s) { const t = taticaIA(base, ci); return { ...melhorTime(elenco, t.formacao, fora, cond, bonusFase(s0)), estilo: t.estilo, gatilhos: t.gatilhos, fora }; }
   let time = null, trocados = [];
+  // escalação fixa: quem está fora (lesão, suspensão) ou saiu do clube dá lugar ao melhor para a vaga só neste jogo
   if (s.xi?.length === 11) {
     const porId = new Map(elenco.map(j => [j.id, j])), xi = s.xi.map(id => porId.get(id));
-    if (xi.every(Boolean)) {
-      const usados = new Set(xi.filter(j => !fora.has(j.id)).map(j => j.id)), slots = posicoesDe(s.formacao, s.formPers).map(x => x[0]);
+    if (xi.some(Boolean)) {
+      const usados = new Set(xi.filter(j => j && !fora.has(j.id)).map(j => j.id)), slots = posicoesDe(s.formacao, s.formPers).map(x => x[0]);
       const rende = (j, slot) => j.ovr * encaixe(j.pos, slot) * fatorCond(cond[j.id]);
       time = { formacao: s.formacao, xi: xi.map((j, i) => {
-        if (!fora.has(j.id)) return j;
+        if (j && !fora.has(j.id)) return j;
         const sub = elenco.filter(x => !usados.has(x.id) && !fora.has(x.id)).sort((a, b) => rende(b, slots[i]) - rende(a, slots[i]))[0];
-        if (sub) { usados.add(sub.id); trocados.push([j, sub]); }
+        if (sub) { usados.add(sub.id); if (j) trocados.push([j, sub]); }
         return sub || j; // sem ninguém para pôr, ele vai assim mesmo
       }) };
     }
