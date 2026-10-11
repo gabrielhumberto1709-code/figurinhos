@@ -82,10 +82,14 @@ function marca() { const L = Lg(), m = L?.mesas?.[L.eu]; return { b: L?.baixou, 
 function notificar(antes) {
   const L = Lg(); if (!L) return;
   const agora = marca(); if (agora.b === antes.b && agora.slot === antes.slot && agora.u === antes.u) return;
-  const u = H.app.s?.ultima, E = H.app.esperaJogo;
-  // esperando o jogo (na espera ou ainda na coletiva pré-jogo): a bola rolou, o jogo abre; nada de placar no aviso
-  if (E && (L.W.slot || 0) > E.slot) { if (H.app.aba === 'carregando' || (H.app.aba === 'coletiva' && H.app.colPre)) { H.app.colPre = false; abrirJogo(); } return; }
-  if (u && agora.u !== antes.u) H.aviso(`Fim de jogo: ${H.clube(u.casa).n} ${u.gols[0]} × ${u.gols[1]} ${H.clube(u.fora).n}${u.pen ? ` (${u.pen[0]} a ${u.pen[1]} nos pênaltis)` : ''}.`);
+  const E = H.app.esperaJogo;
+  // a bola rolou: quem estava esperando (na espera ou ainda na coletiva pré-jogo) entra direto no jogo; quem saiu da
+  // espera entra pelo retomar, como todo mundo (nunca com o placar no aviso)
+  if (E && (L.W.slot || 0) > E.slot) {
+    H.app.esperaJogo = null;
+    if (H.app.aba === 'carregando' || (H.app.aba === 'coletiva' && H.app.colPre)) { H.app.colPre = false; return abrirJogo(); }
+  }
+  if (agora.u !== antes.u) { const r = retomar(); if (r) return; if (r === false) H.aviso('Seu jogo já rolou: ele abre assim que você sair desta tela.'); }
   else if (antes.ano && agora.ano !== antes.ano) H.aviso(`Começou a temporada ${agora.ano}.`);
   atualizarTela();
 }
@@ -271,7 +275,7 @@ export function tela() {
     <section class="cartao"><h3>Relógio</h3>
       ${m.inicio ? relogio('Próximo horário:') : `<p class="relogio-liga">A liga ainda não começou. ${adm ? 'Quando todos tiverem clube, comece: o primeiro horário é pelo menos 10 minutos depois.' : 'O ADM começa quando todos tiverem clube.'}</p>`}
       ${adm ? `<div class="linha-botoes">${!m.inicio ? '<button class="botao grande" type="button" data-acao="liga-comecar">Começar a liga</button>' : m.pausa ? '' : '<button class="botao sec" type="button" data-acao="liga-pausar">Pausar</button>'}</div>` : ''}
-      <p class="mudo" style="font-size:.9rem">Na hora, os jogos são simulados com a escalação, a tática e os planos que cada técnico deixou. Depois dá para assistir ao seu jogo na súmula.</p></section>
+      <p class="mudo" style="font-size:.9rem">Na hora, os jogos são simulados com a escalação, a tática e os planos que cada técnico deixou, e o seu abre ao vivo, desde o começo, para quem estiver no app (quem chegar depois entra direto nele).</p></section>
     <section class="cartao"><h3>Técnicos</h3><ul class="tecnicos-liga">${membros.map(x => `<li>
       ${x.clube != null ? imgEscudo(x.clube, 28, 30) : '<span class="sem-clube" aria-hidden="true"></span>'}
       <span><b>${esc(x.apelido)}</b>${x.id === L.adminId ? ' <small class="tag-adm">ADM</small>' : ''}<br><small>${x.clube != null ? esc(clube(x.clube).n) : L.mesas[x.id]?.demitido ? 'sem clube (demitido)' : 'escolhendo clube'}${banDe(L, x.id) ? ` · transfer ban até a ${banDe(L, x.id) + 1}ª rodada` : ''}</small></span>
@@ -302,8 +306,8 @@ function chamada() {
   if (!s || s.demitido || t == null || L.meta.pausa || t - Date.now() > CHAMADA || L.chamado === slot || document.visibilityState !== 'visible') return;
   const ev = proximoEvento(H.app.base, s);
   if (!ev || !(amistososFaltando(L.W) ? ev.tipo === 'amistoso' : horarioDo(ev) === t)) return;      // seu clube não joga neste horário
-  if (FIXAS.has(H.app.aba) || document.activeElement?.matches?.('input, textarea') || document.querySelector('dialog[open]')) return;
-  L.chamado = slot;
+  if (FIXAS.has(H.app.aba)) return;
+  L.chamado = slot; abrirCaminho();
   H.app.esperaJogo = { slot, t, h: ev.h, a: ev.a, titulo: ev.titulo };
   if (ev.tipo !== 'amistoso' && prePendente(H.app.base, s)) { H.app.colPre = true; H.ir('#/coletiva'); } else H.ir('#/carregando');
 }
@@ -311,18 +315,25 @@ function abrirJogo() {
   const s = H.app.s; H.app.esperaJogo = null;
   if (s?.ultimaVivo) transicao(H.assistir); else H.ir('#/partida');
 }
-// jogo que você ainda não viu (o horário rodou com o app fechado): ao entrar, ele abre desde o começo, como ao vivo.
-// O "já vi" fica neste aparelho; vale só o último jogo (é o que tem a ficha para assistir).
+// jogo que você ainda não viu (o horário rodou com o app fechado, você saiu da espera, estava no chat...): ele abre
+// desde o começo, como ao vivo, em qualquer tela menos as que não dá para largar no meio (ao vivo, leilão, coletiva).
+// Como no Treineiros, vale o estado (último jogo não visto), não o momento. O "já vi" fica neste aparelho; vale só o
+// último jogo (é o que tem a ficha para assistir). Devolve true = abriu, false = vai abrir quando der, null = nada.
 const chaveVisto = () => `fig.visto.${Lg().codigo}.${Lg().eu}`;
 const chaveJogo = s => { const u = s?.ultima; return u ? `${s.ano}|${u.copa || u.div}|${u.rodada}|${u.casa}|${u.fora}|${u.gols}` : null; };
 export function marcarVisto() { const k = chaveJogo(H.app.s); if (k) try { localStorage.setItem(chaveVisto(), k); } catch { } }
 function retomar() {
-  const L = Lg(), s = H.app.s;
-  if (!s?.ultimaVivo || s.demitido || H.app.esperaJogo || L.rodando || document.visibilityState !== 'visible') return;
-  if (FIXAS.has(H.app.aba) || document.getElementById('transicao') || document.activeElement?.matches?.('input, textarea') || document.querySelector('dialog[open]')) return;
-  let visto = null; try { visto = localStorage.getItem(chaveVisto()); } catch { return; }
-  if (visto !== chaveJogo(s)) transicao(H.assistir);
+  const L = Lg(), s = H.app.s, E = H.app.esperaJogo;
+  if (E && (L.W.slot || 0) > E.slot) H.app.esperaJogo = null;   // espera vencida: o jogo dela já rolou
+  if (!s?.ultimaVivo || s.demitido || L.rodando || document.getElementById('transicao')) return null;
+  let visto = null; try { visto = localStorage.getItem(chaveVisto()); } catch { return null; }
+  if (visto === chaveJogo(s)) return null;
+  if (H.app.esperaJogo || document.visibilityState !== 'visible' || (FIXAS.has(H.app.aba) && H.app.aba !== 'carregando')) return false;
+  abrirCaminho(); transicao(H.assistir);
+  return true;
 }
+// hora do jogo: fecha a ficha aberta e larga o campo de texto (teclado do celular), como o Treineiros fecha a janela
+function abrirCaminho() { document.querySelector('dialog[open]')?.close(); document.activeElement?.blur?.(); }
 // fade: a cortina com os escudos entra, o jogo carrega por trás e começa quando ela sai
 function transicao(fn) {
   const u = H.app.s?.ultima, el = document.createElement('div');
