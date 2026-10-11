@@ -1,7 +1,7 @@
 // Estado do jogo: cria a carreira, avança rodadas e calcula tabelas.
 import { rng, pick, jogador } from './util.js';
 import { humanos, ehHumano, vistaDo, mundoDe } from './humanos.js';
-import { pontosCorridos, dataRodada, dataAmistoso as diaAmistoso, dataLiga, dataLiga2, N_LIGA, janelaNaData, doAno, LIGA } from './calendario.js';
+import { pontosCorridos, dataRodada, dataAmistoso as diaAmistoso, dataLiga, dataLiga2, N_LIGA, janelaIdx, doAno, LIGA } from './calendario.js';
 import { simular, melhorTime, bancoAuto, posicoesDe, PERS, vagaPara, encaixe, fatorCond, forcaSetores } from './partida.js';
 import { fragilidade, indisponiveis, posJogo, TREINO_LES } from './dm.js';
 import { garantirCarreira, torcidaAposJogo, aposRodada, demissoesIA, tituloDeCopa } from './carreira.js';
@@ -40,9 +40,11 @@ export const DIFICULDADES = { facil: 'Fácil', normal: 'Normal', dificil: 'Difí
 export { dataRodada, dataLiga };
 // janelas reais (5/jan a 3/mar e 20/jul a 11/set), vistas na data da próxima rodada da Série A (o relógio do jogo);
 // antes da 1ª rodada (pré-temporada e estaduais), na data de hoje (o último jogo), nunca antes da abertura de 5/jan
-export function janelaAberta(ano, r, hoje) {
-  return janelaNaData(ano, r <= 0 ? Math.max(+doAno(ano, '1-5'), hoje ?? 0) : dataRodada(ano, Math.min(r, 37)));
+// qual janela está aberta (0 = jan/mar, 1 = jul/set) ou -1
+export function janelaAtual(ano, r, hoje) {
+  return janelaIdx(ano, r <= 0 ? Math.max(+doAno(ano, '1-5'), hoje ?? 0) : dataRodada(ano, Math.min(r, 37)));
 }
+export const janelaAberta = (ano, r, hoje) => janelaAtual(ano, r, hoje) >= 0;
 // rodadas jogadas por divisão: a Série A é o relógio da temporada (s.rodada); B e C contam à parte
 export const feitas = (s, d) => d === 'A' ? s.rodada : s.feitas?.[d] || 0;
 export const ligaAcabou = (s, d) => feitas(s, d) >= (N_LIGA[d] || 38);

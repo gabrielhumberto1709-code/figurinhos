@@ -5,7 +5,7 @@ import { FASES, PREMIOS, dataCopa, campanha, naCopa, mandoDe } from './motor/cop
 import { fmtDinheiro } from './motor/util.js';
 import { REGIONAIS, ESTADUAIS, COPAS_REG, fasesReg, dataFaseReg, jogosDaFaseReg, tabelaReg, campanhaReg, vivoReg, regsDe } from './motor/regionais.js';
 import { dataAmistoso, dataLiga2, N_LIGA } from './motor/calendario.js';
-import { TORNEIOS, PREMIO_SUP, F_MATA, dataCont, tabelaGrupo, campanhaCont, naCont, jogoDoClube, emQualCont, jogosDaFase, fasesDe } from './motor/continental.js';
+import { TORNEIOS, PREMIO_SUP, F_MATA, dataCont, tabelaGrupo, campanhaCont, naCont, jogoDoClube, emQualCont, jogosDaFase, fasesDe, jogadorCont } from './motor/continental.js';
 
 let H; // { app, clube, esc, imgEscudo, render }
 export const configurar = h => { H = h; };
@@ -65,7 +65,7 @@ function copa() {
     if (jogos.length) fases.push(`<section class="cartao"><h3>${FASES[i].nome}</h3><ol class="chave-copa">${jogos.map(j => placarCopa(j, ci)).join('')}</ol></section>`);
     else if (i === c.fase && c.chaves.length) fases.push(`<section class="cartao"><h3>${FASES[i].nome} · ${dataCurta(dataCopa(dataRodada, s.ano, i))}</h3><ol class="chave-copa">${c.chaves.map(ch => { const [h, a] = mandoDe(i, ch); return placarCopa({ h, a }, ci); }).join('')}</ol></section>`);
   }
-  const art = Object.entries(c.art).map(([id, g]) => [B.jog.get(+id), g]).filter(([j]) => j).sort((a, b) => b[1] - a[1]).slice(0, 5);
+  const art = Object.entries(c.art).map(([id, g]) => [jogadorCont(B, c.ano, +id), g]).filter(([j]) => j).sort((a, b) => b[1] - a[1]).slice(0, 5);
   return `<section class="cartao copa-topo"><div class="titulo-linha"><h3>Copa do Brasil ${c.ano}</h3>${c.campeao != null ? `<span class="tag destaque">Campeão: ${H.esc(H.clube(c.campeao).n)}</span>` : ''}</div>
       <p><b>${camp ? `${H.esc(H.clube(ci).n)}: ${camp}` : `O ${H.esc(H.clube(ci).n)} não disputa esta edição.`}</b></p>
       <p class="mudo" style="font-size:.95rem">Formato de 2026: fases 1 a 4 em jogo único (fevereiro e março) com Série B, Série C e clubes dos estaduais; a Série A entra na 5ª fase (abril e maio). 5ª fase, oitavas, quartas e semi em ida e volta; final única em campo neutro em 6 de dezembro. Mandos e chaves por sorteio; empate vai para os pênaltis. Campeão e vice vão à Libertadores.</p>

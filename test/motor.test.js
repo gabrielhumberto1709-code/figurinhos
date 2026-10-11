@@ -143,6 +143,18 @@ test('mercado: a CPU responde na hora; multa rescisória paga, o clube não segu
   assert.equal(s.propostas[0].estado, 'concluida', s.propostas[0].motivo); // ele quer vir: o clube não tinha como segurar
 });
 
+import { chegouNaJanela, transferir as transf } from '../public/js/motor/mercado.js';
+test('mercado: quem chegou nesta janela não recebe proposta até ela fechar', () => {
+  const s = novoJogo(base, cfg(24)), alvo = base.elencos[5][3], para = 7;
+  assert.equal(chegouNaJanela(s, alvo.id), false);
+  transf(base, s, alvo, para, 1e6);                       // pré-temporada: janela de janeiro aberta
+  assert.ok(chegouNaJanela(s, alvo.id));
+  assert.match(bloqueioProposta(base, s, alvo, proposta(base, s, alvo)), /acabou de chegar/);
+  s.rodada = 10;                                          // maio: a janela fechou
+  assert.equal(chegouNaJanela(s, alvo.id), false);
+  assert.doesNotMatch(bloqueioProposta(base, s, alvo, proposta(base, s, alvo)) || '', /acabou de chegar/);
+});
+
 test('mercado: proposta baixa é recusada, janela fechada não bloqueia jogador livre', () => {
   const s = novoJogo(base, cfg(22));
   const alvo = base.elencos[5][0];

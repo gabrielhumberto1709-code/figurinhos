@@ -6,13 +6,15 @@ import { rng, pick } from './util.js';
 import { rivais } from './rivais.js';
 import { evolucao, tabela } from './mundo.js';
 import { ehHumano } from './humanos.js';
+import { jogadorCont } from './continental.js';
 
 export const JORNAIS = [
   { k: 'bola', nome: 'Jornal da Bola', linha: 'O diário sério do futebol de botão' },
   { k: 'chutao', nome: 'O Chutão', linha: 'O tabloide que não perdoa ninguém' },
   { k: 'gramado', nome: 'Diário do Gramado', linha: 'Números, bastidores e o placar' },
 ];
-const nomeJ = (base, id) => base.jog.get(+id)?.curto || '?';
+// jogador de time estrangeiro da Libertadores/Sul-Americana não está na base: o elenco dele é gerado (jogadorCont)
+const nomeJ = (base, s, id) => jogadorCont(base, s.ano, +id)?.curto || '?';
 const ord = n => `${n}º`;
 
 // resumo do seu último jogo, do ponto de vista do seu clube
@@ -30,7 +32,7 @@ function jogoMeu(base, s) {
 export function banca(base, s) {
   const g = jogoMeu(base, s); if (!g) return null;
   const r = rng(`banca${s.seed}${s.ano}${g.u.rodada}`), { C, A, m, d, pos } = g, CC = C.toUpperCase(), AA = A.toUpperCase();
-  const quem = g.decisivo ? nomeJ(base, g.decisivo.jogador) : g.craque ? nomeJ(base, g.craque[0]) : 'o time', tec = s.tecnico.nome;
+  const quem = g.decisivo ? nomeJ(base, s, g.decisivo.jogador) : g.craque ? nomeJ(base, s, g.craque[0]) : 'o time', tec = s.tecnico.nome;
   const res = m > d ? (m - d >= 3 ? 'goleada' : 'vitoria') : m < d ? (d - m >= 3 ? 'vexame' : 'derrota') : m === 0 ? 'zero' : 'empate';
   const local = g.casa ? 'em casa' : 'fora de casa';
   const T = {
@@ -55,13 +57,13 @@ export function cronica(base, s) {
   if (!g.gols.length) F.push(pick(r, ['O jogo foi truncado, com pouca criação dos dois lados.', 'Os goleiros pouco trabalharam e a bola teimou em não entrar.']));
   for (const e of g.gols) {
     const x = e.time, antes = [...p]; p[x]++;
-    const quem = nomeJ(base, e.jogador), time = nomes[x], ass = e.assist ? `, com passe de ${nomeJ(base, e.assist)}` : '', pen = e.penalti ? ' de pênalti' : '';
+    const quem = nomeJ(base, s, e.jogador), time = nomes[x], ass = e.assist ? `, com passe de ${nomeJ(base, s, e.assist)}` : '', pen = e.penalti ? ' de pênalti' : '';
     const verbo = antes[0] === 0 && antes[1] === 0 ? 'abriu o placar' : antes[x] === antes[1 - x] - 1 ? 'empatou' : antes[x] === antes[1 - x] ? (liderou[x] ? 'recolocou o time na frente' : 'virou o jogo') : antes[x] > antes[1 - x] ? 'ampliou' : 'descontou';
     if (p[x] > p[1 - x]) liderou[x] = true;
     F.push(`${e.min >= 85 ? 'No fim, aos' : 'Aos'} ${e.min}', ${quem} ${verbo}${pen} para o ${time}${ass}.`);
   }
-  for (const e of (u.eventos || []).filter(e => e.tipo === 'vermelho')) F.push(`${nomeJ(base, e.jogador)} foi expulso aos ${e.min}' e deixou o ${nomes[e.time]} com um a menos.`);
-  if (g.craque) F.push(`O melhor do ${C} em campo foi ${nomeJ(base, g.craque[0])}, nota ${g.craque[1].toFixed(1).replace('.', ',')}.`);
+  for (const e of (u.eventos || []).filter(e => e.tipo === 'vermelho')) F.push(`${nomeJ(base, s, e.jogador)} foi expulso aos ${e.min}' e deixou o ${nomes[e.time]} com um a menos.`);
+  if (g.craque) F.push(`O melhor do ${C} em campo foi ${nomeJ(base, s, g.craque[0])}, nota ${g.craque[1].toFixed(1).replace('.', ',')}.`);
   F.push(`${g.m > g.d ? 'Com a vitória' : g.m < g.d ? 'Com a derrota' : 'Com o empate'}, o ${C} fica em ${ord(g.pos)} na Série ${base.clubes[g.ci].div}.${g.m < g.d ? ` O ${A} comemora.` : ''}`);
   return F.join(' ');
 }
@@ -95,7 +97,7 @@ export function alfinetadas(base, s, jogos, add, r) {
     const [id] = Object.entries(sim.notas[t]).sort((x, y) => y[1] - x[1])[0] || [];
     if (id == null) continue;
     const frase = pick(r, ['A cidade tem dono.', 'Freguês é freguês.', `Manda um abraço pra torcida do ${base.clubes[perd].n}.`, 'Clássico a gente não joga, a gente ganha.', 'Podem ir se acostumando.']);
-    add('imprensa', d, `Alfinetada: depois do clássico, ${nomeJ(base, id)} (${base.clubes[venc].n}) provoca: "${frase}"`, { jogador: +id, clube: venc, imprensa: true });
+    add('imprensa', d, `Alfinetada: depois do clássico, ${nomeJ(base, s, id)} (${base.clubes[venc].n}) provoca: "${frase}"`, { jogador: +id, clube: venc, imprensa: true });
   }
 }
 

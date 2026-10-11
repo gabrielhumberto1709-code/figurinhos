@@ -68,7 +68,8 @@ export const dataCont = (ano, i, k = 'LIB') => doAno(ano, k === 'PRE' ? PRE_DATA
 export const dataSup = ano => doAno(ano, '2-1');
 export const dataAmistoso = (ano, i) => doAno(ano, ['1-3', '1-6', '1-8'][i]);
 export const JANELAS = [['1-5', '3-3'], ['7-20', '9-11']];
-export const janelaNaData = (ano, t) => JANELAS.some(([a, b]) => +t >= +doAno(ano, a) && +t <= +doAno(ano, b) + DIA - 1);
+export const janelaIdx = (ano, t) => JANELAS.findIndex(([a, b]) => +t >= +doAno(ano, a) && +t <= +doAno(ano, b) + DIA - 1); // -1 = fechada
+export const janelaNaData = (ano, t) => janelaIdx(ano, t) >= 0;
 // fim da temporada no calendário: dia seguinte à final da Copa do Brasil
 export const fimDoAno = ano => new Date(+dataCopa(ano, 12) + DIA);
 // datas dos regionais: E = estaduais (os 9 domingos de 11/jan a 8/mar; quem precisa de mais usa as quartas livres da

@@ -4,7 +4,7 @@ import { LESOES, COMP_DE, indisponivel, pendurado } from './motor/dm.js';
 import { garantirCarreira, pilares, aceitarOferta, recusarOferta, pedirDemissao } from './motor/carreira.js';
 import { virarTemporada, fimDeTemporada } from './motor/temporada.js';
 import { campanha } from './motor/copa.js';
-import { F_MATA, tabelaGrupo } from './motor/continental.js';
+import { F_MATA, tabelaGrupo, jogadorCont } from './motor/continental.js';
 import { REGIONAIS, fasesReg, tabelaReg } from './motor/regionais.js';
 import * as Torneios from './torneios.js';
 import { garantirFinancas, pesoDivida, corteDivida, dividaInicial, EURO, amortizar, JUROS, estruturaAnual, receitaAnual, orcamento, socorro, metaDiretoria, balanco, bilheteria, pedirVerba, dicasFinanceiras, fairPlay, registroBloqueado, tetoSalarial, ANO_FPF, SANCOES, PRECOS, NOME_PRECO } from './motor/financas.js';
@@ -603,7 +603,7 @@ telas.calendario = () => `<div class="titulo-linha"><h2>Agenda ${app.s.ano}</h2>
 telas.partida = () => {
   const u = app.s.ultima;
   if (!u) return `<p>Nenhum jogo ainda.</p><a class="botao" href="#/clube">Voltar</a>`;
-  const ci = app.s.tecnico.clube, J = id => app.base.jog.get(id), nome = id => esc(J(id)?.curto || '?');
+  const ci = app.s.tecnico.clube, nome = id => esc(jogadorCont(app.base, app.s.ano, id)?.curto || '?'); // estrangeiro da copa: elenco gerado
   const st = u.stats, claro = h => { const n = parseInt(h.slice(1), 16); return (0.3 * (n >> 16) + 0.59 * (n >> 8 & 255) + 0.11 * (n & 255)) / 255 > 0.8; };
   const corDe = (c, evita) => [...c.c, '#1B1F2A'].find(x => !claro(x) && x !== evita);
   const corCasa = corDe(clube(u.casa)), corFora = corDe(clube(u.fora), corCasa);

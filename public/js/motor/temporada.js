@@ -150,7 +150,7 @@ export function virarTemporada(base, s) {
   s.emprestimos = {};
   for (const p of s.preContratos) {
     const j = base.jog.get(p.jogador); if (!j) continue;
-    s.transf[j.id] = p.para; s.contratos[j.id] = s.ano + (p.anos || 3); (s.chegou ||= {})[j.id] = (s.ano + 1) * 40;
+    s.transf[j.id] = p.para; s.contratos[j.id] = s.ano + (p.anos || 3); (s.chegou ||= {})[j.id] = (s.ano + 1) * 40; (s.janChegada ||= {})[j.id] = (s.ano + 1) * 2; // chega na janela de janeiro
     if (ehHumano(s, p.para)) { s.salarios[j.id] = p.salario; addDe(p.para)(`Chegou: ${j.curto}, do pré-contrato com o ${nome(p.de)}.`); } else delete s.salarios[j.id];
     s.historicoTransf.unshift({ rodada: 37, jogador: j.id, nome: j.curto, de: p.de, para: p.para, valor: 0, tipo: 'pre', ia: !ehHumano(s, p.para) && !ehHumano(s, p.de) });
   }

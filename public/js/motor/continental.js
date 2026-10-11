@@ -75,6 +75,8 @@ export function elencoFora(base, ci, ano) {
     extra.push({ id: -(9e6 + ci * 100 + extra.length), nome: `${pick(r, br ? NOMES_BR : NOMES)} ${sob}`, curto: sob, clube: ci, pos, idade: 19 + Math.floor(r() * 13), nat: c.nat || 'ARG', ovr, valor: 0, contrato: ano + 1, pot: ovr, rosto: '0000000000', num, gerado: true,
       att: Object.fromEntries(ATT.map((a, i) => [a, clamp(Math.round(ovr + PERFIL[pos][i] + (r() - 0.5) * 8), 20, 99)])) });
   }
+  const nomes = new Set(reais.map(j => j.curto)); // sobrenome repetido no elenco ganha a inicial (R. Vieira)
+  for (const j of extra) { if (nomes.has(j.curto)) j.curto = `${j.nome[0]}. ${j.curto}`; nomes.add(j.curto); }
   const el = [...reais, ...extra];
   cache.set(k, el);
   return el;

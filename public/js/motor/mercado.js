@@ -10,7 +10,7 @@ import { faseDe } from './forma.js';
 import { rng, clamp, pickW, shuffle, SETOR, nivelDiv, estrelas, continenteDe, fmtDinheiro } from './util.js';
 import { temperamento, tratar } from './vestiario.js';
 import { interessados, media } from './noticias.js';
-import { janelaAberta, caixaIAInicial, aplicarSave, evolucao, limiteEstrangeiros, naoJogaA } from './mundo.js';
+import { janelaAberta, janelaAtual, caixaIAInicial, aplicarSave, evolucao, limiteEstrangeiros, naoJogaA } from './mundo.js';
 import { dataAmistoso, doAno } from './calendario.js';
 import { orcamento, lancar, garantirFinancas, salarioDia, salarioBase, diasRestantes, registroBloqueado, passaDoTeto, dividaInicial, receitaAnual } from './financas.js';
 import { naSelecao } from './selecao.js';
@@ -36,12 +36,16 @@ export function garantirMercado(s) {
 
 // FIFA (RSTP, art. 5): na temporada o jogador é registrado por no máximo 3 clubes, ou seja, 2 mudanças (venda,
 // empréstimo ou contrato de livre). A IA, por conta própria, não revende quem chegou há menos de 14 jogos (bom senso, não
-// regra). 3 recusas seguidas fecham a conversa por 2 rodadas.
+// regra). 3 recusas seguidas fecham a conversa por 2 rodadas. Quem chegou nesta janela não recebe proposta (de ninguém)
+// até ela fechar.
 const agora = s => s.ano * 40 + s.rodada;
-const marcarChegada = (s, id) => { (s.chegou ||= {})[id] = agora(s); (s.passagens ||= {})[id] = (s.passagens[id] || 0) + 1; };
+const janelaHoje = s => { const k = janelaAtual(s.ano, s.rodada, s.ultimaData); return k < 0 ? null : s.ano * 2 + k; };
+export const chegouNaJanela = (s, id) => { const k = janelaHoje(s); return k != null && s.janChegada?.[id] === k; };
+const marcarChegada = (s, id) => { (s.chegou ||= {})[id] = agora(s); (s.passagens ||= {})[id] = (s.passagens[id] || 0) + 1; const k = janelaHoje(s); if (k != null) (s.janChegada ||= {})[id] = k; };
 export const semPassagem = (s, id) => (s.passagens?.[id] || 0) >= MAX_PASSAGENS;
 export const textoPassagem = j => `${j.curto} já foi registrado por 3 clubes nesta temporada: pela regra da FIFA, só muda de clube no ano que vem.`;
-const recente = (s, id) => semPassagem(s, id) || (s.chegou?.[id] != null && agora(s) - s.chegou[id] < 14);
+const recente = (s, id) => semPassagem(s, id) || chegouNaJanela(s, id) || (s.chegou?.[id] != null && agora(s) - s.chegou[id] < 14);
+export const textoJanela = (base, j) => `${j.curto} acabou de chegar ao ${base.clubes[j.clube].n}: só pode receber proposta quando esta janela de transferências fechar.`;
 export const conversaFechada = (s, id) => { const x = s.recusas?.[id]; return x?.ano === s.ano && x.ate > s.rodada ? x.ate - s.rodada : 0; };
 const emAcordo = (s, id) => s.acordos?.some(a => a.jogador === id || a.troca === id);
 
@@ -213,6 +217,7 @@ export function bloqueioProposta(base, s, j, o) {
   if (pre) return `Já assinou pré-contrato com o ${base.clubes[pre.para].n}.`;
   if (s.emprestimos[j.id] && o.tipo !== 'pre') return 'Está emprestado até o fim da temporada.';
   if (o.tipo !== 'pre' && semPassagem(s, j.id)) return textoPassagem(j);
+  if (o.tipo !== 'livre' && chegouNaJanela(s, j.id)) return textoJanela(base, j);
   if (o.tipo === 'pre' && s.rodada >= ABRE_PRE && vaiAposentar(s, j)) return 'Ele vai se aposentar no fim da temporada.';
   if (!tiposPossiveis(base, s, j).includes(o.tipo)) return o.tipo === 'pre' ? `Pré-contrato só com contrato no fim, a partir da ${ABRE_PRE + 1}ª rodada (metade do Brasileirão). Ele chega na temporada seguinte.` : o.tipo === 'emprestimo' ? 'Esse clube não empresta.' : 'Esse tipo de proposta não vale para ele.';
   if (o.tipo === 'emprestimo' && (o.cl?.taxa || 0) > s.caixa) return 'A taxa de empréstimo passa do que tem em caixa.';
@@ -222,6 +227,7 @@ export function bloqueioProposta(base, s, j, o) {
     if (!t || t.clube !== meu) return 'O jogador da troca precisa ser do seu elenco.';
     if (s.emprestimos[t.id] || preContratoDe(s, t.id) || emAcordo(s, t.id)) return `${t.curto} não pode entrar na troca.`;
     if (semPassagem(s, t.id)) return textoPassagem(t);
+    if (chegouNaJanela(s, t.id)) return `${t.curto} acabou de chegar: não pode entrar em troca nesta janela.`;
   }
   if (o.tipo === 'pre' && s.preContratos.filter(p => p.para === meu).length >= MAX_PRE) return `Limite de ${MAX_PRE} pré-contratos por temporada.`;
   if (o.tipo !== 'pre' && base.elencos[meu].length >= LIMITE_ELENCO) return `Elenco cheio (${LIMITE_ELENCO}).`;
@@ -954,6 +960,7 @@ export function resolverMercado(base, s, rd, semana = 0) {
   const add = (texto, tipo = 'clube', div = divDe(s.tecnico.clube), extra) => N.push({ rodada: rd + 1, tipo, div, texto, mercado: true, ...extra });
   const addDo = ci => (texto, tipo = 'clube', div = divDe(ci), extra) => N.push({ rodada: rd + 1, tipo, div, texto, mercado: true, clube: ci, ...extra });
   for (const [id, c] of Object.entries(s.chegou)) if (agora(s) - c >= 14) delete s.chegou[id];
+  for (const [id, k] of Object.entries(s.janChegada || {})) if (k !== janelaHoje(s)) delete s.janChegada[id]; // a janela fechou
   const hs = humanos(s);
   for (const [ci, sv] of hs) mercadoDoTecnico(base, sv, rd, semana, r, addDo(ci));
   // obrigação de compra por número de jogos (empréstimo envolvendo técnico)
