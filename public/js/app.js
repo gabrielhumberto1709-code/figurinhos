@@ -32,6 +32,7 @@ const $ = sel => document.querySelector(sel);
 const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
 const guardado = { ler(k) { try { return JSON.parse(localStorage.getItem(k)); } catch { return null; } }, gravar(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch { } }, tirar(k) { try { localStorage.removeItem(k); } catch { } } };
 
+let baseAlbum = null; // mini-base so para a capa (3 figurinhas) antes do login
 const app = { conta: guardado.ler('fig.conta'), base: null, s: null, slot: null, novo: null, salvando: '', aba: null };
 const TERNO = { n: 'Técnico', c: ['#1B1F2A', '#F3EBDD'], pat: 'solid' };
 
@@ -114,6 +115,13 @@ async function carregarBase() {
   return (app.base = new Base(await r.json()));
 }
 
+async function carregarAlbum() {
+  if (baseAlbum) return baseAlbum;
+  const r = await fetch('/data/album.json');
+  if (!r.ok) throw new Error('Sem a capa.');
+  return (baseAlbum = new Base(await r.json()));
+}
+
 const ir = rota => { if (location.hash === rota) render(); else location.hash = rota; };
 async function sairDaConta() { await descarregar().catch(() => { }); Liga.fechar(); app.conta = null; app.s = null; guardado.tirar('fig.conta'); ir('#/entrar'); }
 
@@ -123,7 +131,7 @@ function aviso(msg) {
 }
 
 // ---------- pedaços de interface ----------
-const clube = ci => app.base.clubes[ci];
+const clube = ci => (app.base || baseAlbum).clubes[ci];
 const imgEscudo = (ci, w, h) => `<img class="px" src="${urlEscudo(clube(ci))}" width="${w}" height="${h}" alt="">`;
 const bandeira = (nat, w = 16) => { const u = urlBandeira(nat); return u ? `<img class="px" src="${u}" width="${w}" height="${Math.round(w * 11 / 16)}" alt="">` : ''; };
 
@@ -204,12 +212,12 @@ function album() {
   const anima = !app.albumVisto; app.albumVisto = true;
   return `<div class="livro ${anima ? 'anima' : ''}" role="img" aria-label="Álbum aberto com as figurinhas de Vini Jr., Neymar e Mbappé">${PAGINAS.map(([nat, nome, pg, vagas], p) => `<div class="pagina ${p ? 'dir' : 'esq'}">
     <header>${bandeira(nat, 18)}<span>${nome}</span></header>
-    <div class="vagas">${vagas.map(([n, id, curto]) => { const j = id && app.base.jog.get(id); return `<div class="vaga"><span class="cod">${nat} ${n}</span>${j ? `<div class="cola" style="${COLA[id]}">${figurinha(curto ? { ...j, curto } : j, '', true)}</div>` : ''}</div>`; }).join('')}</div>
+    <div class="vagas">${vagas.map(([n, id, curto]) => { const j = id && (app.base || baseAlbum).jog.get(id); return `<div class="vaga"><span class="cod">${nat} ${n}</span>${j ? `<div class="cola" style="${COLA[id]}">${figurinha(curto ? { ...j, curto } : j, '', true)}</div>` : ''}</div>`; }).join('')}</div>
     <span class="pg num">${pg}</span></div>`).join('')}</div>`;
 }
 telas.entrar = () => {
   return `<section class="entrada"><div class="tema-canto">${botaoTema()}</div>
-    ${app.base ? album() : ''}
+    ${app.base || baseAlbum ? album() : ''}
     <div class="marca"><h1 class="logo">Figurinhos</h1><p class="logo-sub">Manager de futebol de botão. Monte o álbum, escale o time, brigue pelo título.</p></div>
     <form class="cartao" data-form="entrar" novalidate>
       <label>Apelido <input type="text" name="apelido" autocomplete="username" minlength="3" maxlength="20" required value="${esc(app.ultimoApelido || '')}"></label>
@@ -931,5 +939,5 @@ document.addEventListener('change', e => {
 window.addEventListener('hashchange', render);
 render();
 // a vitrine entra sem redesenhar a tela, para não apagar o que a pessoa já digitou
-if (!app.conta) carregarBase().then(() => { const marca = $('.entrada .marca'); if (marca && !$('.livro')) marca.insertAdjacentHTML('beforebegin', album()); }).catch(() => { });
+if (!app.conta) carregarAlbum().then(() => { const marca = $('.entrada .marca'); if (marca && !$('.livro')) marca.insertAdjacentHTML('beforebegin', album()); }).catch(() => { });
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(() => { });
