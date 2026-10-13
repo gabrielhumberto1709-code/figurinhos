@@ -4,3 +4,4 @@ node_modules/
 public/_worker.js
 public/_routes.json
 graphify-out/
+*.zip
