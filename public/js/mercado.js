@@ -39,15 +39,16 @@ const euro = v => `€ ${Math.round(v).toLocaleString('pt-BR')}`;
 const filtrosAtivos = f => (!H.app.sitFixa && f.sit !== 'todos') + (f.pos.length > 0) + !!f.cont + ['ovr', 'idade', 'valor', 'sal'].filter(k => { const d = filtroPadrao()[k]; return f[k][0] !== d[0] || f[k][1] !== d[1]; }).length;
 
 // ---------- busca ----------
-// liga de cada clube; quem está sem clube entra como "Livres". Nenhuma marcada = todas
-const ligaDe = c => c.div === 'L' ? 'Livres' : c.liga || `Série ${c.div}`;
+// categoria de cada clube: Séries A a D do Brasil uma por uma, os de fora pelo continente, sem clube = "Livres". Nenhuma
+// marcada = todas. Estaduais ficam fora da busca
+const ligaDe = c => c.div === 'L' ? 'Livres' : c.div === 'X' ? CONTINENTES[continenteDe(c.nat)] || 'Outros' : c.liga === 'Estadual' ? null : c.liga || `Série ${c.div}`;
 function filtrar(f = filtro(), sit = H.app.sitFixa || f.sit) {
   const s = S(), b = B(), meu = s.tecnico.clube, L = M.listasIA(b, s), o = orcamento(b, s), divMeu = b.clubes[meu].div, q = norm(f.q), ligas = f.ligas || [], teto = tetoSalarial(b, s).teto;
   const out = [];
   for (const j of b.jog.values()) {
     if (j.clube === meu) continue;
     const c = b.clubes[j.clube], livre = c.div === 'L';
-    if (ligas.length && sit !== 'livres' && !ligas.includes(ligaDe(c))) continue; // na aba Livres a liga não conta
+    const lg = ligaDe(c); if (!lg || ligas.length && sit !== 'livres' && !ligas.includes(lg)) continue; // na aba Livres a liga não conta
     if (f.grupo && SETOR[j.pos] !== f.grupo) continue;
     if (f.pos.length && !f.pos.includes(j.pos)) continue;
     if (j.ovr < f.ovr[0] || j.ovr > f.ovr[1] || j.idade < f.idade[0] || j.idade > f.idade[1]) continue;
@@ -133,12 +134,9 @@ function abrirFiltros() {
   if (!d.open) d.showModal();
 }
 let _ligas = null;
-// ordem fixa e previsível: Brasil, as 5 grandes da Europa, as sul-americanas, o resto em ordem alfabética e Livres
-const ORDEM_LIGAS = ['Série A', 'Série B', 'Série C', 'Série D', 'Estadual', 'Premier League', 'LaLiga', 'Serie A (ITA)', 'Bundesliga', 'Ligue 1',
-  'Liga Argentina', 'Liga Colombiana', 'Liga Uruguaia', 'Liga Paraguaia', 'Liga Chilena', 'Liga Equatoriana', 'Liga Peruana', 'Liga Boliviana', 'Liga Venezuelana'];
 const listaLigas = () => _ligas ||= (() => {
-  const tem = new Set([...B().jog.values()].map(j => ligaDe(B().clubes[j.clube]))); tem.delete('Livres');
-  return [...ORDEM_LIGAS.filter(l => tem.has(l)), ...[...tem].filter(l => !ORDEM_LIGAS.includes(l)).sort((a, b) => a.localeCompare(b)), 'Livres'];
+  const tem = new Set([...B().jog.values()].map(j => ligaDe(B().clubes[j.clube])));
+  return ['Série A', 'Série B', 'Série C', 'Série D', ...Object.values(CONTINENTES), 'Outros', 'Livres'].filter(l => tem.has(l));
 })();
 const atualizarContagem = () => { const b = H.$('#f-ver'); if (b) b.textContent = `Ver ${filtrar().length.toLocaleString('pt-BR')} jogadores`; };
 
