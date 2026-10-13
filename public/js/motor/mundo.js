@@ -51,9 +51,18 @@ export const ligaAcabou = (s, d) => feitas(s, d) >= (N_LIGA[d] || 38);
 
 // caixa de quem assume um clube daqui: o do balanço real de 2025 (financas.js); de fora, pelo tamanho do clube
 const caixaFora = c => Math.round(4e6 * c.tier ** 2 * c.fan / 6 / 10000) * 10000;
+// + verba inicial de quem assume (Séries A, B e C): ninguém começa zerado, nem o clube afundado em dívida. Um piso da
+// divisão e 5% do valor do elenco: elenco caro vale mais capital, então Flamengo e Palmeiras saem bem na frente e o
+// resto da divisão fica perto (A: uns 4 a 13 milhões; B: 1 a 2,5; C: 0,5 a 1)
+const PISO_VERBA = { A: 3e6, B: 8e5, C: 3e5 };
+export function verbaInicial(base, ci, dificuldade = 'normal') {
+  const c = base.clubes[ci], piso = PISO_VERBA[c.div]; if (!piso) return 0;
+  const valor = base.elencos[ci].reduce((a, j) => a + j.valor * 1000, 0);
+  return Math.round((piso + 0.05 * valor) * ({ facil: 1.5, normal: 1, dificil: 0.5 }[dificuldade] ?? 1) / 1e4) * 1e4;
+}
 export function caixaInicial(base, ci, dificuldade = 'normal') {
   const c = base.clubes[ci];
-  return c.div === 'L' ? 0 : c.div === 'X' ? caixaFora(c) : caixaReal(c, dificuldade);
+  return c.div === 'L' ? 0 : c.div === 'X' ? caixaFora(c) : caixaReal(c, dificuldade) + verbaInicial(base, ci, dificuldade);
 }
 // verba da IA para contratar numa temporada (o gasto real médio de 2025-26); de fora, o caixa do tamanho do clube
 export function caixaIAInicial(base, ci) {
