@@ -542,8 +542,9 @@ test('caixa de mensagens: boas-vindas, meta, desfalques e propostas chegam uma v
   const s = novoJogo(base, cfg(91)), ci = s.tecnico.clube;
   assert.equal(naoLidas(s), 3); // boas-vindas, teto salarial e a escolha do patrocinador master
   assert.ok(s.msgs.some(m => m.assunto === 'Escolha o patrocinador master' && m.link === '#/patrocinio'));
+  assert.ok(s.msgs.some(m => m.assunto.startsWith('Teto salarial') && m.texto.includes('meta'))); // antes de rolar: a caixa guarda só as 60 últimas e o caminho da temporada muda com a base
   ate(s, 3);
-  assert.ok(s.msgs.some(m => m.assunto.startsWith('Teto salarial') && m.texto.includes('meta')));
+  assert.ok(s.msgs.filter(m => m.assunto.startsWith('Teto salarial')).length <= 1, 'o teto salarial não se repete');
   const j = base.elencos[ci].slice().sort((a, b) => b.ovr - a.ovr)[0];
   s.dm[j.id] = { k: 'adutor', n: 3, tot: 3 };
   rodada(s);

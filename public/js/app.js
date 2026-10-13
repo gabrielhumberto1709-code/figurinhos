@@ -657,7 +657,7 @@ function migrar(s) {
   if (semDivida) enviar(s, 'diretor', 'contas-reais-2025', 'As contas de verdade', `O clube agora segue o balanço real de 2025: dívida de ${fmtDinheiro(s.fin.divida)}, com juros de ${Math.round(JUROS * 100)}% ao ano, e receitas e custos do tamanho que são. Veja em Finanças.`, { link: '#/financas' });
   // base de jogadores atualizada depois que a carreira começou: avisa (o save segue por cima da base nova)
   if (s.dadosVersao !== app.base.dados.versao) {
-    enviar(s, 'diretor', `base-${app.base.dados.versao}`, 'Base de jogadores atualizada', 'Os clubes da Argentina, Colômbia, Uruguai, Paraguai, Chile, Equador, Peru e Bolívia chegaram com o elenco completo: dá para contratar de lá, e nas copas eles jogam com os titulares reais. Suas contratações, contratos e resultados continuam valendo.');
+    enviar(s, 'diretor', `base-${app.base.dados.versao}`, 'Base de jogadores atualizada', app.base.dados.versao >= 5 ? 'Premier League, LaLiga, Serie A, Bundesliga e Ligue 1 agora têm os clubes da temporada 2026-27, com elenco completo e rostos novos. Quem caiu foi para a segunda divisão (Championship, Segunda División, Serie B, 2. Bundesliga e Ligue 2). Suas contratações, contratos e resultados continuam valendo.' : 'Os clubes da Argentina, Colômbia, Uruguai, Paraguai, Chile, Equador, Peru e Bolívia chegaram com o elenco completo: dá para contratar de lá, e nas copas eles jogam com os titulares reais. Suas contratações, contratos e resultados continuam valendo.');
     s.dadosVersao = app.base.dados.versao;
   }
   return s;

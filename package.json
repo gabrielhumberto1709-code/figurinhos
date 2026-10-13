@@ -3,7 +3,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dados": "node tools/build-dados.js && node tools/clubes.js && node tools/vida.js && node tools/ajustar.js && node tools/ligas.js && node tools/sulamericanos.js",
+    "dados": "node tools/build-dados.js && node tools/clubes.js && node tools/vida.js && node tools/ajustar.js && node tools/ligas.js && node tools/sulamericanos.js && node tools/europa.js && node tools/fc27.js && node tools/album.js",
     "test": "node --test test/*.test.js",
     "pages": "node tools/pages.js"
   },

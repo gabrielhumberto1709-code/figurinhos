@@ -4,7 +4,9 @@ Manager de futebol de botão. Cloudflare Worker + D1, front em JS puro (sem buil
 
 - `npm test` — testes do motor (calendário, partida, temporada calibrada, save)
 - `npx wrangler dev` — roda local em http://localhost:8787 (aplique antes `npx wrangler d1 migrations apply figurinhos --local`)
-- `npm run dados -- <pasta-da-referencia>` — regera `public/data/brasil.json`
+- `npm run dados` — regera `public/data/brasil.json` e `album.json` a partir da base do Treineiros. A pasta de referência fica em `../referencia/treineiros-1.38.10`; se só tiver o HTML do Treineiros, `node tools/extrair-treineiros.js <treineiros.html>` monta a pasta.
+- Clubes de fora (`div: 'X'`, não jogáveis): `tools/europa.js` mantém Premier League, LaLiga, Serie A, Bundesliga e Ligue 1 com os clubes da temporada 2026-27 (lista no topo do arquivo; troque a lista e rode de novo a cada virada de temporada) e manda os rebaixados para Championship, Segunda División, Serie B, 2. Bundesliga e Ligue 2. Sul-americanos: `tools/sulamericanos.js`.
+- Geral e atributos do EA FC 27 para todo jogador fora da Série A/B/C e dos regionais: `tools/fc27.js`, que lê `../referencia/fc27/players.csv` (base oficial da EA, https://github.com/mikedpad/ea-fc-player-stats) e escreve `tools/fc27-nao-casados.csv` com quem não casou. Potencial: a EA não publica, então vale a folga que o jogador já tinha somada ao geral novo.
 
 Deploy: cada push na `main` publica pelo Workers Builds da Cloudflare.
 Dados de jogadores: base do Treineiros 1.38.10, uso autorizado pelo criador.

@@ -61,11 +61,26 @@ const CORTES_ESCUROS = [1, 2, 4, 7, 12, 13, 9, 2, 13];  // raspado, degradê, bl
 const CORTES_CLAROS = [0, 3, 2, 10, 6, 5, 9, 1, 8, 11]; // curto, topete, degradê, topete-degradê, longo, cacheado, careca, raspado, coque, puxado
 // faces medidas em foto: craques desenhados à mão + Série A (tools/faces.json, id -> código)
 const CRAQUES = { ...JSON.parse(fs.readFileSync(path.join(ROOT, 'tools', 'faces.json'), 'utf8')), ...JSON.parse(fs.readFileSync(path.join(ROOT, 'tools', 'craques.json'), 'utf8')) };
+// tom de pele sorteado por país quando a referência não mediu a foto (0 claro ... 5 escuro). Só uma probabilidade por seleção, não o rosto real.
+const PELE_GRUPOS = [
+  ['SEN CIV NGA GAN GUI CAM MLI DRC CON CEN BUR GAB CPV ANG TOG BEN LIB SIE GAM ZIM ZAM TAN UGA KEN RSA GBS CHA MOZ COM HAI JAM TRI SUR CUR GLP MTQ NIG', [3, 4, 4, 5, 5, 5, 3, 4]],
+  ['MAR TUN EGI ARA IRA IRQ SYR JOR', [1, 2, 2, 3, 3, 2, 4]],
+  ['JAP COR CHN THA PHI IND UZB KAZ TAJ MAS BAN', [1, 2, 2]],
+  ['FRA', [0, 0, 1, 1, 1, 2, 3, 4, 5]],
+  ['ING', [0, 0, 0, 1, 1, 1, 2, 3, 4]],
+  ['EUA', [0, 0, 1, 1, 2, 3, 4, 5]],
+  ['ALE HOL BEL', [0, 0, 0, 0, 1, 1, 1, 2, 3]],
+  ['AUT SUI DIN NOR SUE FIN ESC GAL NIR ARL IRL LUX ISL ICE POL CRO SER ROM UCR RUS TCH LIT LAT EST ESL HUN BUL BOS ALB MNE KOS GEO ARM CYP MLT MOL', [0, 0, 0, 0, 1, 1, 1, 2]],
+  ['ESP ITA POR GRE TUR', [0, 1, 1, 1, 1, 2, 2, 3]],
+  ['COL EQU PER BOL VEN MEX CRC PAN HON GUA DOM PUE ELS GUT', [1, 1, 2, 2, 3, 3, 4]],
+];
+const PELE_POR_NAT = new Map(PELE_GRUPOS.flatMap(([ns, l]) => ns.split(' ').map(n => [n, l])));
+const peleDe = nat => PELE_POR_NAT.get(nat) || [0, 1, 1, 2, 2, 3];
 function rosto(id, nat, idade) {
   if (CRAQUES[id]) return CRAQUES[id];
   const r = rng('rosto' + id);
   const M = LOOKS[id];
-  let pele = M ? M[0] : pick(r, nat === 'BRA' ? [0, 1, 1, 2, 2, 3, 3, 4, 4, 5] : ['ARG', 'URU', 'CHI', 'PAR'].includes(nat) ? [0, 0, 1, 1, 1, 2] : [0, 1, 2, 3, 4, 5]);
+  let pele = M ? M[0] : pick(r, nat === 'BRA' ? [0, 1, 1, 2, 2, 3, 3, 4, 4, 5] : ['ARG', 'URU', 'CHI', 'PAR'].includes(nat) ? [0, 0, 1, 1, 1, 2] : peleDe(nat));
   let cabelo = M ? HAIR_MAP[M[1]] : (pele >= 3 ? 0 : pick(r, [0, 0, 1, 1, 2, 3]));
   if (idade >= 34 && r() < 0.35) cabelo = 6;
   if (pele >= 3 && r() < 0.06) cabelo = 4; // descolorido
@@ -100,7 +115,7 @@ export function numerar(jogadores, ci) {
     usados.add(j[13]);
   }
 }
-export { CORE, P, ANO, kitGerado, catExt, tierDe, LIGA_PAIS };
+export { CORE, P, ANO, kitGerado, catExt, tierDe, LIGA_PAIS, rosto, potencial };
 
 // ---------- montagem (só quando roda direto; tools/sulamericanos.js importa as funções acima) ----------
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
