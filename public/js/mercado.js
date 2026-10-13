@@ -15,7 +15,6 @@ const S = () => H.app.s, B = () => H.app.base;
 
 const ABAS = [['buscar', 'Buscar'], ['favoritos', 'Favoritos'], ['listas', 'Listas'], ['livres', 'Livres'], ['pre', 'Pré-contrato'], ['olheiros', 'Olheiros'], ['propostas', 'Propostas'], ['historico', 'Histórico']];
 const RAPIDOS = [['teto', 'Cabem no teto'], ['bolso', 'Cabem no bolso'], ['barganha', 'Barganhas'], ['jovem', 'Jovens promessas'], ['contrato', 'Contrato acabando']];
-const DIVS = [['A', 'Série A'], ['B', 'Série B'], ['C', 'Série C'], ['X', 'Exterior']];
 const GRUPOS = [['', 'Todos'], ['GOL', 'GOL'], ['DEF', 'DEF'], ['MEI', 'MEI'], ['ATA', 'ATA']];
 const SITUACOES = [['todos', 'Todos'], ['favoritos', 'Favoritos'], ['livres', 'Livres'], ['pre', 'Pré-contrato'], ['venda', 'Lista de transferências'], ['emprestimo', 'Lista de empréstimo'], ['fim', 'Contrato no fim']];
 const ORDENS = [['ovr', 'Overall'], ['valor-', 'Mais caros'], ['valor+', 'Mais baratos'], ['idade', 'Mais jovens'], ['sal', 'Maior salário'], ['nome', 'Nome']];
@@ -29,7 +28,7 @@ const TAG_SIT = { livre: 'Livre', venda: 'À venda', emprestimo: 'Empréstimo', 
 const ROTULO = { aguardando: 'Aguardando resposta', contraproposta: 'Contraproposta', recusada: 'Recusada', perdida: 'Perdida para rival', concluida: 'Fechado', cancelada: 'Cancelada' };
 const NOME_TIPO = { compra: 'Compra', livre: 'Livre', pre: 'Pré-contrato', emprestimo: 'Empréstimo' };
 
-const filtroPadrao = () => ({ q: '', rapido: '', divs: ['A', 'B', 'C', 'X'], grupo: '', pos: [], sit: 'todos', cont: '', ligas: [], ovr: [40, 99], idade: [16, 42], valor: [0, 12], sal: [0, 9], ord: 'ovr', n: 50 });
+const filtroPadrao = () => ({ q: '', rapido: '', grupo: '', pos: [], sit: 'todos', cont: '', ligas: [], ovr: [40, 99], idade: [16, 42], valor: [0, 12], sal: [0, 9], ord: 'ovr', n: 50 });
 const filtro = () => H.app.fMercado || (H.app.fMercado = filtroPadrao());
 export const filtroSetor = st => { H.app.fMercado = { ...filtroPadrao(), grupo: st }; };
 const norm = t => t.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
@@ -37,18 +36,18 @@ const passo = (k, i) => FAIXAS[k].passos[i];
 const rotFaixa = (k, [a, b]) => FAIXAS[k].passos ? `${fmtPasso(k, a)} – ${fmtPasso(k, b)}` : `${a} – ${b}`;
 const fmtPasso = (k, i) => { const v = passo(k, i); return v === Infinity ? 'sem limite' : k === 'sal' ? `€ ${v.toLocaleString('pt-BR')}` : fmtDinheiro(v); };
 const euro = v => `€ ${Math.round(v).toLocaleString('pt-BR')}`;
-const filtrosAtivos = f => (!H.app.sitFixa && f.sit !== 'todos') + (f.pos.length > 0) + !!f.cont + ((f.ligas || []).length > 0) + ['ovr', 'idade', 'valor', 'sal'].filter(k => { const d = filtroPadrao()[k]; return f[k][0] !== d[0] || f[k][1] !== d[1]; }).length;
+const filtrosAtivos = f => (!H.app.sitFixa && f.sit !== 'todos') + (f.pos.length > 0) + !!f.cont + ['ovr', 'idade', 'valor', 'sal'].filter(k => { const d = filtroPadrao()[k]; return f[k][0] !== d[0] || f[k][1] !== d[1]; }).length;
 
 // ---------- busca ----------
-const ligaDe = c => c.div === 'X' ? c.liga : `Série ${c.div}`;
+// liga de cada clube; quem está sem clube entra como "Livres". Nenhuma marcada = todas
+const ligaDe = c => c.div === 'L' ? 'Livres' : c.liga || `Série ${c.div}`;
 function filtrar(f = filtro(), sit = H.app.sitFixa || f.sit) {
   const s = S(), b = B(), meu = s.tecnico.clube, L = M.listasIA(b, s), o = orcamento(b, s), divMeu = b.clubes[meu].div, q = norm(f.q), ligas = f.ligas || [], teto = tetoSalarial(b, s).teto;
   const out = [];
   for (const j of b.jog.values()) {
     if (j.clube === meu) continue;
     const c = b.clubes[j.clube], livre = c.div === 'L';
-    if (!livre && !f.divs.includes(c.div)) continue;
-    if (ligas.length && (livre ? sit !== 'livres' : !ligas.includes(ligaDe(c)))) continue; // livre não tem liga: com liga marcada, só aparece pedindo "Livres"
+    if (ligas.length && sit !== 'livres' && !ligas.includes(ligaDe(c))) continue; // na aba Livres a liga não conta
     if (f.grupo && SETOR[j.pos] !== f.grupo) continue;
     if (f.pos.length && !f.pos.includes(j.pos)) continue;
     if (j.ovr < f.ovr[0] || j.ovr > f.ovr[1] || j.idade < f.idade[0] || j.idade > f.idade[1]) continue;
@@ -104,7 +103,7 @@ function abaBuscar(topo = faixaJanela(S())) {
     <section class="cartao filtros-mercado">
       <label class="vh" for="busca-mercado">Buscar jogador ou clube</label><input type="search" id="busca-mercado" data-filtro="q" placeholder="Nome do jogador ou clube" value="${H.esc(f.q)}" autocomplete="off">
       ${chips('Atalhos', RAPIDOS, 'm-rapido', k => f.rapido === k)}
-      ${chips('Séries', DIVS, 'm-div', k => f.divs.includes(k))}
+      ${chips('Ligas', listaLigas().map(l => [l, l]), 'm-liga', k => (f.ligas || []).includes(k))}
       ${chips('Setor', GRUPOS, 'm-grupo', k => f.grupo === k)}
       <div class="busca-rodape"><span class="mudo" id="conta-mercado">${res.length.toLocaleString('pt-BR')} jogadores</span>
         <button type="button" class="chip" data-acao="m-filtros" aria-haspopup="dialog">Filtros${n ? ` (${n})` : ''}</button>
@@ -128,14 +127,19 @@ function abrirFiltros() {
     ${H.app.sitFixa ? '' : `<section><h3>Situação</h3>${chips('Situação', SITUACOES, 'f-sit', k => f.sit === k)}</section>`}
     <section><h3>Posição</h3>${chips('Posição', POS_ORDEM.map(p => [p, p]), 'f-pos', k => f.pos.includes(k))}</section>
     <section><h3>Continente</h3>${chips('Continente', [['', 'Todos'], ...Object.entries(CONTINENTES)], 'f-cont', k => f.cont === k)}</section>
-    <section><h3>Liga</h3>${chips('Liga', listaLigas().map(l => [l, l]), 'f-liga', k => (f.ligas || []).includes(k))}</section>
     ${['ovr', 'idade', 'valor', 'sal'].map(faixa).join('')}
     <button class="botao grande" type="button" data-acao="f-ver" id="f-ver">Ver ${filtrar().length.toLocaleString('pt-BR')} jogadores</button></div>`;
   H.app.filtrosAbertos = true;
   if (!d.open) d.showModal();
 }
 let _ligas = null;
-const listaLigas = () => _ligas ||= ['Série A', 'Série B', 'Série C', ...[...new Set(B().clubes.filter(c => c.div === 'X' && c.liga !== 'Outras').map(c => c.liga))].sort((a, b) => a.localeCompare(b)), 'Outras'];
+// ordem fixa e previsível: Brasil, as 5 grandes da Europa, as sul-americanas, o resto em ordem alfabética e Livres
+const ORDEM_LIGAS = ['Série A', 'Série B', 'Série C', 'Série D', 'Estadual', 'Premier League', 'LaLiga', 'Serie A (ITA)', 'Bundesliga', 'Ligue 1',
+  'Liga Argentina', 'Liga Colombiana', 'Liga Uruguaia', 'Liga Paraguaia', 'Liga Chilena', 'Liga Equatoriana', 'Liga Peruana', 'Liga Boliviana', 'Liga Venezuelana'];
+const listaLigas = () => _ligas ||= (() => {
+  const tem = new Set([...B().jog.values()].map(j => ligaDe(B().clubes[j.clube]))); tem.delete('Livres');
+  return [...ORDEM_LIGAS.filter(l => tem.has(l)), ...[...tem].filter(l => !ORDEM_LIGAS.includes(l)).sort((a, b) => a.localeCompare(b)), 'Livres'];
+})();
 const atualizarContagem = () => { const b = H.$('#f-ver'); if (b) b.textContent = `Ver ${filtrar().length.toLocaleString('pt-BR')} jogadores`; };
 
 // ---------- outras abas ----------
@@ -334,15 +338,17 @@ export const acoes = {
   'aba-listas': re(el => { H.app.abaListas = el.dataset.v; }),
   'aba-hist': re(el => { H.app.abaHist = el.dataset.v; }),
   'm-rapido': re(el => { const f = filtro(); f.rapido = f.rapido === el.dataset.v ? '' : el.dataset.v; f.n = 50; }),
-  'm-div': re(el => { const f = filtro(), v = el.dataset.v; f.divs = f.divs.includes(v) ? f.divs.filter(x => x !== v) : [...f.divs, v]; f.n = 50; }),
+  'm-liga': el => { // a fileira é longa: redesenha sem voltar a rolagem para o começo
+    const f = filtro(), v = el.dataset.v, x = el.parentElement.scrollLeft; f.ligas = (f.ligas || []).includes(v) ? f.ligas.filter(y => y !== v) : [...(f.ligas || []), v]; f.n = 50;
+    Promise.resolve(H.render()).then(() => { const r = H.$('[aria-label="Ligas"]'); if (r) r.scrollLeft = x; });
+  },
   'm-grupo': re(el => { filtro().grupo = el.dataset.v; filtro().n = 50; }),
   'm-mais': () => { filtro().n += 50; refazerLista(); },
   'm-filtros': () => abrirFiltros(),
   'f-sit': el => { filtro().sit = el.dataset.v; abrirFiltros(); },
   'f-pos': el => { const f = filtro(), v = el.dataset.v; f.pos = f.pos.includes(v) ? f.pos.filter(x => x !== v) : [...f.pos, v]; abrirFiltros(); },
   'f-cont': el => { filtro().cont = el.dataset.v; abrirFiltros(); },
-  'f-liga': el => { const f = filtro(), v = el.dataset.v; f.ligas = (f.ligas || []).includes(v) ? f.ligas.filter(x => x !== v) : [...(f.ligas || []), v]; f.n = 50; abrirFiltros(); },
-  'f-limpar': () => { const f = filtro(), q = f.q, ord = f.ord; H.app.fMercado = { ...filtroPadrao(), q, ord, divs: f.divs, grupo: f.grupo, rapido: f.rapido, ligas: [] }; abrirFiltros(); },
+  'f-limpar': () => { const f = filtro(), q = f.q, ord = f.ord; H.app.fMercado = { ...filtroPadrao(), q, ord, grupo: f.grupo, rapido: f.rapido, ligas: f.ligas || [] }; abrirFiltros(); },
   'f-ver': () => H.$('#ficha').close(),
   favorito: el => { M.alternarFavorito(S(), +el.dataset.id); el.setAttribute('aria-pressed', S().favoritos.includes(+el.dataset.id)); H.salvar(); },
   lista: el => { const e = M.alternarLista(B(), S(), el.dataset.l, +el.dataset.id); if (e) return H.aviso(e); for (const c of el.parentElement.children) c.setAttribute('aria-pressed', S().listas[c.dataset.l].includes(+el.dataset.id)); H.salvar(); },
