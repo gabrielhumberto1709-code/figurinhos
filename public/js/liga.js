@@ -13,6 +13,7 @@ import { enviar as carta } from './motor/correio.js';
 let H; // { app, api, compacta, descompacta, carregarBase, esc, clube, imgEscudo, estrelas, rostoAleatorio, aviso, render, ir, desenhaTopo, assistir }
 export const configurar = h => { H = h; };
 const Lg = () => H.app.liga;
+export const _dbg = () => { const L = Lg(); return L && { slot: L.W?.slot, sujo: L.sujo, travado: L.travado, rodando: L.rodando, vigiando: L.vigiando, ver: L.ver, meta: L.meta, aba: H.app.aba, espera: H.app.esperaJogo }; }; // para depurar no console
 const quadro = () => new Promise(r => requestAnimationFrame(() => setTimeout(r, 0)));
 const ATIVO = 10 * 60e3, FOLGA = 25e3;
 
@@ -26,38 +27,49 @@ const estado = x => { H.app.salvando = x; H.desenhaTopo(); };
 async function baixar(descartar = false) {
   const L = Lg(), r = await H.api('GET', `/ligas/${L.codigo}`);
   if (Lg() !== L) return;
-  let W = await H.descompacta(r.mundo);
+  const W = await H.descompacta(r.mundo);
   const mesas = {}, srv = { w: JSON.stringify(W), m: {} };
   for (const m of r.mesas) if (m.dados) { mesas[m.id] = await H.descompacta(m.dados); srv.m[m.id] = JSON.stringify(mesas[m.id]); }
+  Object.assign(L, { nome: r.nome, adminId: r.admin_id, eu: r.eu, meta: r.meta, ver: r.ver, vers: Object.fromEntries(r.mesas.map(m => [m.id, m.ver])), membros: r.mesas.map(({ dados, ...m }) => m) });
+  adotar(L, W, mesas, srv, descartar);
+}
+// passa a usar a versão do servidor (W, mesas, srv = como elas estão gravadas); sem descartar, o que mudou aqui desde a
+// última versão conhecida (L.srv) e ainda não subiu é juntado por cima (merge3)
+function adotar(L, W, mesas, srv, descartar = false) {
   if (!descartar && L.W) {
     const meu = mundoParaGravar(L.W);
     if (JSON.stringify(meu) !== L.srv.w) W = merge3(JSON.parse(L.srv.w), meu, W);
     for (const id in mesas) { const mm = L.mesas[id], b = L.srv.m[id]; if (mm && b != null && JSON.stringify(mm) !== b) mesas[id] = merge3(JSON.parse(b), mm, mesas[id]); }
   }
   L.baixou = (L.baixou || 0) + 1;
-  Object.assign(L, { nome: r.nome, adminId: r.admin_id, eu: r.eu, meta: r.meta, ver: r.ver, vers: Object.fromEntries(r.mesas.map(m => [m.id, m.ver])), membros: r.mesas.map(({ dados, ...m }) => m), W: montar(W, mesas), mesas, srv });
+  Object.assign(L, { W: montar(W, mesas), mesas, srv });
   aplicarSave(H.app.base, L.W);
   H.app.s = mesas[L.eu] ? vistaDe(L.W, L.eu) : null;
 }
-// grava o que mudou desde o servidor (false = alguém gravou antes)
-async function enviar() {
-  const L = Lg(), w = JSON.stringify(mundoParaGravar(L.W)), corpo = { mesas: {} }, novos = {};
-  for (const [id, m] of Object.entries(L.mesas)) {
+// grava W + mesas comparando com o que está no servidor (L.srv); devolve os textos gravados ou null (alguém gravou antes)
+async function gravar(L, W, mesas, horario = false) {
+  const w = JSON.stringify(mundoParaGravar(W)), corpo = { mesas: {}, ...(horario ? { horario: true } : {}) }, novos = {};
+  for (const [id, m] of Object.entries(mesas)) {
     const t = JSON.stringify(m);
     if (t !== L.srv.m[id]) { novos[id] = t; corpo.mesas[id] = { ver: L.vers[id] ?? 0, dados: await H.compacta(t), clube: m.demitido ? null : m.tecnico?.clube ?? null }; }
   }
   const ids = Object.keys(novos), mudouW = w !== L.srv.w;
-  if (!mudouW && !ids.length) return true;
+  if (!mudouW && !ids.length) return { w, novos };
   if (mudouW) corpo.mundo = await H.compacta(w);
   if (mudouW || ids.length > 1 || +ids[0] !== L.eu) corpo.ver = L.ver;
   try {
     const r = await H.api('POST', `/ligas/${L.codigo}/gravar`, corpo);
     if (r.ver) L.ver = r.ver;
     Object.assign(L.vers, r.mesas);
-    if (mudouW) L.srv.w = w;
-    Object.assign(L.srv.m, novos);
-    return true;
-  } catch (e) { if (e.status === 409) return false; throw e; }
+    return { w, novos };
+  } catch (e) { if (e.status === 409) return null; throw e; }
+}
+// grava o que mudou aqui (false = alguém gravou antes)
+async function enviar() {
+  const L = Lg(), g = await gravar(L, L.W, L.mesas);
+  if (!g) return false;
+  L.srv.w = g.w; Object.assign(L.srv.m, g.novos);
+  return true;
 }
 async function subir() {
   for (let k = 0; k < 4; k++) { if (await enviar()) return; await baixar(); }
@@ -114,7 +126,9 @@ async function vigiar() {
     L.membros = v.mesas; L.meta = v.meta;
     if (v.chat > L.chatVisto) await puxarChat();
     const mudou = v.ver !== L.ver || v.mesas.length !== Object.keys(L.vers).length || v.mesas.some(m => L.vers[m.id] !== m.ver);
-    if (mudou && !L.rodando) {
+    // gravação que falhou (sem internet, servidor fora) é tentada de novo aqui, mesmo sem novidade no servidor: senão
+    // o aparelho fica com mudanças presas e, sujo, nunca roda horário
+    if ((mudou || L.sujo) && !L.rodando) {
       const antes = marca();
       if (L.sujo) await descarregar(); else await exclusivo(() => baixar());
       notificar(antes);
@@ -130,8 +144,9 @@ async function vigiar() {
 }
 document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && Lg()) vigiar(); });
 
-// processa os horários vencidos (no máximo 6 por vez) e grava mundo + mesas de uma vez; se outro aparelho gravou
-// antes, joga fora o que fez e confere de novo
+// processa os horários vencidos (no máximo 6 por vez) numa CÓPIA do que está no servidor e grava mundo + mesas de uma
+// vez. Assim o que o técnico fizer enquanto isso (contratar, escalar) fica intacto: dando certo, a cópia vira a versão
+// do servidor e as mudanças dele são juntadas por cima; se outro aparelho gravou antes, a cópia é jogada fora e só.
 async function processar() {
   const L = Lg(); if (L.rodando) return;
   L.rodando = true; estado('rodando');
@@ -141,16 +156,19 @@ async function processar() {
       for (let k = 0; k < 3; k++) {
         await subir();
         if (!devido(L.meta, L.W)) return;
-        // erro no meio: o mundo ficou pela metade aqui, então volta para o do servidor e não insiste neste horário
-        try { for (let n = 0; n < 6 && devido(L.meta, L.W); n++) { await quadro(); processarProximo(H.app.base, L.W); } }
-        catch (e) { await baixar(true); L.travado = L.W.slot || 0; throw e; }
-        if (await enviar()) return;
-        await baixar(true);
+        const W = JSON.parse(L.srv.w), mesas = Object.fromEntries(Object.entries(L.srv.m).map(([id, t]) => [id, JSON.parse(t)]));
+        montar(W, mesas); const s0 = W.slot || 0;
+        // erro no meio: não insiste neste horário (o ADM pode voltar o último horário)
+        try { for (let n = 0; n < 6 && devido(L.meta, W); n++) { await quadro(); processarProximo(H.app.base, W); } }
+        catch (e) { aplicarSave(H.app.base, L.W); L.travado = s0; throw e; }
+        const g = await gravar(L, W, mesas, true);
+        if (g) { adotar(L, W, mesas, { w: g.w, m: { ...L.srv.m, ...g.novos } }); return; }
+        aplicarSave(H.app.base, L.W);
+        await baixar();
       }
     });
-    estado('salvo');
-  } catch (e) { estado('falhou'); if (L.travado != null) H.aviso(`Não consegui rodar o horário da liga (${e.message}). O ADM pode voltar o último horário no lobby.`); }
-  L.rodando = false;
+    L.rodando = false; estado('salvo');   // antes do estado(): ele redesenha o topo (senão fica "Rodando o horário…")
+  } catch (e) { L.rodando = false; estado('falhou'); if (L.travado != null) H.aviso(`Não consegui rodar o horário da liga (${e.message}). O ADM pode voltar o último horário no lobby.`); }
   notificar(antes);
 }
 

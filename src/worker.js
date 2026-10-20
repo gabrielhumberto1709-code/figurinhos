@@ -285,7 +285,7 @@ const rotas = {
   // grava de uma vez: { ver, mundo?, meta?, mesas: { id: { ver, dados, clube } } }. Só a própria mesa: confere a versão
   // dela. Com mundo, meta ou mais de uma mesa: confere a versão do mundo e a de cada mesa; vale tudo ou nada.
   async 'POST /api/ligas/:c/gravar'(req, env, u, c) {
-    const { ver, mundo, meta, mesas = {} } = await corpo(req), agora = Date.now(), ids = Object.keys(mesas).map(Number);
+    const { ver, mundo, meta, mesas = {}, horario } = await corpo(req), agora = Date.now(), ids = Object.keys(mesas).map(Number);
     const l = await env.DB.prepare('SELECT admin_id, (SELECT COUNT(*) FROM mesas WHERE codigo = ?1 AND usuario_id = ?2) AS eu FROM ligas WHERE codigo = ?1').bind(c, u.id).first();
     if (!l) return erro('Liga não existe.', 404);
     if (!l.eu) return erro('Você não está nessa liga.', 403);
@@ -304,13 +304,16 @@ const rotas = {
     }
     if (!Number.isInteger(ver)) return erro('Versão do mundo faltando.');
     const tok = aleatorio(8), campos = ['ver = ver + 1', 'trava = ?', 'atualizado = ?'], args = [tok, agora];
-    if (mundo != null) { campos.push('mundo_ant = mundo', 'ver_ant = ver', 'mundo = ?'); args.push(mundo); }
+    // cópia de segurança só quando a gravação é um horário rodado: "Voltar o último horário" desfaz o horário, não a
+    // última compra ou decisão de alguém
+    const copia = mundo != null && !!horario;
+    if (mundo != null) { campos.push(...(copia ? ['mundo_ant = mundo', 'ver_ant = ver'] : []), 'mundo = ?'); args.push(mundo); }
     if (m) { campos.push('meta = ?'); args.push(JSON.stringify(m)); }
     const confere = ids.map(() => ' AND (SELECT ver FROM mesas WHERE codigo = ? AND usuario_id = ?) = ?').join('');
     const r = await env.DB.batch([
       env.DB.prepare(`UPDATE ligas SET ${campos.join(', ')} WHERE codigo = ? AND ver = ?${confere}`).bind(...args, c, ver, ...ids.flatMap(id => [c, id, mesas[id].ver])),
-      ...ids.map(id => env.DB.prepare(`UPDATE mesas SET ${mundo != null ? 'dados_ant = dados, ant_ver = ?, ' : ''}dados = ?, ver = ver + 1, clube = ?, visto = CASE WHEN usuario_id = ? THEN ? ELSE visto END
-        WHERE codigo = ? AND usuario_id = ? AND (SELECT trava FROM ligas WHERE codigo = ?) = ?`).bind(...(mundo != null ? [ver] : []), mesas[id].dados, Number.isInteger(mesas[id].clube) ? mesas[id].clube : null, u.id, agora, c, id, c, tok)),
+      ...ids.map(id => env.DB.prepare(`UPDATE mesas SET ${copia ? 'dados_ant = dados, ant_ver = ?, ' : ''}dados = ?, ver = ver + 1, clube = ?, visto = CASE WHEN usuario_id = ? THEN ? ELSE visto END
+        WHERE codigo = ? AND usuario_id = ? AND (SELECT trava FROM ligas WHERE codigo = ?) = ?`).bind(...(copia ? [ver] : []), mesas[id].dados, Number.isInteger(mesas[id].clube) ? mesas[id].clube : null, u.id, agora, c, id, c, tok)),
     ]);
     return r[0].meta.changes ? json({ ok: true, ver: ver + 1, mesas: novas }) : conflito();
   },

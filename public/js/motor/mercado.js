@@ -7,7 +7,7 @@
 import { rivais } from './rivais.js';
 import { premiado } from './gala.js';
 import { faseDe } from './forma.js';
-import { rng, clamp, pickW, shuffle, SETOR, nivelDiv, estrelas, continenteDe, fmtDinheiro } from './util.js';
+import { rng, clamp, pickW, shuffle, SETOR, nivelDiv, estrelas, continenteDe, fmtDinheiro, valorCurto, lerValor } from './util.js';
 import { temperamento, tratar } from './vestiario.js';
 import { interessados, media } from './noticias.js';
 import { janelaAberta, janelaAtual, caixaIAInicial, aplicarSave, evolucao, limiteEstrangeiros, naoJogaA } from './mundo.js';
@@ -218,6 +218,8 @@ export function bloqueioProposta(base, s, j, o) {
   if (s.emprestimos[j.id] && o.tipo !== 'pre') return 'Está emprestado até o fim da temporada.';
   if (o.tipo !== 'pre' && semPassagem(s, j.id)) return textoPassagem(j);
   if (o.tipo !== 'livre' && chegouNaJanela(s, j.id)) return textoJanela(base, j);
+  // com outro técnico não existe acordo para quando a janela abrir: a venda só sai com ela aberta
+  if (!janela && ['compra', 'emprestimo'].includes(o.tipo) && vistaDo(s, j.clube)) return `O ${base.clubes[j.clube].n} é de outro técnico: com a janela fechada, a negociação com ele só abre quando a janela abrir.`;
   if (o.tipo === 'pre' && s.rodada >= ABRE_PRE && vaiAposentar(s, j)) return 'Ele vai se aposentar no fim da temporada.';
   if (!tiposPossiveis(base, s, j).includes(o.tipo)) return o.tipo === 'pre' ? `Pré-contrato só com contrato no fim, a partir da ${ABRE_PRE + 1}ª rodada (metade do Brasileirão). Ele chega na temporada seguinte.` : o.tipo === 'emprestimo' ? 'Esse clube não empresta.' : 'Esse tipo de proposta não vale para ele.';
   if (o.tipo === 'emprestimo' && (o.cl?.taxa || 0) > s.caixa) return 'A taxa de empréstimo passa do que tem em caixa.';
@@ -576,7 +578,9 @@ export function limitesMulta(base, s, j, salario) {
   const pad = clausulaPadrao(base, s, j), teto = Math.max(arred(2000 * (salario || salarioDia(base, s, j)) * 30), 1000);
   return { pad, nacMax: teto, nacMin: 0 };
 }
-const pagouClausula = (base, s, j, comprador, valor) => { const c = clausula(base, s, j); return !!c && valor >= (base.clubes[comprador].div === 'X' ? c.int : c.nac); };
+// a ficha mostra a multa arredondada (€ 9,3M): pagar o valor que aparece na tela conta como pagar a multa
+const naTela = v => Math.min(v, lerValor(valorCurto(v)) || v);
+const pagouClausula = (base, s, j, comprador, valor) => { const c = clausula(base, s, j); return !!c && valor >= naTela(base.clubes[comprador].div === 'X' ? c.int : c.nac); };
 
 // jogador do seu clube vira livre (rescisão paga ou ganha na Justiça)
 export function liberar(base, s, j, valor = 0) {
