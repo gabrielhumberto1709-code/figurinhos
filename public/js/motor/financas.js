@@ -165,7 +165,20 @@ export function orcamento(base, s) {
   const reserva = (sal * k + fixos) * dias - cota, custoDia = folha * k + fixos;
   const compras = Math.max(0, Math.min(s.caixa, Math.round(s.caixa - reserva)));
   const diasDeSalario = custoDia ? Math.floor((s.caixa + cota) / custoDia) : 999;
-  return { folha, salarios: sal, maxSal, folga: Math.max(0, sal - folha), compras, dias, cota, custoDia, diasDeSalario, pagaAteFim: diasDeSalario >= dias, fim: Math.round(s.caixa + cota - custoDia * dias) };
+  return { reserva, folha, salarios: sal, maxSal, folga: Math.max(0, sal - folha), compras, dias, cota, custoDia, diasDeSalario, pagaAteFim: diasDeSalario >= dias, fim: Math.round(s.caixa + cota - custoDia * dias) };
+}
+
+// Verba livre para contratar no começo da carreira. O orçamento reserva do caixa o que falta pagar de salários e custos fixos
+// até o fim do ano (menos a receita prevista); em clube pequeno isso comia o caixa todo e a verba de compras ficava zerada.
+// Aqui o caixa sobe o bastante para sobrar, depois da reserva, a verba inicial do clube (menos na dificuldade difícil).
+export function garantirVerbaCompras(base, s) {
+  if (s.verbaCompras || s.tecnico.clube < 0) return;
+  s.verbaCompras = 1;
+  if (s.ano !== (s.anoInicial ?? s.ano) || s.rodada > 10 || (s.historicoTransf || []).length) return;
+  const f = { facil: 1.5, normal: 1, dificil: 0.5 }[s.dificuldade || 'normal'] ?? 1;
+  const alvo = Math.round((base.clubes[s.tecnico.clube].div === 'C' ? 0.7 : 1) * f * verbaInicial(base, s.tecnico.clube) / 1e4) * 1e4, o = orcamento(base, s);
+  const livre = s.caixa - o.reserva, falta = alvo - livre;
+  if (falta > 0) s.caixa += Math.round(falta / 1e3) * 1e3;
 }
 
 // regra da ANRESF: só tem socorro quem não comprou mais do que vendeu nem inchou a folha em mais de 10%

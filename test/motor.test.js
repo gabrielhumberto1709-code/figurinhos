@@ -1425,3 +1425,12 @@ test('renovação: qualquer jogador, com multa editável; multa maior encarece',
   assert.ok(r2.ok, r2.txt);
   assert.equal(clausulaDe(base, s, j).nac, Math.round(pad.nac / 2));
 });
+
+test('verba livre: todo clube começa com dinheiro para contratar, inclusive na Série C', () => {
+  for (const div of ['A', 'B', 'C']) {
+    for (const ci of base.clubes.map((c, i) => i).filter(i => base.clubes[i].div === div).filter((_, k) => k % 4 === 0)) {
+      const s = novoJogo(base, { ...cfg(3), modo: 'escolher', clube: ci });
+      assert.ok(orcamento(base, s).compras >= 1e5, `${base.clubes[ci].n}: ${orcamento(base, s).compras}`);
+    }
+  }
+});

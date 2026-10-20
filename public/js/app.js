@@ -7,7 +7,7 @@ import { campanha } from './motor/copa.js';
 import { F_MATA, tabelaGrupo, jogadorCont } from './motor/continental.js';
 import { REGIONAIS, fasesReg, tabelaReg } from './motor/regionais.js';
 import * as Torneios from './torneios.js';
-import { garantirFinancas, pesoDivida, corteDivida, dividaInicial, EURO, amortizar, JUROS, estruturaAnual, receitaAnual, orcamento, socorro, metaDiretoria, balanco, bilheteria, pedirVerba, dicasFinanceiras, fairPlay, registroBloqueado, tetoSalarial, ANO_FPF, SANCOES, PRECOS, NOME_PRECO } from './motor/financas.js';
+import { garantirFinancas, garantirVerbaCompras, pesoDivida, corteDivida, dividaInicial, EURO, amortizar, JUROS, estruturaAnual, receitaAnual, orcamento, socorro, metaDiretoria, balanco, bilheteria, pedirVerba, dicasFinanceiras, fairPlay, registroBloqueado, tetoSalarial, ANO_FPF, SANCOES, PRECOS, NOME_PRECO } from './motor/financas.js';
 import { garantirMercado } from './motor/mercado.js';
 import * as Mercado from './mercado.js';
 import * as AoVivo from './aovivo.js';
@@ -654,6 +654,7 @@ function migrar(s) {
   if (s.caixa == null) s.caixa = caixaInicial(app.base, s.tecnico.clube, s.dificuldade);
   const semDivida = s.fin && s.fin.divida == null;
   garantirFinancas(app.base, s);
+  garantirVerbaCompras(app.base, s); // quem começou antes: libera a verba de contratações do começo da carreira
   if (semDivida) enviar(s, 'diretor', 'contas-reais-2025', 'As contas de verdade', `O clube agora segue o balanço real de 2025: dívida de ${fmtDinheiro(s.fin.divida)}, com juros de ${Math.round(JUROS * 100)}% ao ano, e receitas e custos do tamanho que são. Veja em Finanças.`, { link: '#/financas' });
   // base de jogadores atualizada depois que a carreira começou: avisa (o save segue por cima da base nova)
   if (s.dadosVersao !== app.base.dados.versao) {
@@ -877,7 +878,7 @@ document.addEventListener('input', e => {
 });
 
 document.addEventListener('submit', async e => {
-  if (['proposta', 'renovar', 'multa'].includes(e.target.dataset.form)) { e.preventDefault(); Mercado.enviar(e.target); return; }
+  if (['proposta', 'renovar'].includes(e.target.dataset.form)) { e.preventDefault(); Mercado.enviar(e.target); return; }
   if (e.target.dataset.form === 'lance') { e.preventDefault(); Leilao.darLance(e.target); return; }
   if (e.target.dataset.form?.startsWith('liga-')) { e.preventDefault(); Liga.enviarForm(e.target); return; }
   if (e.target.dataset.form !== 'entrar') return;

@@ -20,7 +20,7 @@ import { resolverMercado, garantirMercado, acompanharPromessas } from './mercado
 import { dataFifa } from './selecao.js';
 import { registrarConfronto } from './confrontos.js';
 import { REGIONAIS, novaReg, fasesReg, dataFaseReg, jogosDaFaseReg, naReg, regDevida, decidirReg, avancarReg, agregadoReg, mataMataReg, finalReg, vivoReg, regsDe } from './regionais.js';
-import { contasDaRodada, financasIniciais, bilheteria, bilheteriaLiga, lancar, folhaDia, garantirFinancas, caixaReal, caixaComVerba, verbaInicial, verbaIA } from './financas.js';
+import { contasDaRodada, financasIniciais, bilheteria, bilheteriaLiga, lancar, folhaDia, garantirFinancas, caixaReal, caixaComVerba, verbaInicial, garantirVerbaCompras, verbaIA } from './financas.js';
 import { FASES, PREMIOS, novaCopa, copaDevida, copaAtiva, naCopa, mandoDe, dataCopa, decidir, avancarFase, agregadoIda, penaltis } from './copa.js';
 
 const DIVS = ['A', 'B', 'C'];
@@ -171,6 +171,7 @@ export function novoJogo(base, cfg) {
   novaCont(base, s);
   novaCopa(base, s);
   novaReg(base, s);
+  garantirVerbaCompras(base, s);
   s.msgs = []; cartasDeInicio(base, s, true); // boas-vindas e teto salarial na hora
   return s;
 }

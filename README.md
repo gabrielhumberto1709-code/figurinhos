@@ -22,3 +22,4 @@ Dados de jogadores: base do Treineiros 1.38.10, uso autorizado pelo criador.
 - Série A 2026 com a tabela oficial da CBF em jogos novos; demais anos: sorteio com mando revezado (`calV: 2`; saves antigos mantêm o calendário antigo até a virada de temporada).
 - Renovação com qualquer jogador do elenco e multa rescisória editável (`s.multas`); clubes da IA renovam mais cedo e mais.
 - Clubes da IA blindam quem renova com multa 20% a 100% maior.
+- Verba livre de contratações garantida no começo da carreira (saves antigos recebem ao abrir).
