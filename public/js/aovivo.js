@@ -116,10 +116,16 @@ function painelHtml(V) {
 }
 
 // mata-mata da copa: empate no jogo (ou no agregado da final) vai para os pênaltis, com a mesma semente da súmula
+// a série de pênaltis do jogo (calculada uma vez; a mesma semente da súmula)
+function penDe(V) {
+  if (V.penRes !== undefined) return V.penRes;
+  const g = V.P.gols, m = V.R.meu, ag = m.agg || [0, 0];
+  // reprise (liga online): os pênaltis vêm da súmula, sem a sequência de cobranças
+  return V.penRes = V.R.replay ? V.R.pen && { 0: V.R.pen[0], 1: V.R.pen[1], seq: [] } : m.mataMata && g[0] + ag[0] === g[1] + ag[1] ? penaltis(m.seed, campoDe(V.P)) : null;
+}
 function fimHtml(V) {
   const g = V.P.gols, eu = V.humano, m = V.R.meu, ag = m.agg || [0, 0];
-  // reprise (liga online): os pênaltis vêm da súmula
-  const pen = V.R.replay ? V.R.pen && { 0: V.R.pen[0], 1: V.R.pen[1], seq: [] } : m.mataMata && g[0] + ag[0] === g[1] + ag[1] ? penaltis(m.seed, campoDe(V.P)) : null;
+  const pen = penDe(V);
   const res = pen ? (pen[eu] > pen[1 - eu] ? 'Vitória' : 'Derrota') : g[0] === g[1] ? 'Empate' : (g[eu] > g[1 - eu] ? 'Vitória' : 'Derrota');
   const sub = pen ? `<small>Pênaltis: ${pen[0]} a ${pen[1]}</small>` : m.mataMata && (ag[0] || ag[1]) ? `<small>Agregado: ${g[0] + ag[0]} a ${g[1] + ag[1]}</small>` : '';
   const serie = pen?.seq.length ? `<div class="penaltis">${[0, 1].map(t => `<p><b>${H.esc(H.clube(t ? m.a : m.h).s || '')}</b> ${pen.seq.filter(x => x.t === t).map(x => `<span class="${x.gol ? 'ok' : 'erro'}" title="${H.esc(x.nome)}">${x.gol ? '●' : '✕'} ${H.esc(x.nome)}</span>`).join('')}</p>`).join('')}</div>` : '';
@@ -171,19 +177,46 @@ function loop(V, ts) {
   if (!V.pausado && !V.painel) {
     Campinho.atualizar(V.cp, V.P, dt * V.vel);
     if (!V.fim && Campinho.pronto(V.cp)) proximo(V);
+    else if (V.pen && !V.pen.rodando && Campinho.pronto(V.cp)) cobrar(V);
   }
   Campinho.desenhar(cv, V.cp, V.cores);
   V.raf = requestAnimationFrame(t => loop(V, t));
 }
 
-function encerrar(V) {
+// disputa de pênaltis animada no campinho: uma cobrança por vez, o placar sobe no letreiro
+function cobrar(V) {
+  const { $ } = H, pen = penDe(V), k = pen.seq[V.pen.i], n = V.pen.i, nome = clube(k.t ? V.R.meu.a : V.R.meu.h).s || '';
+  V.pen.rodando = true;
+  $('#vivo-ticker').textContent = `Pênalti ${n + 1}: ${k.nome || nome} (${nome}) vai bater`;
+  Campinho.penalti(V.cp, V.P, k, n, () => {
+    V.pen.p[k.t] += k.gol ? 1 : 0; V.pen.i++; V.pen.rodando = false;
+    const tk = $('#vivo-ticker'); if (!tk) return;
+    tk.textContent = `${k.gol ? '⚽ Gol' : '🧤 Perdeu'}! ${k.nome || nome} — pênaltis ${V.pen.p[0]}:${V.pen.p[1]}`; tk.className = `ticker t${k.t} ${k.gol ? 'gol' : 'defesa'}`;
+    $('#vivo-gols').textContent = `${V.placar[0]}:${V.placar[1]} (${V.pen.p[0]}:${V.pen.p[1]})`;
+    SOM[k.gol ? 'gol' : 'chance']?.();
+    if (V.pen.i >= pen.seq.length) terminarPenaltis(V);
+  });
+}
+function terminarPenaltis(V) {
+  const { $ } = H, pen = penDe(V);
+  V.pen = null; Campinho.fimPenaltis(V.cp); Campinho.encerrar(V.cp, V.P);
+  if (!$('#vivo-fim')) return;
+  $('#vivo-gols').textContent = `${V.placar[0]}:${V.placar[1]} (${pen[0]}:${pen[1]})`;
+  $('#vivo-ticker').textContent = 'Fim de jogo!'; $('#vivo-ticker').className = 'ticker fim';
+  $('#vivo-fim').innerHTML = fimHtml(V);
+}
+
+function encerrar(V, animar = true) {
   V.fim = true; V.placar = V.P.gols.slice(); V.min = V.P.min;
   Campinho.encerrar(V.cp, V.P);
   const { $ } = H;
   if ($('#vivo-gols')) {
     $('#vivo-gols').textContent = `${V.placar[0]}:${V.placar[1]}`; $('#vivo-min').textContent = 'Fim'; $('#vivo-prog').style.width = '100%';
     const tk = $('#vivo-ticker'); tk.textContent = 'Fim de jogo!'; tk.className = 'ticker fim';
-    $('#vivo-fim').innerHTML = fimHtml(V); $('#vivo-stats').innerHTML = statsHtml(V); $('#vivo-esc').innerHTML = escalacoesHtml(V); const o = $('#vivo-outros'); if (o) o.innerHTML = outrosHtml(V);
+    const pen = penDe(V);
+    if (animar && pen?.seq.length) { V.pen = { i: 0, p: [0, 0], rodando: false }; $('#vivo-min').textContent = 'Pên.'; tk.textContent = 'Empate no tempo normal: pênaltis!'; tk.className = 'ticker intervalo'; $('#vivo-fim').innerHTML = ''; }
+    else $('#vivo-fim').innerHTML = fimHtml(V);
+    $('#vivo-stats').innerHTML = statsHtml(V); $('#vivo-esc').innerHTML = escalacoesHtml(V); const o = $('#vivo-outros'); if (o) o.innerHTML = outrosHtml(V);
     $('[data-acao=vivo-painel]')?.setAttribute('disabled', '');
   }
 }
@@ -192,7 +225,10 @@ function encerrar(V) {
 export function comecar(V) { cancelAnimationFrame(V.raf); V.ts = null; V.raf = requestAnimationFrame(t => loop(V, t)); }
 
 // joga o resto do jogo na hora
-export function pular(V) { V.fila = []; while (!acabou(V.P)) passo(V.P); encerrar(V); }
+export function pular(V) {
+  if (V.pen) return terminarPenaltis(V);
+  V.fila = []; while (!acabou(V.P)) passo(V.P); encerrar(V, false);
+}
 
 export const resultadoFinal = V => resultado(V.P);
 

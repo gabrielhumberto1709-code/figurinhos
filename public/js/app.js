@@ -877,7 +877,7 @@ document.addEventListener('input', e => {
 });
 
 document.addEventListener('submit', async e => {
-  if (['proposta', 'renovar'].includes(e.target.dataset.form)) { e.preventDefault(); Mercado.enviar(e.target); return; }
+  if (['proposta', 'renovar', 'multa'].includes(e.target.dataset.form)) { e.preventDefault(); Mercado.enviar(e.target); return; }
   if (e.target.dataset.form === 'lance') { e.preventDefault(); Leilao.darLance(e.target); return; }
   if (e.target.dataset.form?.startsWith('liga-')) { e.preventDefault(); Liga.enviarForm(e.target); return; }
   if (e.target.dataset.form !== 'entrar') return;

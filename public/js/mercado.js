@@ -270,8 +270,11 @@ export function blocoFicha(j) {
       ${a12 >= 8 ? `<p class="mudo">Série A: ${a12} jogos pelo clube. ${a12 > LIMITE_12 ? 'Pela regra dos 12 jogos, não joga mais a A por outro clube este ano.' : `Com mais ${LIMITE_12 + 1 - a12}, fica preso ao clube na Série A este ano (regra dos 12 jogos).`}</p>` : ''}
       ${M.emNovela(s, j.id) ? `<p class="aviso-ficha fase-pessima">Novela: ${H.esc(j.curto)} não renova (${H.esc(s.novela[j.id].motivo)}). Venda enquanto dá ou ele sai de graça no fim do ano.</p>` : ''}
       ${ren && !M.emNovela(s, j.id) ? `<form class="proposta" data-form="renovar" data-id="${j.id}"><p class="mudo">${ren.ficar < 30 ? 'Ele anda insatisfeito e não quer conversa.' : `Ele deve pedir cerca de <b>${euro(ren.pede)}/dia</b>. Folga na folha: ${euro(orcamento(b, s).folga)}/dia.`}</p>
-        <div class="campos-2"><label>Salário por dia (€) <input type="number" name="salario" inputmode="numeric" min="10" step="10" value="${ren.pede}"></label>${anosSelect('anos')}</div>
+        <div class="campos-2"><label>Salário por dia (€) <input type="number" name="salario" inputmode="numeric" min="10" step="10" value="${ren.pede}"></label>${anosSelect('anos', Math.min(5, Math.max(3, j.contrato - s.ano + 1)))}</div>
         <p class="erro" role="alert"></p><button class="botao" type="submit">Renovar contrato</button></form>` : ''}
+      ${(c => c ? `<form class="proposta" data-form="multa" data-id="${j.id}"><p class="mudo">Multa rescisória${c.minha ? ' (definida por você)' : ''}. O limite para clube daqui é 2.000 salários mensais.</p>
+        <div class="campos-2"><label>Nacional (€) <input type="number" name="nac" inputmode="numeric" min="10000" step="10000" value="${c.nac}"></label><label>Exterior (€) <input type="number" name="int" inputmode="numeric" min="10000" step="10000" value="${c.int}"></label></div>
+        <p class="erro" role="alert"></p><button class="botao peq sec" type="submit">Mudar a multa</button></form>` : '')(M.clausula(b, s, j))}
       ${emp ? '' : `<div class="chips"><button type="button" class="chip" data-acao="lista" data-l="venda" data-id="${j.id}" aria-pressed="${s.listas.venda.includes(j.id)}">À venda</button><button type="button" class="chip" data-acao="lista" data-l="emprestimo" data-id="${j.id}" aria-pressed="${s.listas.emprestimo.includes(j.id)}">Para empréstimo</button></div>`}
       ${ofertas.map(x => `<div class="oferta"><span>${H.imgEscudo(x.de, 18, 20)} ${H.esc(H.clube(x.de).n)} · <b>${x.tipo === 'emprestimo' ? 'empréstimo' : fmtDinheiro(x.valor)}</b></span>${acoesRecebida(x)}</div>`).join('')}
       ${emp ? '' : `<div class="linha-botoes"><button class="botao peq sec" type="button" data-acao="distrato" data-id="${j.id}">Propor distrato (${fmtDinheiro(M.valorDistrato(b, s, j))})</button><button class="botao peq sec" type="button" data-acao="rescindir" data-id="${j.id}">Rescindir (paga o contrato: ${fmtDinheiro(M.multaRescisao(b, s, j))})</button></div>
@@ -316,6 +319,11 @@ export function enviar(form) {
   if (form.dataset.form === 'renovar') {
     const r = M.renovar(b, s, j, Math.round(num('salario')), Math.round(num('anos')));
     if (!r.ok) { erro.textContent = r.txt; if (r.pede) form.salario.value = r.pede; return; }
+    H.$('#ficha').close(); H.aviso(r.txt); H.render(); H.salvar(); return;
+  }
+  if (form.dataset.form === 'multa') {
+    const r = M.definirMulta(b, s, j, Math.round(num('nac')), Math.round(num('int')));
+    if (!r.ok) { erro.textContent = r.txt; return; }
     H.$('#ficha').close(); H.aviso(r.txt); H.render(); H.salvar(); return;
   }
   const tipo = form.querySelector('[name=tipo]:checked, [name=tipo][type=hidden]')?.value || 'compra';

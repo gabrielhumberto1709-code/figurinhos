@@ -1,26 +1,64 @@
 // Calendário de pontos corridos (turno e returno) pelo método do círculo.
 import { rng, shuffle } from './util.js';
 
+// FIX: valida se o calendário não tem 3+ jogos seguidos em casa ou fora.
+// Sem isso, o método do círculo pode gerar sequências ruins (o bug do "só joga fora de casa").
+function revezamentoOk(cal, n) {
+  const seq = Array.from({ length: n }, () => []);
+  for (const rd of cal) for (const [h, a] of rd) {
+    if (h != null) seq[h].push('C');
+    if (a != null) seq[a].push('F');
+  }
+  return seq.every(s => {
+    let run = 1;
+    for (let i = 1; i < s.length; i++) {
+      if (s[i] === s[i - 1]) { if (++run >= 3) return false; } else run = 1;
+    }
+    return true;
+  });
+}
+
+// FIX: gera o calendário e valida o revezamento. Se o sorteio não presta, tenta de novo
+// (varia a paridade do mando a cada tentativa). Isso corrige o bug da 19ª rodada e o
+// problema de times com muitas partidas seguidas fora de casa.
 export function pontosCorridos(times, seed) {
   const r = rng('cal' + seed);
-  const t = shuffle(r, times);
-  if (t.length % 2) t.push(null);
-  const n = t.length, turno = [];
-  const fixo = t[0], gira = t.slice(1);
+  let t = shuffle(r, times);
+  if (t.length % 2) t.push(null); // folga: ninguém joga nesta rodada (número ímpar de clubes)
+  const n = t.length, fixo = t[0];
+  for (let tent = 0; tent < 50; tent++) {
+    const turno = [];
+    let gira = t.slice(1);
+    for (let rd = 0; rd < n - 1; rd++) {
+      const ordem = [fixo, ...gira];
+      const jogos = [];
+      for (let i = 0; i < n / 2; i++) {
+        const a = ordem[i], b = ordem[n - 1 - i];
+        if (a === null || b === null) continue;
+        // FIX: a paridade do mando varia por rodada, por posição E por tentativa, então o
+        // sorteio consegue achar um calendário sem 3+ seguidas. Antes era só (rd + i) % 2.
+        jogos.push((rd + i + tent) % 2 === 0 ? [a, b] : [b, a]);
+      }
+      turno.push(jogos);
+      gira.unshift(gira.pop());
+    }
+    const returno = turno.map(jogos => jogos.map(([a, b]) => [b, a]));
+    const cal = [...turno, ...returno];
+    if (revezamentoOk(cal, n)) return cal;
+  }
+  // fallback: nunca deve acontecer, mas se acontecer devolve um calendário válido (só sem garantir o revezamento)
+  const turno = [], gira = t.slice(1);
   for (let rd = 0; rd < n - 1; rd++) {
-    const ordem = [fixo, ...gira];
-    const jogos = [];
+    const ordem = [fixo, ...gira], jogos = [];
     for (let i = 0; i < n / 2; i++) {
       const a = ordem[i], b = ordem[n - 1 - i];
       if (a === null || b === null) continue;
-      // alterna mando para ninguém jogar muitas vezes seguidas em casa
       jogos.push((rd + i) % 2 === 0 ? [a, b] : [b, a]);
     }
     turno.push(jogos);
     gira.unshift(gira.pop());
   }
-  const returno = turno.map(jogos => jogos.map(([a, b]) => [b, a]));
-  return [...turno, ...returno];
+  return [...turno, ...turno.map(j => j.map(([a, b]) => [b, a]))];
 }
 
 // ---------- temporada: o calendário real de 2026 (CBF e Conmebol) ----------

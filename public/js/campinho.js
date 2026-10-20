@@ -18,6 +18,7 @@ export const criar = () => ({ sp: new Map(), bola: { x: 50, y: 50, z: 0 }, dono:
 // ---------- elenco em campo ----------
 function sync(cp, P) {
   const vivos = new Set(), novo = !cp.sp.size;
+  if (cp.espelho == null) cp.espelho = P.min > 45; // jogo retomado no segundo tempo já começa com os lados trocados
   for (const t of [0, 1]) {
     const T = P.times[t], f = T.formacao, slots = T.slots, pos = posicoesDe(f, T.pers);
     P.times[t].xi.forEach((j, i) => {
@@ -38,6 +39,10 @@ function alvos(cp) {
   for (const s of cp.sp.values()) {
     s.mult = 1;
     if (s.sai) { s.tx = s.x; s.ty = 106; s.mult = 0.7; continue; }
+    if (cp.pen) { // disputa de pênaltis: todo mundo no círculo central, só o batedor e o goleiro da vez ficam na marca
+      const a = s.h * Math.PI * 2;
+      s.tx = s.gk ? (s.t === 0 ? 2.5 : 97.5) : 50 + Math.cos(a) * 7; s.ty = s.gk ? 50 : 50 + Math.sin(a) * 15; s.mult = 0.8; continue;
+    }
     const t = s.t, ataca = cp.posse === t, bf = t === 0 ? b.x : 100 - b.x, by = t === 0 ? b.y : 100 - b.y;
     const casa = PROF[s.slot] ?? 0.4, lat0 = s.lat ?? 50;
     let d, lat;
@@ -51,7 +56,7 @@ function alvos(cp) {
     s.tx = t === 0 ? d * 100 : 100 - d * 100; s.ty = t === 0 ? lat : 100 - lat;
   }
   // quem defende manda o mais perto na bola
-  if (!cp.saida && !cp.voo) {
+  if (!cp.saida && !cp.voo && !cp.pen) {
     const o = 1 - cp.posse; let m = null, md = 1e9;
     for (const s of cp.sp.values()) if (s.t === o && !s.gk && !s.sai) { const d = dist(s, b); if (d < md) { md = d; m = s; } }
     if (m) { m.tx = b.x - lado(o) * 2.6; m.ty = b.y; m.mult = 1.25; }
@@ -168,7 +173,7 @@ export function lance(cp, P, l, prox) {
     case 'amarelo': case 'vermelho': marca(cp, { tipo: l.tipo, id: l.j }); cp.espera = 0.9; return;
     case 'lesao': cp.dono = null; cp.conducao = null; marca(cp, { tipo: 'lesao', id: l.j, dur: 2 }); cp.espera = 1.1; return;
     case 'impedimento': cp.dono = null; cp.conducao = null; marca(cp, { tipo: 'bandeira', x: b.x }); cp.posse = 1 - l.t; cp.espera = 0.7; return;
-    case 'intervalo': return recomecar(cp, 1 - l.t);
+    case 'intervalo': cp.espelho = true; return recomecar(cp, 1 - l.t); // no segundo tempo os times trocam de lado
     case 'fim': cp.saida = true; cp.dono = null; voar(cp, 50, 50, { rapido: 0.6 }); return;
     case 'sub': case 'tatica': return;
   }
@@ -178,6 +183,35 @@ export function lance(cp, P, l, prox) {
   if (s && cp.dono === s.id) { cp.conducao = { x: l.x, y: l.y }; cp.espera = clamp(dist(s, l) / (V_JOG * 0.55), 0.25, 1); return; }
   voar(cp, l.x, l.y, { rec: s?.id ?? null, rapido: roubada ? 1.3 : 1, fim: () => { cp.espera = 0.12 + Math.random() * 0.22; } });
 }
+
+// um pênalti da disputa: o batedor recua, corre, chuta; o goleiro pula. k = { t, id, nome, gol } da série de copa.penaltis
+export function penalti(cp, P, k, i, fim) {
+  sync(cp, P);
+  const t = k.t, o = 1 - t, linha = t === 0 ? 100 : 0, b = cp.bola, px = linha - lado(t) * 10.5;
+  const bate = cp.sp.get(k.id), gk = goleiro(cp, o), h = hashN(`pen${i}${k.id ?? k.nome}`), h2 = (h * 9973) % 1;
+  const canto = h < 0.5 ? -1 : 1, tipo = k.gol ? 'gol' : h2 < 0.65 ? 'defesa' : 'fora';
+  cp.pen = { bate: bate?.id ?? null, gk: gk?.id ?? null };
+  cp.dono = null; cp.conducao = null; cp.saida = false; cp.posse = t; cp.flash = null; cp.voo = null;
+  b.x = px; b.y = 50; b.z = 0;
+  const solta = () => { if (bate) cp.forca.delete(bate.id); if (gk) cp.forca.delete(gk.id); };
+  if (gk) cp.forca.set(gk.id, { x: linha - lado(t) * 0.8, y: 50, mult: 1.6 });
+  if (bate) cp.forca.set(bate.id, { x: px - lado(t) * 7, y: 50 + (h2 - 0.5) * 8, mult: 1.1 });
+  seq(cp,
+    () => { cp.espera = 1.5; },                                          // anda para trás e toma distância
+    () => { if (bate) cp.forca.set(bate.id, { x: px - lado(t) * 1.4, y: 50, mult: 1.5 }); cp.espera = 0.75; },  // corrida
+    () => {
+      const gy = tipo === 'fora' ? 50 + canto * (9 + h2 * 4) : 50 + canto * (3.2 + h2 * 1.8), gx = linha + lado(t) * 2;
+      // goleiro pula: no gol vai para o lado errado, na defesa pega o canto, na bola fora escolhe um
+      if (gk) cp.forca.set(gk.id, { x: linha - lado(t) * 1.6, y: 50 + (tipo === 'gol' ? -canto : canto) * 4.4, mult: 2.6 });
+      voar(cp, tipo === 'defesa' ? linha - lado(t) * 1.8 : gx, gy, { chute: true, fim: () => {
+        if (tipo === 'gol') { cp.flash = { x: linha, ate: cp.clock + 1.3 }; if (bate) cp.forca.set(bate.id, { x: px + lado(t) * 8, y: 50 + canto * 14, mult: 1.2 }); }
+        else if (tipo === 'defesa' && gk) cp.dono = gk.id;
+        cp.espera = 1.5;
+      } });
+    },
+    () => { solta(); cp.pen = { bate: null, gk: null }; fim?.(); });
+}
+export const fimPenaltis = cp => { cp.pen = null; cp.flash = null; cp.dono = null; cp.forca.clear(); };
 
 // fim de jogo sem animar o resto
 export function encerrar(cp, P) { sync(cp, P); cp.passos = []; cp.cond = null; cp.forca.clear(); cp.saida = true; voar(cp, 50, 50, { rapido: 0.6 }); }
@@ -203,7 +237,7 @@ export function desenhar(cv, cp, cores) {
   if (cv.width !== Math.round(cw * dpr)) { cv.width = Math.round(cw * dpr); cv.height = Math.round(ch * dpr); }
   const ctx = cv.getContext('2d'), W = cv.width, H = cv.height;
   const fonte = cv._f || (cv._f = (st => ({ corpo: st.getPropertyValue('--f-corpo') || 'sans-serif', g1: st.getPropertyValue('--gramado').trim() || '#3E8A3A', g2: st.getPropertyValue('--gramado-2').trim() || '#4A9A44' }))(getComputedStyle(cv)));
-  const mx = W * 0.03, my = H * 0.03, fx = x => mx + x / 100 * (W - 2 * mx), fy = y => my + y / 100 * (H - 2 * my);
+  const mx = W * 0.03, my = H * 0.03, fx = x => mx + (cp.espelho ? 100 - x : x) / 100 * (W - 2 * mx), fy = y => my + y / 100 * (H - 2 * my);
   // gramado listrado e linhas
   for (let i = 0; i < 11; i++) { ctx.fillStyle = i % 2 ? fonte.g2 : fonte.g1; ctx.fillRect(Math.floor(i * W / 11), 0, Math.ceil(W / 11) + 1, H); }
   const lw = Math.max(1.5, W / 300);
@@ -213,11 +247,11 @@ export function desenhar(cv, cp, cores) {
   ctx.beginPath(); ctx.arc(fx(50), fy(50), H * 0.13, 0, Math.PI * 2); ctx.stroke();
   for (const e of [0, 1]) {
     const x0 = e ? 100 : 0, s = e ? -1 : 1;
-    ctx.strokeRect(fx(x0), fy(20.2), fx(16 * s) - fx(0), fy(79.8) - fy(20.2));
-    ctx.strokeRect(fx(x0), fy(36.2), fx(5.85 * s) - fx(0), fy(63.8) - fy(36.2));
+    ctx.strokeRect(fx(x0), fy(20.2), fx(x0 + 16 * s) - fx(x0), fy(79.8) - fy(20.2));
+    ctx.strokeRect(fx(x0), fy(36.2), fx(x0 + 5.85 * s) - fx(x0), fy(63.8) - fy(36.2));
     ctx.fillStyle = 'rgba(232,240,222,.8)'; ctx.beginPath(); ctx.arc(fx(x0 + 10.5 * s), fy(50), lw * 1.2, 0, Math.PI * 2); ctx.fill();
     // gol com rede
-    const gx = e ? fx(100) : fx(0) - mx * 0.8, gw = mx * 0.8;
+    const gw = mx * 0.8, gx = (e === 1) !== !!cp.espelho ? fx(x0) : fx(x0) - gw; // a trave fica fora do campo, do lado em que o gol está na tela
     const brilho = cp.flash && cp.flash.x === x0 && cp.flash.ate > cp.clock;
     ctx.fillStyle = brilho ? `rgba(255,255,255,${0.45 + 0.4 * Math.sin(cp.clock * 18)})` : 'rgba(255,255,255,.18)';
     ctx.fillRect(gx, fy(44.6), gw, fy(55.4) - fy(44.6));

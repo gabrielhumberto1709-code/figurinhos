@@ -75,10 +75,26 @@ export function dividaInicial(c) { const r = real(c); return Math.round(r ? r.di
 // Corinthians no aperto). Amortizar a dívida solta o clube aos poucos.
 export const pesoDivida = (c, divida = dividaInicial(c)) => { const R = receitaAnual(c); return R > 0 ? divida / R : 0; };
 export const corteDivida = d => d > 0.9 ? Math.min(45, Math.round(16 * (d - 0.9))) : 0;
-// caixa de quem assume: o do balanço (sem balanço, 3% da receita), mais uma folga no fácil
-export function caixaReal(c, dificuldade = 'normal') { const r = real(c), R = receitaAnual(c); return Math.round(((r ? r.caixa : 0.03 * R) + ({ facil: 0.15, normal: 0.03, dificil: 0 }[dificuldade] ?? 0.03) * R) / 1e4) * 1e4; }
-// verba de contratações da IA por temporada: o gasto real médio (o resto vem do que ela vende); sem balanço, pela receita e a dívida
-export function verbaIA(c) { const r = real(c), R = receitaAnual(c); return Math.round(Math.max(0, r ? 0.6 * r.gasto : 0.1 * R - 0.04 * dividaInicial(c)) / 1e4) * 1e4; }
+// verba inicial de todo clube com elenco: capital que acompanha a qualidade do plantel (valor de mercado) e a folha (salário
+// alto = clube que movimenta mais dinheiro), por divisão. É um piso: quem tem caixa real maior (Flamengo, Palmeiras...)
+// fica com o real, e a dívida não zera mais o clube. Limitado a 30% da receita do ano para o pequeno não ganhar mais do que gira.
+const FATOR_DIV = { A: 1, B: 0.8, C: 0.7 };
+export function capitalElenco(c, elenco) {
+  if (!FATOR_DIV[c?.div] || !elenco?.length) return 0;
+  const folha = elenco.reduce((t, j) => t + salarioBase(c, j) * 365, 0), valor = elenco.reduce((t, j) => t + (j.valor || 0) * 1000, 0);
+  return Math.min(FATOR_DIV[c.div] * (0.035 * valor + 0.2 * folha), 0.3 * receitaAnual(c));
+}
+// caixa de quem assume: o maior entre o do balanço (sem balanço, 3% da receita) e o capital do elenco, mais uma folga no fácil
+export function caixaReal(c, dificuldade = 'normal', elenco) {
+  const r = real(c), R = receitaAnual(c);
+  return Math.round((Math.max(r ? r.caixa : 0.03 * R, capitalElenco(c, elenco)) + ({ facil: 0.15, normal: 0.03, dificil: 0 }[dificuldade] ?? 0.03) * R) / 1e4) * 1e4;
+}
+// verba de contratações da IA por temporada: o gasto real médio (o resto vem do que ela vende); sem balanço, pela receita e a dívida.
+// Nunca menos que metade do capital do elenco, para o clube endividado também poder contratar
+export function verbaIA(c, elenco) {
+  const r = real(c), R = receitaAnual(c);
+  return Math.round(Math.max(0, r ? 0.6 * r.gasto : 0.1 * R - 0.04 * dividaInicial(c), 0.5 * capitalElenco(c, elenco)) / 1e4) * 1e4;
+}
 const PARCELAS_TV = [0, 9, 19, 29];
 export function premioLiga(div, pos) {
   if (div === 'A') return pos <= 16 ? Math.round((8e6 - (pos - 1) * 4e5)) : 1e6;
