@@ -1,8 +1,7 @@
 // Estado do jogo: cria a carreira, avança rodadas e calcula tabelas.
 import { rng, pick, jogador } from './util.js';
 import { humanos, ehHumano, vistaDo, mundoDe } from './humanos.js';
-import { TABELA_A_2026, NOME_CBF } from './tabela2026.js';
-import { pontosCorridos, dataRodada, dataAmistoso as diaAmistoso, dataLiga, dataLiga2, N_LIGA, janelaIdx, doAno, LIGA } from './calendario.js';
+import { pontosCorridos, tabelaSerieA2026, dataRodada, dataAmistoso as diaAmistoso, dataLiga, dataLiga2, N_LIGA, janelaIdx, doAno, LIGA } from './calendario.js';
 import { simular, melhorTime, bancoAuto, posicoesDe, PERS, vagaPara, encaixe, fatorCond, forcaSetores } from './partida.js';
 import { fragilidade, indisponiveis, posJogo, TREINO_LES } from './dm.js';
 import { garantirCarreira, torcidaAposJogo, aposRodada, demissoesIA, tituloDeCopa } from './carreira.js';
@@ -21,7 +20,7 @@ import { resolverMercado, garantirMercado, acompanharPromessas } from './mercado
 import { dataFifa } from './selecao.js';
 import { registrarConfronto } from './confrontos.js';
 import { REGIONAIS, novaReg, fasesReg, dataFaseReg, jogosDaFaseReg, naReg, regDevida, decidirReg, avancarReg, agregadoReg, mataMataReg, finalReg, vivoReg, regsDe } from './regionais.js';
-import { contasDaRodada, financasIniciais, bilheteria, bilheteriaLiga, lancar, folhaDia, garantirFinancas, caixaReal, verbaIA } from './financas.js';
+import { contasDaRodada, financasIniciais, bilheteria, bilheteriaLiga, lancar, folhaDia, garantirFinancas, caixaReal, caixaComVerba, verbaInicial, verbaIA } from './financas.js';
 import { FASES, PREMIOS, novaCopa, copaDevida, copaAtiva, naCopa, mandoDe, dataCopa, decidir, avancarFase, agregadoIda, penaltis } from './copa.js';
 
 const DIVS = ['A', 'B', 'C'];
@@ -54,12 +53,12 @@ export const ligaAcabou = (s, d) => feitas(s, d) >= (N_LIGA[d] || 38);
 const caixaFora = c => Math.round(4e6 * c.tier ** 2 * c.fan / 6 / 10000) * 10000;
 export function caixaInicial(base, ci, dificuldade = 'normal') {
   const c = base.clubes[ci];
-  return c.div === 'L' ? 0 : c.div === 'X' ? caixaFora(c) : caixaReal(c, dificuldade, base.elencos[ci]);
+  return c.div === 'L' ? 0 : c.div === 'X' ? caixaFora(c) : caixaComVerba(base, ci, dificuldade);
 }
 // verba da IA para contratar numa temporada (o gasto real médio de 2025-26); de fora, o caixa do tamanho do clube
 export function caixaIAInicial(base, ci) {
   const c = base.clubes[ci];
-  return c.div === 'L' ? 0 : c.div === 'X' ? caixaFora(c) : verbaIA(c, base.elencos[ci]);
+  return c.div === 'L' ? 0 : c.div === 'X' ? caixaFora(c) : Math.max(verbaIA(c), Math.round(0.5 * verbaInicial(base, ci) / 1e4) * 1e4);
 }
 
 // alguns têm físico de atleta: caem bem devagar e jogam em alto nível até parar (mais comum entre os craques)
@@ -160,7 +159,7 @@ export function novoJogo(base, cfg) {
   if (cfg.modo === 'sorteio') { const r = rng('sorteio' + seed), lista = base.clubes.map((c, i) => i).filter(i => base.clubes[i].div === cfg.divisao); clube = pick(r, lista); }
   if (cfg.modo === 'reputacao') clube = clubeParaReputacao(base, cfg.tecnico.reputacao, seed);
   const s = {
-    v: 1, dadosVersao: base.dados.versao, seed, criado: Date.now(), ano: base.dados.ano, anoInicial: base.dados.ano, rodada: 0,
+    v: 1, calV: 2, dadosVersao: base.dados.versao, seed, criado: Date.now(), ano: base.dados.ano, anoInicial: base.dados.ano, rodada: 0,
     tecnico: { ...cfg.tecnico, clube, modo: cfg.modo },
     dificuldade: cfg.dificuldade || 'normal',
     formacao: '4-3-3', xi: null, ultima: null, est: {}, ...TATICA_PADRAO(), caixa: caixaInicial(base, clube, cfg.dificuldade), transf: {}, propostas: [], historicoTransf: [], noticias: [{ rodada: 0, tipo: 'clube', div: base.clubes[clube].div, texto: `${cfg.tecnico.nome} é o novo técnico do ${base.clubes[clube].n}.` }],
@@ -184,20 +183,15 @@ export function proximoJogo(base, s) {
   return { rodada: rd, div: d, jogo: (rodadasDe(base, s, d)[rd] || []).find(([h, a]) => h === ci || a === ci) };
 }
 
-// tabela real da CBF para a Série A de 2026; se a Série A do jogo não tiver exatamente esses 20 clubes, sorteia como nos outros anos
-const norm = t => String(t).normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
-function tabelaReal(base) {
-  const A = base.clubes.map((c, i) => i).filter(i => base.clubes[i].div === 'A'), idx = new Map(A.map(i => [norm(base.clubes[i].n), i]));
-  const acha = n => idx.get(norm(NOME_CBF[n] || n));
-  const cal = TABELA_A_2026.map(r => r.map(([h, a]) => [acha(h), acha(a)]));
-  return cal.every(r => r.every(j => j[0] != null && j[1] != null)) && A.length === 20 ? cal : null;
-}
-
 export function rodadasDe(base, s, d) {
   // calendário recriado a partir da semente (não precisa ir no save); a Série C joga só o turno (turno único)
   s._cal = s._cal || {};
-  if (!s._cal[d] && d === 'A' && s.ano === base.dados.ano) s._cal[d] = tabelaReal(base);
-  if (!s._cal[d]) { const clubes = base.clubes.map((c, i) => i).filter(i => base.clubes[i].div === d); s._cal[d] = pontosCorridos(clubes, s.ano === base.dados.ano ? s.seed + d : `${s.seed}${d}${s.ano}`).slice(0, N_LIGA[d] || 38); }
+  if (!s._cal[d]) {
+    const clubes = base.clubes.map((c, i) => i).filter(i => base.clubes[i].div === d), v = s.calV || 1;
+    // 2026: a tabela oficial da CBF (só em jogos novos; saves antigos mantêm o calendário com que começaram)
+    const real = v >= 2 && d === 'A' && s.ano === base.dados.ano && base.dados.ano === 2026 ? tabelaSerieA2026(clubes.map(i => [i, base.clubes[i]])) : null;
+    s._cal[d] = real || pontosCorridos(clubes, s.ano === base.dados.ano ? s.seed + d : `${s.seed}${d}${s.ano}`, v).slice(0, N_LIGA[d] || 38);
+  }
   return s._cal[d];
 }
 

@@ -561,21 +561,20 @@ export function rescindir(base, s, id, acordo = false) {
 export function clausula(base, s, j) {
   const d = base.clubes[j.clube].div;
   if (!BR.includes(d)) return null;
-  const m = s.multas?.[j.id]; if (m && m.clube === j.clube) return { nac: m.nac, int: Math.max(m.nac, m.int), minha: true }; // definida pelo técnico do clube
+  const m = s.multas?.[j.id];
+  if (m && m.c === j.contrato) return { nac: m.nac, int: m.int, editada: true };  // multa acertada na renovação
+  return clausulaPadrao(base, s, j);
+}
+function clausulaPadrao(base, s, j) {
+  const d = base.clubes[j.clube].div;
   const r = rng(`cid${j.id}-${j.contrato}`), a = r(), b = r(), v = (j.valor || 30) * 1000;
   const nac = arred(Math.min(2000 * salarioMes(base, s, j), v * (d === 'A' ? 2 + a * 2 : 1.5 + a * 1.5)));
   return { nac, int: Math.max(nac, arred(v * (j.idade <= 23 ? 3 + b * 2 : 1.8 + b * 1.2))) };
 }
-// o técnico muda a multa dos seus jogadores: a nacional respeita o teto da lei (2.000 salários mensais) e a do exterior não pode ser menor
-export function definirMulta(base, s, j, nac, int) {
-  if (j.clube !== s.tecnico.clube || !BR.includes(base.clubes[j.clube].div)) return { ok: false, txt: 'Só dá para mexer na multa de jogador do seu clube.' };
-  const mes = salarioMes(base, s, j), teto = Math.round(2000 * mes / 10000) * 10000;
-  if (!(nac > 0) || !(int > 0)) return { ok: false, txt: 'Informe os dois valores da multa.' };
-  if (nac < mes) return { ok: false, txt: `A multa nacional não pode ser menor que um salário mensal (${fmt(Math.round(mes))}).` };
-  if (nac > teto) return { ok: false, txt: `A lei limita a multa para clube daqui a 2.000 salários mensais (${fmt(teto)} para ${j.curto}).` };
-  if (int < nac) return { ok: false, txt: 'A multa do exterior não pode ser menor que a nacional.' };
-  (s.multas ||= {})[j.id] = { clube: j.clube, nac: Math.round(nac / 10000) * 10000, int: Math.round(int / 10000) * 10000 };
-  return { ok: true, txt: `Multa de ${j.curto} agora é ${fmt(s.multas[j.id].nac)} (exterior ${fmt(s.multas[j.id].int)}).` };
+// limites da multa que o técnico pode escrever no contrato: nacional até 2.000 salários mensais (lei), exterior sem teto
+export function limitesMulta(base, s, j, salario) {
+  const pad = clausulaPadrao(base, s, j), teto = Math.max(arred(2000 * (salario || salarioDia(base, s, j)) * 30), 1000);
+  return { pad, nacMax: teto, nacMin: 0 };
 }
 const pagouClausula = (base, s, j, comprador, valor) => { const c = clausula(base, s, j); return !!c && valor >= (base.clubes[comprador].div === 'X' ? c.int : c.nac); };
 
@@ -636,24 +635,36 @@ export function vontadeRenovar(base, s, j) {
   return { v: clamp(Math.round(v), 0, 100), motivo: pior[1] < 0 ? MOTIVO_NOV[pior[0]] : 'não se sente valorizado' };
 }
 export const emNovela = (s, id) => s.novela?.[id]?.ano === s.ano;
-export function renovacaoPossivel(s, j) { return !preContratoDe(s, j.id) && !s.emprestimos[j.id]; } // qualquer jogador do elenco, em qualquer fase do contrato
+export function renovacaoPossivel(s, j) { return !preContratoDe(s, j.id) && !s.emprestimos[j.id]; }  // qualquer jogador do elenco, até com contrato longo
 export function pedidoRenovacao(base, s, j, anos = 3) {
   const ficar = emNovela(s, j.id) ? 0 : vontadeRenovar(base, s, j).v;
   let pede = Math.max(salarioDia(base, s, j), salarioBase(base.clubes[j.clube], j)) * (1.05 + clamp((60 - ficar) / 100, -0.1, 0.5));
   if (j.idade >= 30) pede *= 1 + 0.06 * Math.max(0, 3 - anos);
   return { ficar, pede: arredSal(pede) };
 }
-export function renovar(base, s, j, salario, anos) {
+export function renovar(base, s, j, salario, anos, multa) {
   if (j.clube !== s.tecnico.clube || !renovacaoPossivel(s, j)) return { ok: false, txt: 'Não dá para renovar com ele agora.' };
   if (!(anos >= 1 && anos <= 5)) return { ok: false, txt: 'Contrato de 1 a 5 anos.' };
-  if (s.ano + anos < j.contrato) return { ok: false, txt: `${j.curto} já tem contrato até ${j.contrato}: escolha ${j.contrato - s.ano} anos ou mais.` };
   const { ficar, pede } = pedidoRenovacao(base, s, j, anos);
   if (emNovela(s, j.id)) return { ok: false, txt: `${j.curto} não quer saber de renovar (${s.novela[j.id].motivo}). A novela segue: venda enquanto dá ou ele sai de graça.` };
   if (ficar < 30) return { ok: false, txt: `${j.curto} não quer renovar. Está insatisfeito no clube.` };
   if (salario - salarioDia(base, s, j) > orcamento(base, s).folga) return { ok: false, txt: 'O aumento não cabe na folga da folha. Abra espaço em Finanças.' };
   const teto = passaDoTeto(base, s, salario, salarioDia(base, s, j)); if (teto) return { ok: false, txt: teto };
-  if (salario < pede) return { ok: false, pede, txt: `${j.curto} pede € ${pede.toLocaleString('pt-BR')}/dia por ${anos} ${anos > 1 ? 'anos' : 'ano'}.` };
+  // multa rescisória: multa maior que a padrão encarece o salário que ele pede (ele se sente preso); menor, barateia um pouco
+  let pedeM = pede, nova = null;
+  const pad = clausulaPadrao(base, s, j);
+  if (multa && BR.includes(base.clubes[j.clube].div)) {
+    const lim = limitesMulta(base, s, j, salario), nac = Math.max(0, Math.round(multa.nac)), int = Math.round(multa.int);
+    if (!(nac >= 0) || !(int >= 0)) return { ok: false, txt: 'Multa inválida.' };
+    if (nac > lim.nacMax) return { ok: false, txt: `A multa para clubes do Brasil não passa de ${lim.nacMax.toLocaleString('pt-BR')} (2.000 salários mensais).` };
+    if (int < nac) return { ok: false, txt: 'A multa para o exterior não pode ser menor que a nacional.' };
+    const rel = (nac + int) / Math.max(1, pad.nac + pad.int);
+    pedeM = arredSal(pede * (1 + clamp((rel - 1) * 0.08, -0.05, 0.3)));
+    nova = { nac, int };
+  }
+  if (salario < pedeM) return { ok: false, pede: pedeM, txt: `${j.curto} pede € ${pedeM.toLocaleString('pt-BR')}/dia por ${anos} ${anos > 1 ? 'anos' : 'ano'}${nova ? ' com essa multa' : ''}.` };
   s.salarios[j.id] = arredSal(salario); s.contratos[j.id] = s.ano + anos; j.contrato = s.ano + anos;
+  if (nova) { (s.multas ||= {})[j.id] = { c: j.contrato, ...nova }; } else if (s.multas) delete s.multas[j.id];
   return { ok: true, txt: `Renovado: ${j.curto} assinou até ${s.ano + anos}.` };
 }
 
@@ -917,39 +928,38 @@ export function precoExterior(base, s, j, r, para) {
 }
 
 // ---------- renovações ----------
-// IA é agressiva: começa a conversa logo no início da temporada e renova quem tem nível e quer ficar, inclusive quem ainda tem
-// mais um ano (titulares e promessas não esperam o contrato apertar); quem não tem nível ou quer sair (minutos, temperamento,
-// interesse de clube maior, fase) fica sem renovar e sai de graça no fim do ano (ou assina pré-contrato com outro)
+// IA renova cedo quem tem nível e quer ficar; quem não tem nível ou quer sair (minutos, temperamento, interesse de
+// clube maior, fase) fica sem renovar e sai de graça no fim do ano (ou assina pré-contrato com outro)
 function renovacoesIA(base, s, rd, add) {
-  if (rd < 1 || rd > 34) return;
+  if (rd < 2 || rd > 34) return;
   s.renovIA ||= {};
   let mudou = false;
   for (const ci of base.clubes.map((c, i) => i).filter(i => BR.includes(base.clubes[i].div) && !ehHumano(s, i))) {
     const el = base.elencos[ci], ord = el.slice().sort((a, b) => b.ovr - a.ovr), f = base.forca(ci), nome = base.clubes[ci].n, div = base.clubes[ci].div;
     let saem = el.filter(x => ['sai', 'dispensa', 'aposenta'].includes(s.renovIA[x.id]?.ano === s.ano && s.renovIA[x.id].d)).length;  // elenco não pode esvaziar
     for (const j of el) {
-      if (j.contrato > s.ano + 1 || s.renovIA[j.id]?.ano === s.ano || s.emprestimos[j.id] || preContratoDe(s, j.id)) continue;
-      const rank = ord.indexOf(j), ultimo = j.contrato <= s.ano;
-      // quem ainda tem um ano só entra se é titular/valor: o clube quer segurar antes de virar problema
-      if (!ultimo && !(rank < 14 || j.ovr >= f - 2 || (j.idade <= 23 && (j.pot || j.ovr) >= j.ovr + 6))) continue;
+      // clube agressivo: já na 2ª rodada conversa com quem acaba o contrato este ano e também com os melhores que acabam no ano seguinte
+      const cedo = j.contrato === s.ano + 1 && ord.indexOf(j) < 14 && j.ovr >= f - 3 && j.idade <= 33;
+      if ((j.contrato > s.ano && !cedo) || s.renovIA[j.id]?.ano === s.ano || s.emprestimos[j.id] || preContratoDe(s, j.id)) continue;
       const rr = rng(`renIA${s.seed}${s.ano}${j.id}`);
-      if (rd !== 1 + Math.floor(rr() * (ultimo ? 14 : 20))) continue;        // cada um tem a sua rodada de conversa, cedo
-      if (ultimo && vaiAposentar(s, j)) { s.renovIA[j.id] = { ano: s.ano, d: 'aposenta' }; continue; }
-      const pct = (s.est?.[j.id]?.[0] || 0) / Math.max(1, rd), t = temperamento(j);
-      if (ultimo && (rank >= 25 || j.ovr < f - 10 || (j.idade >= 33 && j.ovr < f - 4)) && el.length - saem > 26) {
+      if (rd !== 2 + Math.floor(rr() * 14)) continue;        // cada um tem a sua rodada de conversa (até a 15ª)
+      if (vaiAposentar(s, j)) { s.renovIA[j.id] = { ano: s.ano, d: 'aposenta' }; continue; }
+      const rank = ord.indexOf(j), pct = (s.est?.[j.id]?.[0] || 0) / Math.max(1, rd), t = temperamento(j);
+      if ((rank >= 25 || j.ovr < f - 10 || (j.idade >= 33 && j.ovr < f - 4)) && el.length - saem > 26) {
         s.renovIA[j.id] = { ano: s.ano, d: 'dispensa' }; saem++;
         if (j.ovr >= 72) add(`O ${nome} não vai renovar com ${j.curto}, que fica livre no fim do ano.`, 'mercado', div, { jogador: j.id, de: ci });
         continue;
       }
-      const quer = 66 + (rank < 16 && pct < 0.3 ? -18 : 0) + ({ ambicioso: -10, temperamental: -4, sensivel: 0, profissional: 6 }[t]) + (faseDe(s, j.id).d > 0 && j.idade <= 29 && interessados(base, j, s).length ? -18 : 0) + (j.idade >= 31 ? 12 : 0) + (rr() - 0.5) * 26;
-      if (quer < 38 && ultimo && el.length - saem > 24) {
+      const quer = 74 + (rank < 16 && pct < 0.3 ? -14 : 0) + ({ ambicioso: -8, temperamental: -3, sensivel: 0, profissional: 6 }[t]) + (faseDe(s, j.id).d > 0 && j.idade <= 29 && interessados(base, j, s).length ? -14 : 0) + (j.idade >= 31 ? 12 : 0) + (rr() - 0.5) * 24;
+      if (quer < 38 && el.length - saem > 24) {
         s.renovIA[j.id] = { ano: s.ano, d: 'sai' }; saem++;
         if (j.ovr >= 72) add(`${j.curto} recusa renovar com o ${nome} e pode sair de graça no fim do ano.`, 'rumor', div, { jogador: j.id, de: ci });
         continue;
       }
-      if (!ultimo && quer < 50) { s.renovIA[j.id] = { ano: s.ano, d: 'adiou' }; continue; }  // não quis agora; tenta de novo no ano que vem
       const anos = j.idade >= 31 ? 1 + Math.floor(rr() * 2) : 2 + Math.floor(rr() * 3);
-      if (s.ano + anos <= j.contrato) { s.renovIA[j.id] = { ano: s.ano, d: 'adiou' }; continue; }
+      // clube da IA blinda quem renova: multa 20% a 100% acima da padrão (nacional limitada a 2.000 salários mensais)
+      const pad = clausulaPadrao(base, s, j), nac = Math.min(arred(pad.nac * (1.2 + rr() * 0.8)), arred(2000 * salarioMes(base, s, j)));
+      (s.multas ||= {})[j.id] = { c: s.ano + anos, nac, int: Math.max(nac, arred(pad.int * (1.2 + rr() * 0.8))) };
       s.contratos[j.id] = s.ano + anos; s.renovIA[j.id] = { ano: s.ano, d: 'renovou' }; mudou = true;
       if (j.ovr >= 75) add(`${j.curto} renova com o ${nome} até ${s.ano + anos}.`, 'mercado', div, { jogador: j.id, de: ci });
     }

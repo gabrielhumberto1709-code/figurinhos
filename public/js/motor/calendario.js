@@ -1,64 +1,76 @@
 // Calendário de pontos corridos (turno e returno) pelo método do círculo.
 import { rng, shuffle } from './util.js';
 
-// FIX: valida se o calendário não tem 3+ jogos seguidos em casa ou fora.
-// Sem isso, o método do círculo pode gerar sequências ruins (o bug do "só joga fora de casa").
-function revezamentoOk(cal, n) {
-  const seq = Array.from({ length: n }, () => []);
-  for (const rd of cal) for (const [h, a] of rd) {
-    if (h != null) seq[h].push('C');
-    if (a != null) seq[a].push('F');
-  }
-  return seq.every(s => {
-    let run = 1;
-    for (let i = 1; i < s.length; i++) {
-      if (s[i] === s[i - 1]) { if (++run >= 3) return false; } else run = 1;
-    }
-    return true;
-  });
-}
-
-// FIX: gera o calendário e valida o revezamento. Se o sorteio não presta, tenta de novo
-// (varia a paridade do mando a cada tentativa). Isso corrige o bug da 19ª rodada e o
-// problema de times com muitas partidas seguidas fora de casa.
-export function pontosCorridos(times, seed) {
+export function pontosCorridos(times, seed, v = 1) {
   const r = rng('cal' + seed);
-  let t = shuffle(r, times);
-  if (t.length % 2) t.push(null); // folga: ninguém joga nesta rodada (número ímpar de clubes)
-  const n = t.length, fixo = t[0];
-  for (let tent = 0; tent < 50; tent++) {
-    const turno = [];
-    let gira = t.slice(1);
-    for (let rd = 0; rd < n - 1; rd++) {
-      const ordem = [fixo, ...gira];
-      const jogos = [];
-      for (let i = 0; i < n / 2; i++) {
-        const a = ordem[i], b = ordem[n - 1 - i];
-        if (a === null || b === null) continue;
-        // FIX: a paridade do mando varia por rodada, por posição E por tentativa, então o
-        // sorteio consegue achar um calendário sem 3+ seguidas. Antes era só (rd + i) % 2.
-        jogos.push((rd + i + tent) % 2 === 0 ? [a, b] : [b, a]);
-      }
-      turno.push(jogos);
-      gira.unshift(gira.pop());
-    }
-    const returno = turno.map(jogos => jogos.map(([a, b]) => [b, a]));
-    const cal = [...turno, ...returno];
-    if (revezamentoOk(cal, n)) return cal;
-  }
-  // fallback: nunca deve acontecer, mas se acontecer devolve um calendário válido (só sem garantir o revezamento)
-  const turno = [], gira = t.slice(1);
+  const t = shuffle(r, times);
+  if (t.length % 2) t.push(null);
+  if (v >= 2) return alternado(t);
+  const n = t.length, turno = [];
+  const fixo = t[0], gira = t.slice(1);
   for (let rd = 0; rd < n - 1; rd++) {
-    const ordem = [fixo, ...gira], jogos = [];
+    const ordem = [fixo, ...gira];
+    const jogos = [];
     for (let i = 0; i < n / 2; i++) {
       const a = ordem[i], b = ordem[n - 1 - i];
       if (a === null || b === null) continue;
+      // alterna mando para ninguém jogar muitas vezes seguidas em casa
       jogos.push((rd + i) % 2 === 0 ? [a, b] : [b, a]);
     }
     turno.push(jogos);
     gira.unshift(gira.pop());
   }
-  return [...turno, ...turno.map(j => j.map(([a, b]) => [b, a]))];
+  const returno = turno.map(jogos => jogos.map(([a, b]) => [b, a]));
+  return [...turno, ...returno];
+}
+
+// Sorteio com mando revezado como na vida real: ninguém passa de 3 jogos seguidos no mesmo mando (quase sempre 1 ou 2)
+// e o returno repete o turno com o mando invertido. Em cada rodada o par (r, último) e os pares (r+k, r-k) são
+// montados de modo que o mando de cada time alterne de uma rodada para a outra.
+function alternado(t) {
+  const n = t.length, m = n - 1, turno = [];
+  for (let r = 0; r < m; r++) {
+    const jogos = [];
+    const add = (a, b) => { if (a !== null && b !== null) jogos.push([a, b]); };
+    r % 2 === 0 ? add(t[r], t[n - 1]) : add(t[n - 1], t[r]);
+    for (let k = 1; k < n / 2; k++) {
+      const a = (r + k) % m, b = ((r - k) % m + m) % m;
+      k % 2 === 1 ? add(t[a], t[b]) : add(t[b], t[a]);
+    }
+    turno.push(jogos);
+  }
+  return [...turno, ...turno.map(jogos => jogos.map(([a, b]) => [b, a]))];
+}
+
+// Tabela oficial da Série A 2026 (CBF): mandante-visitante por rodada, as 19 primeiras (o returno repete o turno com o
+// mando invertido, como na tabela da CBF). Siglas = campo `s` dos clubes.
+const SERIE_A_2026 = `FLU-GRE BOT-CRU SAO-FLA COR-BAH MIR-VAS CAM-PAL INT-CAP CFC-RBB VIT-REM CHA-SAN
+FLA-INT VAS-CHA SAN-SAO PAL-VIT RBB-CAM CRU-CFC GRE-BOT CAP-COR BAH-FLU REM-MIR
+FLU-BOT VAS-BAH SAO-GRE COR-RBB MIR-CRU CAM-REM INT-PAL CAP-SAN VIT-FLA CHA-CFC
+FLA-MIR BOT-VIT SAN-VAS PAL-FLU RBB-CAP CRU-COR GRE-CAM CFC-SAO BAH-CHA REM-INT
+FLA-CRU VAS-PAL SAO-CHA COR-CFC MIR-SAN CAM-INT GRE-RBB CAP-BOT BAH-VIT REM-FLU
+FLU-CAP BOT-FLA SAN-COR PAL-MIR RBB-SAO CRU-VAS INT-BAH CFC-REM VIT-CAM CHA-GRE
+FLA-REM VAS-FLU SAN-INT PAL-BOT MIR-CFC CAM-SAO GRE-VIT CAP-CRU BAH-RBB CHA-COR
+FLU-CAM VAS-GRE SAO-PAL COR-FLA RBB-BOT CRU-SAN INT-CHA CAP-CFC VIT-MIR REM-BAH
+FLU-COR BOT-MIR SAN-REM PAL-GRE RBB-FLA CRU-VIT INT-SAO CFC-VAS BAH-CAP CHA-CAM
+FLA-SAN VAS-BOT SAO-CRU COR-INT MIR-RBB CAM-CAP GRE-REM CFC-FLU BAH-PAL CHA-VIT
+FLU-FLA BOT-CFC SAN-CAM COR-PAL MIR-BAH CRU-RBB INT-GRE CAP-CHA VIT-SAO REM-VAS
+FLA-BAH VAS-SAO SAN-FLU PAL-CAP RBB-REM CRU-GRE INT-MIR CFC-CAM VIT-COR CHA-BOT
+FLU-CHA BOT-INT SAO-MIR COR-VAS RBB-PAL CAM-FLA GRE-CFC CAP-VIT BAH-SAN REM-CRU
+FLA-VAS BOT-REM SAO-BAH PAL-SAN MIR-COR CRU-CAM INT-FLU CAP-GRE VIT-CFC CHA-RBB
+FLU-VIT VAS-CAP SAN-RBB COR-SAO MIR-CHA CAM-BOT GRE-FLA CFC-INT BAH-CRU REM-PAL
+FLU-SAO BOT-COR SAN-CFC PAL-CRU RBB-VIT CAM-MIR INT-VAS CAP-FLA BAH-GRE CHA-REM
+FLA-PAL VAS-RBB SAO-BOT COR-CAM MIR-FLU CRU-CHA GRE-SAN CFC-BAH VIT-INT REM-CAP
+FLA-CFC VAS-CAM SAN-VIT PAL-CHA RBB-INT CRU-FLU GRE-COR CAP-MIR BAH-BOT REM-SAO
+FLU-RBB BOT-SAN SAO-CAP COR-REM MIR-GRE CAM-BAH INT-CRU CFC-PAL VIT-VAS CHA-FLA`;
+
+// devolve as 38 rodadas [[mandante, visitante]...] em índices de clube, ou null se a divisão A não for a de 2026
+export function tabelaSerieA2026(clubes) {
+  const idx = {};
+  for (const [i, c] of clubes) idx[c.s] = i;
+  const turno = SERIE_A_2026.split('\n').map(l => l.trim().split(/\s+/).map(p => p.split('-').map(x => idx[x])));
+  if (turno.length !== 19 || turno.some(r => r.length !== 10 || r.some(p => p.some(x => x === undefined)))) return null;
+  return [...turno, ...turno.map(r => r.map(([a, b]) => [b, a]))];
 }
 
 // ---------- temporada: o calendário real de 2026 (CBF e Conmebol) ----------

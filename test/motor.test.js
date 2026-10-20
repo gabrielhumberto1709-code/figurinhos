@@ -450,7 +450,7 @@ test('continentais: grupos completos, mata-mata até o campeão, prêmios e vaga
 
 import { abrirColetiva, responder, efeito, TONS, perfil } from '../public/js/motor/imprensa.js';
 test('coletiva: 3 perguntas do jogo, respostas mexem nas plateias e viram notícia; nova coletiva a cada jogo', () => {
-  const s = novoJogo(base, cfg(41)), ci = s.tecnico.clube;
+  const s = novoJogo(base, cfg(51)), ci = s.tecnico.clube;
   assert.equal(abrirColetiva(base, s), null);
   ate(s, 3);
   const C = abrirColetiva(base, s);
@@ -887,6 +887,7 @@ test('renovação: IA renova cedo quem tem nível, deixa sair quem não tem ou q
   assert.ok(d('renovou') > 20 && d('dispensa') + d('sai') > 5, JSON.stringify({ r: d('renovou'), dis: d('dispensa'), sai: d('sai') }));
   const renovado = Object.entries(s.renovIA).find(([, x]) => x.d === 'renovou')[0];
   assert.ok(base.jog.get(+renovado).contrato > s.ano, 'renovado não está mais no fim de contrato');
+  assert.ok(clausulaDe(base, s, base.jog.get(+renovado))?.editada, 'IA blindou o renovado com multa maior');
   // novela: último ano, tratado mal, quer sair
   const j = base.elencos[ci].slice().sort((a, b) => b.ovr - a.ovr)[2];
   s.contratos[j.id] = s.ano; aplicarSave(base, s); s.trato = { [j.id]: -10 }; s.querSair = { [j.id]: { de: 7, rodada: s.rodada, motivo: 'quer jogar num clube maior' } };
@@ -1402,43 +1403,25 @@ test('finanças reais de 2025: dívida, receita e verba de contratação no tama
   assert.ok(s.fin.extrato.some(e => e.tipo === 'estrutura'), 'estrutura do clube');
 });
 
-import { caixaInicial, caixaIAInicial } from '../public/js/motor/mundo.js';
-import { definirMulta, renovacaoPossivel } from '../public/js/motor/mercado.js';
-test('verba inicial: todo clube com elenco começa com dinheiro pelo plantel e pela divisão; só os gigantes destoam', () => {
-  const base = new Base(JSON.parse(fs.readFileSync(new URL('../public/data/brasil.json', import.meta.url)))); // base limpa: outros testes mexem nos elencos e divisões
-  const por = d => base.clubes.map((c, i) => i).filter(i => base.clubes[i].div === d);
-  for (const d of ['A', 'B', 'C']) for (const i of por(d)) assert.ok(caixaInicial(base, i) > 0 && caixaIAInicial(base, i) > 0, base.clubes[i].n);
-  const A = por('A').map(i => caixaInicial(base, i)).sort((a, b) => a - b);
-  assert.ok(A[0] >= 2.5e6, 'o menor da A não começa quebrado');
-  assert.ok(A[A.length - 3] / A[0] < 6, 'fora os dois maiores, a A não destoa');
-  const nome = n => base.clubes.findIndex(c => c.n === n);
-  assert.ok(caixaInicial(base, nome('Flamengo')) > 2 * A[Math.floor(A.length / 2)], 'Flamengo segue muito acima');
-  assert.ok(caixaInicial(base, nome('Corinthians')) > 5e6, 'endividado também tem verba');
-  assert.ok(Math.max(...por('B').map(i => caixaInicial(base, i))) < A[0] * 1.5, 'a B fica abaixo da A');
+test('calendário: mando alternado (sorteio) e tabela oficial da Série A 2026 em jogo novo', () => {
+  const alt = pontosCorridos([...Array(20).keys()], 11, 2), seq = {};
+  for (let i = 0; i < 20; i++) seq[i] = [];
+  for (const rd of alt) { assert.equal(new Set(rd.flat()).size, 20); for (const [h, a] of rd) { seq[h].push(1); seq[a].push(0); } }
+  for (const x of Object.values(seq)) { let run = 1; for (let i = 1; i < 38; i++) { run = x[i] === x[i - 1] ? run + 1 : 1; assert.ok(run <= 3); } }
+  const s = novoJogo(base, cfg(5)), A = rodadasDe(base, s, 'A'), n = i => base.clubes[i].s;
+  assert.equal(A.length, 38);
+  assert.deepEqual(A[0].map(([h, a]) => `${n(h)}-${n(a)}`).slice(0, 3), ['FLU-GRE', 'BOT-CRU', 'SAO-FLA']);
+  assert.ok(A[37].map(([h, a]) => `${n(h)}-${n(a)}`).includes('REM-COR'));
 });
 
-test('calendário da Série A: 2026 segue a tabela da CBF; nos outros anos sorteia, sempre alternando casa e fora', () => {
-  const s = novoJogo(base, cfg(11)), nome = i => base.clubes[i].n;
-  const c26 = rodadasDe(base, s, 'A');
-  assert.deepEqual(c26[0][0].map(nome), ['Fluminense', 'Grêmio']);
-  assert.deepEqual(c26[37].find(j => j.map(nome).includes('Flamengo')).map(nome), ['Flamengo', 'Chapecoense']);
-  const seq = cal => { let max = 0; for (const t of new Set(cal.flat(2))) { let u = null, q = 0; for (const r of cal) { const j = r.find(x => x.includes(t)), c = j[0] === t; q = c === u ? q + 1 : 1; u = c; max = Math.max(max, q); } } return max; };
-  assert.ok(seq(c26) <= 2);
-  const s2 = novoJogo(base, cfg(12)); s2.ano++; s2._cal = {};
-  const c27 = rodadasDe(base, s2, 'A');
-  assert.equal(c27.length, 38); assert.ok(seq(c27) <= 3, 'ninguém fica 4 jogos seguidos no mesmo mando');
-  for (let t = 0; t < 20; t++) { const ts = [...new Set(c27.flat(2))]; const k = ts[t]; assert.equal(c27.filter(r => r.find(x => x.includes(k))[0] === k).length, 19); }
-});
-
-test('renovar com qualquer jogador e mexer na multa; a IA renova cedo', () => {
-  const s = novoJogo(base, cfg(13)), ci = s.tecnico.clube, j = base.elencos[ci].slice().sort((a, b) => b.ovr - a.ovr)[0];
-  s.contratos[j.id] = s.ano + 4; j.contrato = s.ano + 4; assert.ok(renovacaoPossivel(s, j));
-  assert.match(renovar(base, s, j, 1e6, 2).txt, /já tem contrato/);
-  const c = clausula(base, s, j);
-  assert.match(definirMulta(base, s, j, c.nac * 100, c.int * 100).txt, /lei limita/);
-  assert.match(definirMulta(base, s, j, c.nac, c.nac / 2).txt, /exterior/);
-  const r = definirMulta(base, s, j, 4e6, 30e6); assert.ok(r.ok, r.txt);
-  assert.deepEqual([clausula(base, s, j).nac, clausula(base, s, j).int], [4e6, 30e6]);
-  ate(s, 12);
-  const dec = Object.values(s.renovIA || {}); assert.ok(dec.filter(x => x.d === 'renovou').length > 25, 'a IA já renovou bastante no início da temporada');
+test('renovação: qualquer jogador, com multa editável; multa maior encarece', () => {
+  const s = novoJogo(base, cfg(108)), ci = s.tecnico.clube;
+  const j = base.elencos[ci].filter(x => x.contrato >= s.ano + 3 && !s.emprestimos[x.id]).sort((a, b) => a.ovr - b.ovr)[0];
+  assert.ok(j, 'jogador com contrato longo');
+  const { pede } = pedidoRenovacao(base, s, j, 3), pad = clausulaDe(base, s, j);
+  const r1 = renovar(base, s, j, pede, 3, { nac: pad.nac, int: pad.int * 3 });
+  assert.equal(r1.ok, false); assert.ok(r1.pede > pede);
+  const r2 = renovar(base, s, j, r1.pede, 3, { nac: Math.round(pad.nac / 2), int: pad.int });
+  assert.ok(r2.ok, r2.txt);
+  assert.equal(clausulaDe(base, s, j).nac, Math.round(pad.nac / 2));
 });

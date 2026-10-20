@@ -16,3 +16,9 @@ Dados de jogadores: base do Treineiros 1.38.10, uso autorizado pelo criador.
 - O motor não sorteia nada sozinho (a semente vem de fora) e não tem estado global: a formação personalizada viaja com o time (`pers`), não numa tabela do módulo.
 - Falta: separar o mundo da liga das carreiras (hoje o save mistura os dois via `s.tecnico.clube`) e uma `Base` por liga no servidor.
 - API: `PUT /api/saves/:slot` exige a versão (`base`) e responde 409 se outro aparelho salvou depois; login e cadastro têm limite por IP (tabela `limites`).
+
+## Novidades (v76)
+- Verba inicial por clube (elenco + divisão), pênaltis animados, troca de lado no intervalo.
+- Série A 2026 com a tabela oficial da CBF em jogos novos; demais anos: sorteio com mando revezado (`calV: 2`; saves antigos mantêm o calendário antigo até a virada de temporada).
+- Renovação com qualquer jogador do elenco e multa rescisória editável (`s.multas`); clubes da IA renovam mais cedo e mais.
+- Clubes da IA blindam quem renova com multa 20% a 100% maior.

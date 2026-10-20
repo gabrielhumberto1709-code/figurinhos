@@ -75,26 +75,38 @@ export function dividaInicial(c) { const r = real(c); return Math.round(r ? r.di
 // Corinthians no aperto). Amortizar a dívida solta o clube aos poucos.
 export const pesoDivida = (c, divida = dividaInicial(c)) => { const R = receitaAnual(c); return R > 0 ? divida / R : 0; };
 export const corteDivida = d => d > 0.9 ? Math.min(45, Math.round(16 * (d - 0.9))) : 0;
-// verba inicial de todo clube com elenco: capital que acompanha a qualidade do plantel (valor de mercado) e a folha (salário
-// alto = clube que movimenta mais dinheiro), por divisão. É um piso: quem tem caixa real maior (Flamengo, Palmeiras...)
-// fica com o real, e a dívida não zera mais o clube. Limitado a 30% da receita do ano para o pequeno não ganhar mais do que gira.
-const FATOR_DIV = { A: 1, B: 0.8, C: 0.7 };
-export function capitalElenco(c, elenco) {
-  if (!FATOR_DIV[c?.div] || !elenco?.length) return 0;
-  const folha = elenco.reduce((t, j) => t + salarioBase(c, j) * 365, 0), valor = elenco.reduce((t, j) => t + (j.valor || 0) * 1000, 0);
-  return Math.min(FATOR_DIV[c.div] * (0.035 * valor + 0.2 * folha), 0.3 * receitaAnual(c));
+// caixa de quem assume: o do balanço (sem balanço, 3% da receita), mais uma folga no fácil
+export function caixaReal(c, dificuldade = 'normal') { const r = real(c), R = receitaAnual(c); return Math.round(((r ? r.caixa : 0.03 * R) + ({ facil: 0.15, normal: 0.03, dificil: 0 }[dificuldade] ?? 0.03) * R) / 1e4) * 1e4; }
+// verba inicial: capital com que o clube começa, qualquer que seja a dívida (clube endividado não começa zerado).
+// Parte de um valor típico da divisão e sobe com o elenco (a média entre o valor de mercado e a folha salarial, em relação
+// ao clube mediano da divisão: elenco cheio de bons jogadores e salários altos tem mais capital). Os de receita muito acima
+// da mediana (Flamengo, Palmeiras, Corinthians...) sobem mais. Fora esses, o leque dentro da divisão é curto (0,6x a 1,8x).
+export const VERBA_DIV = { A: 20e6, B: 3e6, C: 8e5 };
+const mediana = a => { const s = a.slice().sort((x, y) => x - y); return s[Math.floor(s.length / 2)] || 1; };
+const refDiv = new WeakMap();
+function referenciaDiv(base, div) {
+  let m = refDiv.get(base); if (!m) refDiv.set(base, m = {});
+  if (m[div] && m[div].v === base._versao) return m[div];
+  const ids = base.clubes.map((c, i) => i).filter(i => base.clubes[i].div === div);
+  const valor = ids.map(i => base.elencos[i].reduce((t, j) => t + (j.valor || 0) * 1000, 0));
+  const folha = ids.map(i => base.elencos[i].reduce((t, j) => t + salarioBase(base.clubes[i], j), 0));
+  return m[div] = { v: base._versao, valor: mediana(valor), folha: mediana(folha), rec: mediana(ids.map(i => receitaAnual(base.clubes[i]))) };
 }
-// caixa de quem assume: o maior entre o do balanço (sem balanço, 3% da receita) e o capital do elenco, mais uma folga no fácil
-export function caixaReal(c, dificuldade = 'normal', elenco) {
-  const r = real(c), R = receitaAnual(c);
-  return Math.round((Math.max(r ? r.caixa : 0.03 * R, capitalElenco(c, elenco)) + ({ facil: 0.15, normal: 0.03, dificil: 0 }[dificuldade] ?? 0.03) * R) / 1e4) * 1e4;
+export function verbaInicial(base, ci) {
+  const c = base.clubes[ci], tipico = VERBA_DIV[c.div]; if (!tipico) return 0;
+  const ref = referenciaDiv(base, c.div), el = base.elencos[ci] || [];
+  const valor = el.reduce((t, j) => t + (j.valor || 0) * 1000, 0), folha = el.reduce((t, j) => t + salarioBase(c, j), 0);
+  const elenco = clamp((0.5 * valor / ref.valor + 0.5 * folha / ref.folha) ** 0.6, 0.6, 1.8);
+  const grande = clamp((receitaAnual(c) / ref.rec) ** 0.5, 1, 2.2);
+  return Math.round(tipico * elenco * grande / 1e4) * 1e4;
 }
-// verba de contratações da IA por temporada: o gasto real médio (o resto vem do que ela vende); sem balanço, pela receita e a dívida.
-// Nunca menos que metade do capital do elenco, para o clube endividado também poder contratar
-export function verbaIA(c, elenco) {
-  const r = real(c), R = receitaAnual(c);
-  return Math.round(Math.max(0, r ? 0.6 * r.gasto : 0.1 * R - 0.04 * dividaInicial(c), 0.5 * capitalElenco(c, elenco)) / 1e4) * 1e4;
+// caixa de quem assume: o do balanço ou a verba inicial, o que for maior, mais uma folga pela dificuldade (fácil 15% da receita, normal 3%)
+export function caixaComVerba(base, ci, dificuldade = 'normal') {
+  const c = base.clubes[ci], R = receitaAnual(c), r = real(c);
+  return Math.round((Math.max(r ? r.caixa : 0.03 * R, verbaInicial(base, ci)) + ({ facil: 0.15, normal: 0.03, dificil: 0 }[dificuldade] ?? 0.03) * R) / 1e4) * 1e4;
 }
+// verba de contratações da IA por temporada: o gasto real médio (o resto vem do que ela vende); sem balanço, pela receita e a dívida
+export function verbaIA(c) { const r = real(c), R = receitaAnual(c); return Math.round(Math.max(0, r ? 0.6 * r.gasto : 0.1 * R - 0.04 * dividaInicial(c)) / 1e4) * 1e4; }
 const PARCELAS_TV = [0, 9, 19, 29];
 export function premioLiga(div, pos) {
   if (div === 'A') return pos <= 16 ? Math.round((8e6 - (pos - 1) * 4e5)) : 1e6;

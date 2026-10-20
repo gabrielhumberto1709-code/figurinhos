@@ -13,12 +13,11 @@ const hashN = s => { let h = 2166136261; for (const c of String(s)) h = Math.imu
 const dist = (a, b) => Math.hypot(a.x - b.x, (a.y - b.y) * K);
 const lado = t => t === 0 ? 1 : -1;  // para onde o time ataca
 
-export const criar = () => ({ sp: new Map(), bola: { x: 50, y: 50, z: 0 }, dono: null, voo: null, espera: 0, cond: null, limite: 0, passos: [], forca: new Map(), clock: 0, posse: 0, saida: true, marcas: [], flash: null });
+export const criar = () => ({ sp: new Map(), bola: { x: 50, y: 50, z: 0 }, dono: null, voo: null, espera: 0, cond: null, limite: 0, passos: [], forca: new Map(), clock: 0, posse: 0, saida: true, marcas: [], flash: null, inv: false, pen: null });
 
 // ---------- elenco em campo ----------
 function sync(cp, P) {
   const vivos = new Set(), novo = !cp.sp.size;
-  if (cp.espelho == null) cp.espelho = P.min > 45; // jogo retomado no segundo tempo já começa com os lados trocados
   for (const t of [0, 1]) {
     const T = P.times[t], f = T.formacao, slots = T.slots, pos = posicoesDe(f, T.pers);
     P.times[t].xi.forEach((j, i) => {
@@ -30,19 +29,16 @@ function sync(cp, P) {
     });
   }
   for (const s of cp.sp.values()) if (!vivos.has(s.id) && !s.sai) { s.sai = true; if (cp.dono === s.id) cp.dono = null; }
-  if (novo) { alvos(cp); for (const s of cp.sp.values()) { s.x = s.tx; s.y = s.ty; } }
+  if (novo) { cp.inv = P.min >= 45; alvos(cp); for (const s of cp.sp.values()) { s.x = s.tx; s.y = s.ty; } } // retomado no 2º tempo: lados já trocados
 }
 
 // ---------- para onde cada um quer ir ----------
 function alvos(cp) {
+  if (cp.pen) return alvosPen(cp);
   const b = cp.bola;
   for (const s of cp.sp.values()) {
     s.mult = 1;
     if (s.sai) { s.tx = s.x; s.ty = 106; s.mult = 0.7; continue; }
-    if (cp.pen) { // disputa de pênaltis: todo mundo no círculo central, só o batedor e o goleiro da vez ficam na marca
-      const a = s.h * Math.PI * 2;
-      s.tx = s.gk ? (s.t === 0 ? 2.5 : 97.5) : 50 + Math.cos(a) * 7; s.ty = s.gk ? 50 : 50 + Math.sin(a) * 15; s.mult = 0.8; continue;
-    }
     const t = s.t, ataca = cp.posse === t, bf = t === 0 ? b.x : 100 - b.x, by = t === 0 ? b.y : 100 - b.y;
     const casa = PROF[s.slot] ?? 0.4, lat0 = s.lat ?? 50;
     let d, lat;
@@ -56,7 +52,7 @@ function alvos(cp) {
     s.tx = t === 0 ? d * 100 : 100 - d * 100; s.ty = t === 0 ? lat : 100 - lat;
   }
   // quem defende manda o mais perto na bola
-  if (!cp.saida && !cp.voo && !cp.pen) {
+  if (!cp.saida && !cp.voo) {
     const o = 1 - cp.posse; let m = null, md = 1e9;
     for (const s of cp.sp.values()) if (s.t === o && !s.gk && !s.sai) { const d = dist(s, b); if (d < md) { md = d; m = s; } }
     if (m) { m.tx = b.x - lado(o) * 2.6; m.ty = b.y; m.mult = 1.25; }
@@ -173,7 +169,7 @@ export function lance(cp, P, l, prox) {
     case 'amarelo': case 'vermelho': marca(cp, { tipo: l.tipo, id: l.j }); cp.espera = 0.9; return;
     case 'lesao': cp.dono = null; cp.conducao = null; marca(cp, { tipo: 'lesao', id: l.j, dur: 2 }); cp.espera = 1.1; return;
     case 'impedimento': cp.dono = null; cp.conducao = null; marca(cp, { tipo: 'bandeira', x: b.x }); cp.posse = 1 - l.t; cp.espera = 0.7; return;
-    case 'intervalo': cp.espelho = true; return recomecar(cp, 1 - l.t); // no segundo tempo os times trocam de lado
+    case 'intervalo': cp.inv = true; marca(cp, { tipo: 'troca', dur: 2.6 }); return recomecar(cp, 1 - l.t); // no 2º tempo os times trocam de lado
     case 'fim': cp.saida = true; cp.dono = null; voar(cp, 50, 50, { rapido: 0.6 }); return;
     case 'sub': case 'tatica': return;
   }
@@ -184,34 +180,56 @@ export function lance(cp, P, l, prox) {
   voar(cp, l.x, l.y, { rec: s?.id ?? null, rapido: roubada ? 1.3 : 1, fim: () => { cp.espera = 0.12 + Math.random() * 0.22; } });
 }
 
-// um pênalti da disputa: o batedor recua, corre, chuta; o goleiro pula. k = { t, id, nome, gol } da série de copa.penaltis
-export function penalti(cp, P, k, i, fim) {
+// ---------- disputa de pênaltis ----------
+// Todo mundo espera no círculo central (cada time numa metade); o cobrador sai do grupo, caminha até a marca, para, corre e bate
+// na meta da direita; o goleiro do outro time fica na linha e pula. O resultado (gol, defesa ou para fora) vem da disputa
+// sorteada pelo motor, aqui só se desenha.
+const PEN_X = 89.5;
+function alvosPen(cp) {
+  const vivos = [...cp.sp.values()].filter(s => !s.sai), n = [0, 0], qtd = [vivos.filter(s => s.t === 0).length, vivos.filter(s => s.t === 1).length];
+  for (const s of cp.sp.values()) {
+    s.mult = 1;
+    if (s.sai) { s.tx = s.x; s.ty = 106; s.mult = 0.7; continue; }
+    const k = n[s.t]++, ang = (s.t === 0 ? Math.PI / 2 : -Math.PI / 2) + Math.PI * (k + 0.5) / Math.max(1, qtd[s.t]);
+    s.tx = 50 + 12.5 * Math.cos(ang); s.ty = 50 + 12.5 / K * Math.sin(ang);
+  }
+  for (const [id, a] of cp.forca) { const s = cp.sp.get(id); if (s) { s.tx = a.x; s.ty = a.y; s.mult = a.mult; } }
+}
+export function penaltisModo(cp, P) {
   sync(cp, P);
-  const t = k.t, o = 1 - t, linha = t === 0 ? 100 : 0, b = cp.bola, px = linha - lado(t) * 10.5;
-  const bate = cp.sp.get(k.id), gk = goleiro(cp, o), h = hashN(`pen${i}${k.id ?? k.nome}`), h2 = (h * 9973) % 1;
-  const canto = h < 0.5 ? -1 : 1, tipo = k.gol ? 'gol' : h2 < 0.65 ? 'defesa' : 'fora';
-  cp.pen = { bate: bate?.id ?? null, gk: gk?.id ?? null };
-  cp.dono = null; cp.conducao = null; cp.saida = false; cp.posse = t; cp.flash = null; cp.voo = null;
-  b.x = px; b.y = 50; b.z = 0;
-  const solta = () => { if (bate) cp.forca.delete(bate.id); if (gk) cp.forca.delete(gk.id); };
-  if (gk) cp.forca.set(gk.id, { x: linha - lado(t) * 0.8, y: 50, mult: 1.6 });
-  if (bate) cp.forca.set(bate.id, { x: px - lado(t) * 7, y: 50 + (h2 - 0.5) * 8, mult: 1.1 });
+  Object.assign(cp, { inv: false, saida: false, dono: null, conducao: null, voo: null, passos: [], cond: null, espera: 0.6, marcas: [], flash: null, pen: { cob: null, rotulo: null } });
+  cp.forca.clear(); Object.assign(cp.bola, { x: PEN_X, y: 50, z: 0 });
+}
+export function penaltisFim(cp) { cp.pen = null; cp.forca.clear(); cp.passos = []; cp.cond = null; cp.saida = true; cp.dono = null; voar(cp, 50, 50, { rapido: 0.6 }); }
+export const agendar = (cp, fn) => cp.passos.push(fn);
+// k: { t, id, gol }; aoBater roda quando a bola chega (a hora de mostrar o resultado)
+export function cobranca(cp, k, aoBater) {
+  const t = k.t, todos = [...cp.sp.values()].filter(s => !s.sai);
+  const autor = cp.sp.get(k.id) || todos.find(s => s.t === t && !s.gk) || todos.find(s => s.t === t);
+  const gk = todos.find(s => s.t === 1 - t && s.gk) || todos.find(s => s.t === 1 - t);
+  const tipo = k.gol ? 'gol' : Math.random() < 0.68 ? 'defesa' : 'fora', lado = Math.random() < 0.5 ? -1 : 1;
+  if (!autor || !gk) { aoBater(tipo); return; }
+  cp.pen.cob = autor.id;
+  const gy = 50 + lado * (tipo === 'fora' ? 8.6 : 3 + Math.random() * 1.4);
+  const mergulho = tipo === 'defesa' ? lado : tipo === 'gol' ? (Math.random() < 0.75 ? -lado : 0) : (Math.random() < 0.5 ? -1 : 1);
+  const ini = { x: PEN_X - 8.5, y: 50 + (Math.random() < 0.5 ? -4 : 4) }, perto = { x: PEN_X - 1.5, y: 50 };
+  Object.assign(cp.bola, { x: PEN_X, y: 50, z: 0 }); cp.dono = null;
   seq(cp,
-    () => { cp.espera = 1.5; },                                          // anda para trás e toma distância
-    () => { if (bate) cp.forca.set(bate.id, { x: px - lado(t) * 1.4, y: 50, mult: 1.5 }); cp.espera = 0.75; },  // corrida
+    () => { cp.forca.set(autor.id, { ...ini, mult: 1.7 }); cp.forca.set(gk.id, { x: 99.3, y: 50, mult: 2 }); cp.cond = () => dist(autor, ini) < 1.6; cp.limite = 2.6; },
+    () => { cp.espera = 0.75; },
+    () => { cp.forca.set(autor.id, { ...perto, mult: 2 }); cp.cond = () => dist(autor, perto) < 1.5; cp.limite = 1.4; },
     () => {
-      const gy = tipo === 'fora' ? 50 + canto * (9 + h2 * 4) : 50 + canto * (3.2 + h2 * 1.8), gx = linha + lado(t) * 2;
-      // goleiro pula: no gol vai para o lado errado, na defesa pega o canto, na bola fora escolhe um
-      if (gk) cp.forca.set(gk.id, { x: linha - lado(t) * 1.6, y: 50 + (tipo === 'gol' ? -canto : canto) * 4.4, mult: 2.6 });
-      voar(cp, tipo === 'defesa' ? linha - lado(t) * 1.8 : gx, gy, { chute: true, fim: () => {
-        if (tipo === 'gol') { cp.flash = { x: linha, ate: cp.clock + 1.3 }; if (bate) cp.forca.set(bate.id, { x: px + lado(t) * 8, y: 50 + canto * 14, mult: 1.2 }); }
-        else if (tipo === 'defesa' && gk) cp.dono = gk.id;
-        cp.espera = 1.5;
+      cp.forca.set(gk.id, { x: 99.3, y: 50 + mergulho * 5.8, mult: 3.8 });
+      voar(cp, tipo === 'fora' ? 101.4 : 100.6, gy, { chute: true, rapido: 0.85, fim: () => {
+        if (tipo === 'gol') cp.flash = { x: 100, ate: cp.clock + 1.4 };
+        else if (tipo === 'defesa') { cp.dono = gk.id; cp.conducao = null; }
+        cp.pen.rotulo = { txt: tipo === 'gol' ? 'GOL!' : tipo === 'defesa' ? 'DEFENDEU!' : 'PRA FORA!', bg: tipo === 'gol' ? '#2E9E4F' : '#D7263D', ate: cp.clock + 1.5 };
+        aoBater(tipo);
       } });
     },
-    () => { solta(); cp.pen = { bate: null, gk: null }; fim?.(); });
+    () => { cp.espera = 1.5; },
+    () => { cp.forca.delete(autor.id); cp.forca.delete(gk.id); cp.pen.cob = null; cp.pen.rotulo = null; cp.dono = null; cp.espera = 0.35; });
 }
-export const fimPenaltis = cp => { cp.pen = null; cp.flash = null; cp.dono = null; cp.forca.clear(); };
 
 // fim de jogo sem animar o resto
 export function encerrar(cp, P) { sync(cp, P); cp.passos = []; cp.cond = null; cp.forca.clear(); cp.saida = true; voar(cp, 50, 50, { rapido: 0.6 }); }
@@ -237,7 +255,7 @@ export function desenhar(cv, cp, cores) {
   if (cv.width !== Math.round(cw * dpr)) { cv.width = Math.round(cw * dpr); cv.height = Math.round(ch * dpr); }
   const ctx = cv.getContext('2d'), W = cv.width, H = cv.height;
   const fonte = cv._f || (cv._f = (st => ({ corpo: st.getPropertyValue('--f-corpo') || 'sans-serif', g1: st.getPropertyValue('--gramado').trim() || '#3E8A3A', g2: st.getPropertyValue('--gramado-2').trim() || '#4A9A44' }))(getComputedStyle(cv)));
-  const mx = W * 0.03, my = H * 0.03, fx = x => mx + (cp.espelho ? 100 - x : x) / 100 * (W - 2 * mx), fy = y => my + y / 100 * (H - 2 * my);
+  const mx = W * 0.03, my = H * 0.03, fx = x => mx + (cp.inv ? 100 - x : x) / 100 * (W - 2 * mx), fy = y => my + y / 100 * (H - 2 * my); // 2º tempo: o campo é desenhado espelhado
   // gramado listrado e linhas
   for (let i = 0; i < 11; i++) { ctx.fillStyle = i % 2 ? fonte.g2 : fonte.g1; ctx.fillRect(Math.floor(i * W / 11), 0, Math.ceil(W / 11) + 1, H); }
   const lw = Math.max(1.5, W / 300);
@@ -247,11 +265,11 @@ export function desenhar(cv, cp, cores) {
   ctx.beginPath(); ctx.arc(fx(50), fy(50), H * 0.13, 0, Math.PI * 2); ctx.stroke();
   for (const e of [0, 1]) {
     const x0 = e ? 100 : 0, s = e ? -1 : 1;
-    ctx.strokeRect(fx(x0), fy(20.2), fx(x0 + 16 * s) - fx(x0), fy(79.8) - fy(20.2));
-    ctx.strokeRect(fx(x0), fy(36.2), fx(x0 + 5.85 * s) - fx(x0), fy(63.8) - fy(36.2));
+    ctx.strokeRect(fx(x0), fy(20.2), fx(16 * s) - fx(0), fy(79.8) - fy(20.2));
+    ctx.strokeRect(fx(x0), fy(36.2), fx(5.85 * s) - fx(0), fy(63.8) - fy(36.2));
     ctx.fillStyle = 'rgba(232,240,222,.8)'; ctx.beginPath(); ctx.arc(fx(x0 + 10.5 * s), fy(50), lw * 1.2, 0, Math.PI * 2); ctx.fill();
     // gol com rede
-    const gw = mx * 0.8, gx = (e === 1) !== !!cp.espelho ? fx(x0) : fx(x0) - gw; // a trave fica fora do campo, do lado em que o gol está na tela
+    const gw = mx * 0.8, gx = (e === 1) !== cp.inv ? fx(x0) : fx(x0) - gw; // a rede fica para fora do campo, de que lado da tela estiver
     const brilho = cp.flash && cp.flash.x === x0 && cp.flash.ate > cp.clock;
     ctx.fillStyle = brilho ? `rgba(255,255,255,${0.45 + 0.4 * Math.sin(cp.clock * 18)})` : 'rgba(255,255,255,.18)';
     ctx.fillRect(gx, fy(44.6), gw, fy(55.4) - fy(44.6));
@@ -284,6 +302,12 @@ export function desenhar(cv, cp, cores) {
   // nome de quem está com a bola
   const dono = cp.dono != null && cp.sp.get(cp.dono);
   if (dono && !cp.saida) etiqueta(ctx, dono.nome, fx(dono.x), fy(dono.y) + r * 1.9, Math.round(11 * dpr), fonte.corpo, W);
+  // pênaltis: nome de quem vai bater e o resultado da cobrança
+  if (cp.pen) {
+    const ck = cp.pen.cob != null && cp.sp.get(cp.pen.cob);
+    if (ck && !cp.pen.rotulo) etiqueta(ctx, ck.nome, fx(ck.x), fy(ck.y) - r * 2.1, Math.round(11 * dpr), fonte.corpo, W);
+    if (cp.pen.rotulo && cp.pen.rotulo.ate > cp.clock) etiqueta(ctx, cp.pen.rotulo.txt, fx(PEN_X - 12), fy(50) - r * 4.4, Math.round(18 * dpr), fonte.corpo, W, cp.pen.rotulo.bg, '#fff');
+  }
   // cartões, apito e bandeira
   for (const m of cp.marcas) {
     if (m.tipo === 'amarelo' || m.tipo === 'vermelho') {
@@ -301,6 +325,8 @@ export function desenhar(cv, cp, cores) {
       const x = fx(m.x), y = fy(0);
       ctx.strokeStyle = '#1B1F2A'; ctx.lineWidth = Math.max(1, r * 0.15); ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x, y - my * 0.9 + 1); ctx.stroke();
       ctx.fillStyle = Math.sin(cp.clock * 20) > 0 ? '#F2C230' : '#D7263D'; ctx.fillRect(x, y - my * 0.9 + 1, r * 0.9, my * 0.5);
+    } else if (m.tipo === 'troca') {
+      etiqueta(ctx, '⇄ Os times trocam de lado', fx(50), fy(50), Math.round(13 * dpr), fonte.corpo, W, '#F2B33D', '#1B1F2A');
     } else if (m.tipo === 'var') {
       etiqueta(ctx, '📺 VAR', fx(50), fy(50), Math.round(14 * dpr), fonte.corpo, W, '#1B1F2A', '#F2B33D');
     } else if (m.tipo === 'apito') {

@@ -195,7 +195,7 @@ export function virarTemporada(base, s) {
   Object.assign(s, { rodada: 0, feitas: { ano: s.ano, B: 0, C: 0 }, f2: {}, res: { A: {}, B: {}, C: {} }, cart: {}, est: {}, lider: {}, rumores: {}, destaques: {}, ultimaData: null, recuperado: null, cond: {}, mor: {}, semJogar: {}, preContratos: [], querSair: {}, quedaIA: {}, jogosA: {}, passagens: {} });
   for (const [, sv] of hs) Object.assign(sv, { ultima: null, ultimaVivo: null, recebidas: [], julgamentos: [] });
   for (const t of pedidosDeQueda(base, s, [...cai.A, ...cai.B])) addW(t, 'mercado'); // os melhores de quem caiu pedem para sair
-  delete s._cal;
+  delete s._cal; s.calV = 2; // a partir daqui o sorteio alterna o mando
   for (const { ci, sv, add } of eles) {
     const f = sv.fin;
     sv.propostas = sv.propostas.filter(p => !['aguardando', 'contraproposta'].includes(p.estado)).slice(0, 30);
