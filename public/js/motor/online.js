@@ -8,7 +8,7 @@ import { separar, vista, MESA, mundoDe, humanos } from './humanos.js';
 import { virarTemporada, fimDeTemporada, baseInicial } from './temporada.js';
 import { garantirMercado } from './mercado.js';
 import { garantirCarreira } from './carreira.js';
-import { financasIniciais } from './financas.js';
+import { financasIniciais, garantirVerbaCompras } from './financas.js';
 import { cartasDeInicio } from './correio.js';
 
 export const MAX_TECNICOS = 8, N_AMISTOSOS = 3;
@@ -49,7 +49,7 @@ export function novaMesa(base, W, ci, tecnico, dificuldade = 'normal') {
   v.caixa = caixaInicial(base, ci, dificuldade); // o caixa do balanço real (a verba da IA não é dinheiro em banco)
   if (W.caixaIA) delete W.caixaIA[ci];
   v.fin = financasIniciais(base, v);
-  garantirMercado(v); garantirCarreira(base, v);
+  garantirMercado(v); garantirCarreira(base, v); garantirVerbaCompras(base, v);
   v.carreira = [{ clube: ci, ano: W.ano, rodada: W.rodada }];
   v.msgs = []; v.msgsVistas = [];
   cartasDeInicio(base, v, true);

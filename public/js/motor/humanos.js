@@ -8,7 +8,7 @@ export const MESA = new Set(['tecnico', 'carreira', 'cargo', 'demitido', 'oferta
   'propostas', 'recebidas', 'listas', 'favoritos', 'observar', 'relatorios', 'olheiro', 'acordos', 'leilaoAtivo', 'recusas',
   'xi', 'banco', 'formacao', 'formPers', 'estilo', 'gatilhos', 'cobrador', 'capitao', 'vice', 'subsAuto', 'escSalvas', 'foco', 'treino',
   'prelecao', 'coletiva', 'coletivaPre', 'colAud', 'colUsados', 'tons', 'torcida', 'classicos', 'revolta', 'motim', 'ultima', 'ultimaVivo',
-  'h2h', 'tetoAviso', 'palavra', 'pedidosAumento', 'avisoPilar', 'galaVista', 'vivo', 'banAdm', 'amistosos', 'julgamentos', 'fpf', 'historico', 'salvoEm']);
+  'h2h', 'tetoAviso', 'palavra', 'pedidosAumento', 'avisoPilar', 'galaVista', 'vivo', 'banAdm', 'amistosos', 'julgamentos', 'fpf', 'historico', 'salvoEm', 'verbaCompras']);
 
 const cache = new WeakMap();
 export function vista(W, mesa) {

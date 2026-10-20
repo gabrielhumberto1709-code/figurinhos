@@ -159,7 +159,8 @@ async function processar() {
         const W = JSON.parse(L.srv.w), mesas = Object.fromEntries(Object.entries(L.srv.m).map(([id, t]) => [id, JSON.parse(t)]));
         montar(W, mesas); const s0 = W.slot || 0;
         // erro no meio: não insiste neste horário (o ADM pode voltar o último horário)
-        try { for (let n = 0; n < 6 && devido(L.meta, W); n++) { await quadro(); processarProximo(H.app.base, W); } }
+        // a base de jogadores é uma só: depois de cada horário volta para o mundo da tela, que continua sendo usada no meio
+        try { for (let n = 0; n < 6 && devido(L.meta, W); n++) { await quadro(); processarProximo(H.app.base, W); aplicarSave(H.app.base, L.W); } }
         catch (e) { aplicarSave(H.app.base, L.W); L.travado = s0; throw e; }
         const g = await gravar(L, W, mesas, true);
         if (g) { adotar(L, W, mesas, { w: g.w, m: { ...L.srv.m, ...g.novos } }); return; }

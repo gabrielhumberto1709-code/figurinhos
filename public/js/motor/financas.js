@@ -174,7 +174,8 @@ export function orcamento(base, s) {
 export function garantirVerbaCompras(base, s) {
   if (s.verbaCompras || s.tecnico.clube < 0) return;
   s.verbaCompras = 1;
-  if (s.ano !== (s.anoInicial ?? s.ano) || s.rodada > 10 || (s.historicoTransf || []).length) return;
+  const ci = s.tecnico.clube; // ainda não comprou nem vendeu ninguém (negócio só da IA não conta)
+  if (s.ano !== (s.anoInicial ?? s.ano) || s.rodada > 10 || (s.historicoTransf || []).some(h => !h.ia && (h.para === ci || h.de === ci))) return;
   const f = { facil: 1.5, normal: 1, dificil: 0.5 }[s.dificuldade || 'normal'] ?? 1;
   const alvo = Math.round((base.clubes[s.tecnico.clube].div === 'C' ? 0.7 : 1) * f * verbaInicial(base, s.tecnico.clube) / 1e4) * 1e4, o = orcamento(base, s);
   const livre = s.caixa - o.reserva, falta = alvo - livre;

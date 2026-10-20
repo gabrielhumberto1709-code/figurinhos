@@ -1297,6 +1297,7 @@ test('liga online: dois técnicos no mesmo mundo, cada um com a sua tática, fin
   const va = vistaDe(W, 'u1'), vb = vistaDe(W, 'u2');
   assert.equal(va.tecnico.clube, A); assert.ok(va.msgs.length >= 2 && va.caixa > 0 && vb.caixa > 0);
   assert.equal(W.tecnico.clube, -1); assert.ok(!('fin' in W) && !('msgs' in W), 'mundo sem campos de técnico');
+  assert.ok(mesas.u1.verbaCompras && mesas.u2.verbaCompras && !('verbaCompras' in W), 'verba de contratações do começo é de cada técnico');
   // pré-temporada: os 3 primeiros horários são os amistosos de cada técnico (com reprise igual)
   assert.equal(pendentes(base, va).find(e => e.meu).tipo, 'amistoso');
   for (let k = 1; k <= 3; k++) assert.deepEqual(processarProximo(base, W), { amistoso: k });
